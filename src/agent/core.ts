@@ -819,9 +819,9 @@ Always strive to be accurate and thorough.`;
         }
       }
       // No more fallbacks or not a fallbackable error
-      throw lastError;
+      throw this.enhanceError(lastError);
     }
-    throw lastError;
+    throw this.enhanceError(lastError);
   }
 
   /** Determine if an error should trigger model fallback */
@@ -845,6 +845,24 @@ Always strive to be accurate and thorough.`;
       'service unavailable', 'internal server error', '502', '503', '504'
     ];
     return retryableKeywords.some(keyword => msg.includes(keyword));
+  }
+
+  /** Enhance error messages with actionable hints */
+  private enhanceError(error: any): Error {
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('rate limit') || msg.includes('429') || msg.includes('too many requests')) {
+      return new Error(`Rate limit exceeded. Please wait before retrying, reduce request frequency, or switch to another model with /cycle.`);
+    }
+    if (msg.includes('quota') || msg.includes('billing')) {
+      return new Error(`API quota exceeded. Please check your billing details and usage limits.`);
+    }
+    if (msg.includes('overloaded') || msg.includes('capacity') || msg.includes('unavailable')) {
+      return new Error(`Model is temporarily overloaded. The agent will automatically retry or fallback to another model.`);
+    }
+    if (msg.includes('auth') || msg.includes('invalid api key') || msg.includes('permission')) {
+      return new Error(`Authentication error. Please verify your API keys in ~/.pi/agent/auth.json and ensure they have not expired.`);
+    }
+    return error;
   }
 
   log(...args: any[]): void {
