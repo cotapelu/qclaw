@@ -11,7 +11,7 @@ import {
   type AgentSession,
   type CompactionResult,
 } from "@mariozechner/pi-coding-agent";
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync, watch } from "fs";
 import { join } from "path";
 
 export interface AgentCoreOptions {
@@ -85,6 +85,8 @@ export class AgentCore {
   private sessionStartTime: number = 0;
   private configFile?: string;
   private currentSettings: any = {};
+  private settingsWatcher?: any;
+  private settingsReloadTimer?: any;
 
   constructor(options: AgentCoreOptions = {}) {
     this.cwd = options.cwd ?? process.cwd();
@@ -121,6 +123,8 @@ export class AgentCore {
         thinkingLevel: "off",
       };
     }
+    // Start watching settings file for hot-reload
+    this.startSettingsWatcher();
 
     // 3. Session manager
     if (options.usePersistence !== false) {
@@ -529,10 +533,46 @@ Always strive to be accurate and thorough.`;
     }
   }
 
+  /** Start watching settings file for changes */
+  private startSettingsWatcher(): void {
+    if (!this.agentDir) return;
+    const settingsPath = join(this.agentDir, "settings.json");
+    if (!existsSync(settingsPath)) return;
+
+    this.log(`👀 Watching settings file: ${settingsPath}`);
+    this.settingsWatcher = watch(settingsPath, { persistent: true }, (eventType, filename) => {
+      if (eventType === 'change') {
+        clearTimeout(this.settingsReloadTimer);
+        this.settingsReloadTimer = setTimeout(() => {
+          this.reloadSettingsFromFile();
+        }, 500); // debounce
+      }
+    });
+  }
+
+  /** Reload settings from file (hot-reload) */
+  private reloadSettingsFromFile(): void {
+    if (!this.agentDir) return;
+    const settingsPath = join(this.agentDir, "settings.json");
+    try {
+      const newSettings = this.loadSettingsFromFile(settingsPath);
+      this.currentSettings = newSettings;
+      this.log(`✅ Settings reloaded from file (hot-reload)`);
+    } catch (error: any) {
+      this.log(`❌ Error reloading settings: ${error.message}`);
+    }
+  }
+
   dispose(): void {
     if (this.session) {
       this.session.dispose();
       this.session = null;
+    }
+    if (this.settingsWatcher) {
+      this.settingsWatcher.close();
+    }
+    if (this.settingsReloadTimer) {
+      clearTimeout(this.settingsReloadTimer);
     }
     this.log("🛑 Agent disposed");
   }
