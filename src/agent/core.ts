@@ -541,7 +541,44 @@ Always strive to be accurate and thorough.`;
     if (!this.session) {
       throw new Error("Agent not initialized");
     }
-    await this.session.prompt(text);
+    let lastError: any;
+    const maxAttempts = 2; // Try current model + one fallback
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await this.session.prompt(text);
+        return; // Success
+      } catch (error: any) {
+        lastError = error;
+        // Check if error suggests model issue (rate limit, auth, overload, etc.)
+        if (this.shouldFallbackOnError(error) && attempt < maxAttempts - 1) {
+          const available = await this.modelRegistry.getAvailable();
+          if (available.length > 1) {
+            const current = this.model;
+            const idx = available.findIndex(m => m.id === current?.id && m.provider === current?.provider);
+            const next = available[(idx + 1) % available.length];
+            if (next.id !== current?.id) {
+              this.log(`🔀 Falling back to model ${next.provider}/${next.id} after error: ${error.message}`);
+              await this.setModel(next); // This saves to settings and recreates session
+              continue; // Retry with new model
+            }
+          }
+        }
+        throw error; // No fallback possible or last attempt
+      }
+    }
+    throw lastError;
+  }
+
+  /** Determine if an error should trigger model fallback */
+  private shouldFallbackOnError(error: any): boolean {
+    const msg = error.message?.toLowerCase() || '';
+    // Common model-related error indicators
+    const fallbackKeywords = [
+      'rate limit', 'quota', 'overloaded', 'capacity', 'unavailable',
+      'auth', 'invalid api key', 'permission', 'access', 'billing',
+      'too many requests', '429', 'service unavailable'
+    ];
+    return fallbackKeywords.some(keyword => msg.includes(keyword));
   }
 
   log(...args: any[]): void {

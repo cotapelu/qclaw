@@ -205,10 +205,34 @@ Start typing to chat with the agent!`;
       return `✅ Reloaded: ${exts.extensions.length} extensions, ${skills.skills.length} skills, ${prompts.prompts.length} commands`;
     });
 
-    this.register("models", async (handlers) => {
+    this.register("models", async (handlers, ...args) => {
       const model = handlers.agent.getModel();
       const registry = handlers.agent.getModelRegistry();
-      const available = await registry.getAvailable();
+      let available = await registry.getAvailable();
+      
+      // Parse filters
+      let capabilityFilter: string | undefined;
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--capability' || args[i] === '-c') {
+          if (i + 1 < args.length) capabilityFilter = args[++i];
+        }
+      }
+
+      if (capabilityFilter) {
+        const m = model as any;
+        if (m.capabilities && !m.capabilities.includes(capabilityFilter)) {
+          available = available.filter(m => {
+            const mi = m as any;
+            return mi.capabilities && mi.capabilities.includes(capabilityFilter);
+          });
+        } else {
+          // Current model already has capability, filter list for display
+          available = available.filter(m => {
+            const mi = m as any;
+            return mi.capabilities && mi.capabilities.includes(capabilityFilter);
+          });
+        }
+      }
       
       let output = `📊 Model Information\n\n`;
       output += `Current: ${model ? `${model.provider}/${model.id}` : 'None'}\n`;
@@ -226,6 +250,7 @@ Start typing to chat with the agent!`;
         output += `  ${idx + 1}. ${m.provider}/${m.id}`;
         if (mi.contextSize) output += ` (ctx: ${mi.contextSize})`;
         if (mi.pricing) output += ` [$${mi.pricing.prompt || 0}/$${mi.pricing.completion || 0}]`;
+        if (mi.capabilities) output += ` {${mi.capabilities.join(',')}}`;
         output += `\n`;
       });
       return output;
