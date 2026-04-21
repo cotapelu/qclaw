@@ -85,6 +85,7 @@ export class AgentCore {
     estimatedCost: 0,
   };
   private toolExecutionStart: number | null = null;
+  private maxRetries: number;
   private sessionStartTime: number = 0;
   private configFile?: string;
   private currentSettings: any = {};
@@ -101,6 +102,7 @@ export class AgentCore {
     this.quiet = options.quiet ?? false;
     this.configFile = options.configFile;
     this.sessionStartTime = Date.now();
+    this.maxRetries = this.currentSettings.retry?.maxRetries ?? 2;
 
     // 1. Auth storage (with persistence)
     const authPath = this.agentDir ? join(this.agentDir, "auth.json") : undefined;
@@ -553,29 +555,42 @@ Always strive to be accurate and thorough.`;
       throw new Error("Agent not initialized");
     }
     let lastError: any;
-    const maxAttempts = 2; // Try current model + one fallback
+    const maxAttempts = Math.min(this.maxRetries + 1, 3); // retries + fallback, max 3 total
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        await this.session.prompt(text);
-        return; // Success
-      } catch (error: any) {
-        lastError = error;
-        // Check if error suggests model issue (rate limit, auth, overload, etc.)
-        if (this.shouldFallbackOnError(error) && attempt < maxAttempts - 1) {
-          const available = await this.modelRegistry.getAvailable();
-          if (available.length > 1) {
-            const current = this.model;
-            const idx = available.findIndex(m => m.id === current?.id && m.provider === current?.provider);
-            const next = available[(idx + 1) % available.length];
-            if (next.id !== current?.id) {
-              this.log(`🔀 Falling back to model ${next.provider}/${next.id} after error: ${error.message}`);
-              await this.setModel(next); // This saves to settings and recreates session
-              continue; // Retry with new model
-            }
+      // Inner retry loop for transient errors with exponential backoff
+      for (let retry = 0; retry < this.maxRetries; retry++) {
+        try {
+          await this.session.prompt(text);
+          return; // Success
+        } catch (error: any) {
+          lastError = error;
+          const isRetryable = this.isRetryableError(error);
+          if (!isRetryable || retry >= this.maxRetries - 1) {
+            // Not retryable or out of retries, break to fallback/throw
+            break;
+          }
+          // Exponential backoff before retry
+          const delay = 1000 * Math.pow(2, retry); // 1s, 2s, 4s
+          this.log(`⏳ Retrying after error (${retry + 1}/${this.maxRetries}) in ${delay}ms: ${error.message}`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+      // After retries exhausted, check if we should try another model
+      if (attempt < maxAttempts - 1 && this.shouldFallbackOnError(lastError)) {
+        const available = await this.modelRegistry.getAvailable();
+        if (available.length > 1) {
+          const current = this.model;
+          const idx = available.findIndex(m => m.id === current?.id && m.provider === current?.provider);
+          const next = available[(idx + 1) % available.length];
+          if (next.id !== current?.id) {
+            this.log(`🔀 Falling back to model ${next.provider}/${next.id} after error: ${lastError.message}`);
+            await this.setModel(next); // This saves to settings and recreates session
+            continue; // Try again with new model (with its own retries)
           }
         }
-        throw error; // No fallback possible or last attempt
       }
+      // No more fallbacks or not a fallbackable error
+      throw lastError;
     }
     throw lastError;
   }
@@ -590,6 +605,17 @@ Always strive to be accurate and thorough.`;
       'too many requests', '429', 'service unavailable'
     ];
     return fallbackKeywords.some(keyword => msg.includes(keyword));
+  }
+
+  /** Determine if an error is retryable (transient) */
+  private isRetryableError(error: any): boolean {
+    const msg = error.message?.toLowerCase() || '';
+    const retryableKeywords = [
+      'rate limit', 'too many requests', '429', 'timeout', 'network', 'eof',
+      'connection', 'reset', 'overflow', 'overloaded', 'capacity', 'unavailable',
+      'service unavailable', 'internal server error', '502', '503', '504'
+    ];
+    return retryableKeywords.some(keyword => msg.includes(keyword));
   }
 
   log(...args: any[]): void {
