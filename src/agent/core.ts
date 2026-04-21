@@ -187,8 +187,21 @@ Always strive to be accurate and thorough.`;
       if (available.length === 0) {
         throw new Error("No models available. Please set up API keys in ~/.pi/agent/auth.json");
       }
-      this.model = available[0];
-      this.log(`   📊 Model: ${this.model.provider}/${this.model.id}`);
+      // Check for preferred model from settings
+      const preferred = this.currentSettings.model;
+      if (preferred) {
+        const found = available.find(m => `${m.provider}/${m.id}` === preferred);
+        if (found) {
+          this.model = found;
+          this.log(`   📊 Using preferred model from settings: ${preferred}`);
+        } else {
+          this.model = available[0];
+          this.log(`   📊 Preferred model not found, using: ${available[0].provider}/${available[0].id}`);
+        }
+      } else {
+        this.model = available[0];
+        this.log(`   📊 Model: ${this.model.provider}/${this.model.id}`);
+      }
     }
 
     // Create session
@@ -403,6 +416,8 @@ Always strive to be accurate and thorough.`;
     const next = available[(idx + 1) % available.length];
 
     this.model = next;
+    // Save preference to settings
+    this.updateSetting('model', `${next.provider}/${next.id}`);
     // Recreate session with new model
     await this.recreateSession();
     this.log(`🔄 Switched to model: ${next.provider}/${next.id}`);
@@ -418,6 +433,8 @@ Always strive to be accurate and thorough.`;
 
   async setModel(model: Model<any>): Promise<void> {
     this.model = model;
+    // Save preference to settings
+    this.updateSetting('model', `${model.provider}/${model.id}`);
     await this.recreateSession();
   }
 
