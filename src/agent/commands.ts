@@ -3,6 +3,7 @@ import { SessionManager, DefaultResourceLoader } from "@mariozechner/pi-coding-a
 import { AgentCore } from "./core.js";
 import * as path from "path";
 import * as fs from "fs";
+import { homedir } from "os";
 
 export interface CommandHandlers {
   agent: AgentCore;
@@ -549,6 +550,39 @@ Persistence:  ${config.persisted ? 'Yes' : 'No'}`;
       const path = args[0] || ".";
       await handlers.agent.prompt(`Use the list_files tool to list ${path}`);
       return "";
+    });
+
+    // ============================================================================
+    // Logging (Phase 6)
+    // ============================================================================
+
+    this.register("logs", async (handlers, ...args) => {
+      const settings = handlers.agent.getSettings();
+      const logConfig = settings.logging || {};
+      const logDir = (logConfig.dir as string) || path.join(homedir(), '.pi', 'agent', 'logs');
+      const rotation = (logConfig.rotation as string) || 'daily';
+      const level = (logConfig.level as string) || 'info';
+
+      // Determine log file name based on rotation
+      const now = new Date();
+      let filename = `agent-${now.toISOString().split('T')[0]}.log`;
+      if (rotation === 'hourly') {
+        const hour = String(now.getHours()).padStart(2, '0');
+        filename = `agent-${now.toISOString().split('T')[0]}-${hour}.log`;
+      }
+      const logPath = path.join(logDir, filename);
+
+      if (!fs.existsSync(logPath)) {
+        return `📜 No log file found at ${logPath}`;
+      }
+
+      // Tail lines
+      const tail = args[0] ? parseInt(args[0]) : 50;
+      const content = fs.readFileSync(logPath, 'utf-8');
+      const lines = content.split('\n').filter(l => l.trim());
+      const recent = lines.slice(-tail);
+
+      return `📜 Recent logs (${recent.length} lines, level >= ${level}):\n\n` + recent.join('\n');
     });
 
     // ============================================================================
