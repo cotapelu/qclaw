@@ -179,6 +179,8 @@ export class AgentCore {
   private settingsWatcher?: any;
   private settingsReloadTimer?: any;
   private logger: FileLogger | null = null;
+  private resourceWatchers: Array<{ dir: string; watcher: any }> = [];
+  private resourceReloadTimer?: any;
 
   constructor(options: AgentCoreOptions = {}) {
     this.cwd = options.cwd ?? process.cwd();
@@ -281,6 +283,9 @@ Always strive to be accurate and thorough.`;
     // Load resources (extensions, skills, prompts)
     await this.resourceLoader.reload();
     this.logResources();
+
+    // Start watching for resource changes (hot-reload)
+    this.startResourceWatchers();
 
     // Select model
     if (!this.model) {
@@ -698,6 +703,40 @@ Always strive to be accurate and thorough.`;
     };
   }
 
+  /** Watch extension/skill/prompt directories for hot-reloading */
+  private startResourceWatchers(): void {
+    const watchDirs = [
+      join(this.agentDir, 'extensions'),
+      join(this.agentDir, 'skills'),
+      join(this.agentDir, 'prompts'),
+      join(this.cwd, '.pi', 'extensions'),
+      join(this.cwd, '.pi', 'skills'),
+      join(this.cwd, '.pi', 'prompts')
+    ];
+
+    watchDirs.forEach(dir => {
+      try {
+        if (existsSync(dir)) {
+          const watcher = watch(dir, { persistent: true, recursive: true }, (event: string, filename: string | null) => {
+            if (filename) {
+              clearTimeout(this.resourceReloadTimer);
+              this.resourceReloadTimer = setTimeout(() => {
+                this.log(`📦 Resource change detected in ${dir}: ${filename}. Reloading...`);
+                this.reloadResources().catch((err: any) => {
+                  this.log(`❌ Resource reload failed: ${err.message}`);
+                });
+              }, 500);
+            }
+          });
+          this.resourceWatchers.push({ dir, watcher });
+          this.log(`👀 Watching resources in ${dir}`);
+        }
+      } catch (error) {
+        // Ignore watch errors (e.g., permission denied)
+      }
+    });
+  }
+
   subscribe(callback: (event: any) => void): () => void {
     if (!this.session) {
       throw new Error("Agent not initialized");
@@ -828,6 +867,11 @@ Always strive to be accurate and thorough.`;
     }
     if (this.settingsReloadTimer) {
       clearTimeout(this.settingsReloadTimer);
+    }
+    // Close resource watchers
+    this.resourceWatchers.forEach(w => w.watcher.close());
+    if (this.resourceReloadTimer) {
+      clearTimeout(this.resourceReloadTimer);
     }
     if (this.logger) {
       this.logger.close();
