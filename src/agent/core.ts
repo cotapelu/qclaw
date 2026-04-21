@@ -213,6 +213,17 @@ export class AgentCore {
       });
       this.currentSettings = this.getDefaultSettings();
     }
+    // Merge project-specific settings from .pi/settings.json if present
+    const projectSettingsPath = join(this.cwd, '.pi', 'settings.json');
+    if (existsSync(projectSettingsPath)) {
+      try {
+        const proj = JSON.parse(readFileSync(projectSettingsPath, 'utf-8'));
+        this.currentSettings = { ...this.currentSettings, ...proj };
+        this.log(`Loaded project-specific settings from ${projectSettingsPath}`);
+      } catch (error) {
+        this.log(`⚠️ Failed to load project settings: ${error}`);
+      }
+    }
     // Start watching settings file for hot-reload
     this.startSettingsWatcher();
 
