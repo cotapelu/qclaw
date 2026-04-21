@@ -210,58 +210,64 @@ async function main(): Promise<void> {
     }
 
     case "print": {
-      const message = options.message || options.config || "Hello";
-      if (agentConfig.verbose) console.log(`[PRINT] ${message}`);
-      await agent.prompt(message);
+      try {
+        const message = options.message || options.config || "Hello";
+        if (agentConfig.verbose) console.log(`[PRINT] ${message}`);
+        await agent.prompt(message);
 
-      // Capture stats before dispose
-      const stats = agent.getStats();
-      const model = agent.getModel();
-      const settings = agent.getSettings();
+        // Capture stats before dispose
+        const stats = agent.getStats();
+        const model = agent.getModel();
+        const settings = agent.getSettings();
 
-      agent.dispose();
+        agent.dispose();
 
-      // If buffering, format and write output
-      if (useBuffer) {
-        let finalOutput = outputBuffer;
-        if (format === 'json') {
-          const jsonOutput = {
-            text: outputBuffer.trim(),
-            stats: {
-              tokens: stats.totalTokens,
-              promptTokens: stats.promptTokens,
-              completionTokens: stats.completionTokens,
-              cost: stats.estimatedCost,
-              duration: stats.sessionDuration,
-            },
-            model: model ? `${model.provider}/${model.id}` : null,
-            thinkingLevel: settings?.thinkingLevel || 'off',
-          };
-          finalOutput = JSON.stringify(jsonOutput, null, 2);
-        } else if (options.metadata) {
-          // Append metadata summary for text/markdown
-          const meta = `\n---\n` +
-            `📊 Tokens: ${stats.totalTokens.toLocaleString()} (prompt: ${stats.promptTokens.toLocaleString()}, completion: ${stats.completionTokens.toLocaleString()})\n` +
-            `💰 Cost: $${stats.estimatedCost.toFixed(6)}\n` +
-            `⏱️  Duration: ${stats.sessionDuration.toFixed(2)}s\n` +
-            `🤖 Model: ${model ? `${model.provider}/${model.id}` : 'N/A'}\n` +
-            `🧠 Thinking: ${settings?.thinkingLevel || 'off'}`;
-          finalOutput += meta;
+        // If buffering, format and write output
+        if (useBuffer) {
+          let finalOutput = outputBuffer;
+          if (format === 'json') {
+            const jsonOutput = {
+              text: outputBuffer.trim(),
+              stats: {
+                tokens: stats.totalTokens,
+                promptTokens: stats.promptTokens,
+                completionTokens: stats.completionTokens,
+                cost: stats.estimatedCost,
+                duration: stats.sessionDuration,
+              },
+              model: model ? `${model.provider}/${model.id}` : null,
+              thinkingLevel: settings?.thinkingLevel || 'off',
+            };
+            finalOutput = JSON.stringify(jsonOutput, null, 2);
+          } else if (options.metadata) {
+            // Append metadata summary for text/markdown
+            const meta = `\n---\n` +
+              `📊 Tokens: ${stats.totalTokens.toLocaleString()} (prompt: ${stats.promptTokens.toLocaleString()}, completion: ${stats.completionTokens.toLocaleString()})\n` +
+              `💰 Cost: $${stats.estimatedCost.toFixed(6)}\n` +
+              `⏱️  Duration: ${stats.sessionDuration.toFixed(2)}s\n` +
+              `🤖 Model: ${model ? `${model.provider}/${model.id}` : 'N/A'}\n` +
+              `🧠 Thinking: ${settings?.thinkingLevel || 'off'}`;
+            finalOutput += meta;
+          }
+          // markdown format: leave as is (already markdown)
+          // text format: already plain
+
+          if (options.output) {
+            const fs = await import('fs');
+            fs.writeFileSync(options.output, finalOutput);
+          } else {
+            console.log(finalOutput);
+          }
+        } else if (outputStream) {
+          outputStream.end();
         }
-        // markdown format: leave as is (already markdown)
-        // text format: already plain
 
-        if (options.output) {
-          const fs = await import('fs');
-          fs.writeFileSync(options.output, finalOutput);
-        } else {
-          console.log(finalOutput);
-        }
-      } else if (outputStream) {
-        outputStream.end();
+        process.exit(0);
+      } catch (error: any) {
+        console.error('❌ Print mode error:', error.message || error);
+        agent.dispose();
+        process.exit(1);
       }
-
-      process.exit(0);
       break;
     }
 
