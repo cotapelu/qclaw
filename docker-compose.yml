@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  agent:
+    build: .
+    image: pi-sdk-agent:latest
+    container_name: pi-agent
+    volumes:
+      - ~/.pi/agent:/root/.pi/agent
+      - ${PWD:-.}:/app/work
+    working_dir: /app/work
+    stdin_open: true
+    tty: true
+    command: ["node", "dist/index.js"]
