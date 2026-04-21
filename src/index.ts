@@ -4,6 +4,7 @@ import { AgentCore } from "./agent/core.js";
 import { AgentCLI } from "./agent/cli.js";
 import { AgentConfig } from "./config.js";
 import { getCustomTools } from "./tools/index.js";
+import { runRpcServer } from "./rpc.js";
 
 interface CliOptions {
   mode?: "cli" | "print" | "rpc";
@@ -292,10 +293,16 @@ async function main(): Promise<void> {
       break;
     }
 
-    case "rpc":
-      console.error("RPC mode not yet implemented. Use pi directly.");
-      process.exit(1);
+    case "rpc": {
+      if (agentConfig.verbose) console.log("[RPC] Starting JSON-RPC server over stdio");
+      try {
+        await runRpcServer({ agent });
+      } catch (error: any) {
+        console.error('RPC server error:', error.message);
+        process.exit(1);
+      }
       break;
+    }
   }
 }
 
