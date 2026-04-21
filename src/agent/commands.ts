@@ -559,6 +559,32 @@ Start typing to chat with the agent!`;
     // Setup Wizard (Phase 9)
     // ============================================================================
 
+    this.register("health", async (handlers) => {
+      const agent = handlers.agent;
+      const checks: string[] = [];
+      // Agent directory
+      const agentDir = agent.getAgentDir();
+      checks.push(`Agent dir: ${agentDir}`);
+      // Settings
+      const settings = agent.getSettings();
+      checks.push(`Settings: valid`);
+      // Model
+      const model = agent.getModel();
+      checks.push(`Model: ${model ? `${model.provider}/${model.id}` : 'None'}`);
+      // Session
+      const session = agent.getSession();
+      checks.push(`Session: ${session ? 'Active' : 'Inactive'}`);
+      // Logging
+      const logCfg = settings.logging as any || {};
+      const logDir = logCfg.dir || path.join(require('os').homedir(), '.pi', 'agent', 'logs');
+      checks.push(`Logging: ${logCfg.format || 'text'} format to ${logDir}`);
+      // Performance
+      const stats = agent.getStats();
+      checks.push(`Tokens: ${stats.totalTokens} (cost: $${stats.estimatedCost.toFixed(4)})`);
+
+      return `🩺 Health Check:\n` + checks.map(c => `  ✓ ${c}`).join('\n');
+    });
+
     this.register("init", async (handlers) => {
       const agent = handlers.agent;
       const agentDir = agent.getAgentDir();
