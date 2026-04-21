@@ -9,6 +9,7 @@ interface CliOptions {
   mode?: "cli" | "print" | "rpc";
   config?: string;
   message?: string; // For print mode
+  output?: string; // For print mode: file to write output
   verbose?: boolean;
   noSession?: boolean;
   help?: boolean;
@@ -25,6 +26,8 @@ function parseArgs(): CliOptions {
       if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
         options.message = args[++i];
       }
+    } else if (arg === "--output" || arg === "-o") {
+      if (i + 1 < args.length) options.output = args[++i];
     } else if (arg === "--rpc") {
       options.mode = "rpc";
     } else if (arg === "--config" || arg === "-c") {
@@ -55,11 +58,13 @@ Usage:
 
 Options:
   -c, --config <file>    Path to config file (YAML/JSON)
+  -o, --output <file>    Write print mode output to file
   -v, --verbose          Enable verbose logging
   --no-session           Disable session persistence
 
 Examples:
   npm start --print "Explain the code in main.ts"
+  npm start --print "Summarize" --output summary.txt
   npm start --config ./my-config.yaml
 
 Environment:
@@ -139,15 +144,32 @@ async function main(): Promise<void> {
   await agent.initialize();
   if (agentConfig.verbose) console.timeEnd("init");
 
+  // For print mode, prepare output stream if needed
+  let outputStream: any = null;
+  if (options.mode === "print" && options.output) {
+    const fs = await import('fs');
+    outputStream = fs.createWriteStream(options.output);
+  }
+
   // For print mode, subscribe to output delta
   if (options.mode === "print") {
     const session = agent.getSession();
     if (session) {
       session.subscribe((event: any) => {
         if (event.type === 'message_update' && event.assistantMessageEvent?.type === 'text_delta') {
-          process.stdout.write(event.assistantMessageEvent.delta);
+          const data = event.assistantMessageEvent.delta;
+          if (outputStream) {
+            outputStream.write(data);
+          } else {
+            process.stdout.write(data);
+          }
         } else if (event.type === 'turn_end') {
-          console.log();
+          const newline = '\n';
+          if (outputStream) {
+            outputStream.write(newline);
+          } else {
+            console.log();
+          }
         }
       });
     }
@@ -164,10 +186,13 @@ async function main(): Promise<void> {
     }
 
     case "print": {
-      const message = options.config || "Hello";
+      const message = options.message || options.config || "Hello";
       if (agentConfig.verbose) console.log(`[PRINT] ${message}`);
       await agent.prompt(message);
       agent.dispose();
+      if (outputStream) {
+        outputStream.end();
+      }
       process.exit(0);
       break;
     }
