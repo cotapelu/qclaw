@@ -210,14 +210,45 @@ Start typing to chat with the agent!`;
       const registry = handlers.agent.getModelRegistry();
       const available = await registry.getAvailable();
       
-      let output = `Current model: ${model ? `${model.provider}/${model.id}` : 'None'}\n\n`;
-      output += `Available models (${available.length}):\n`;
-      available.slice(0, 10).forEach(m => {
-        output += `  ${m.provider}/${m.id}\n`;
-      });
-      if (available.length > 10) {
-        output += `  ... and ${available.length - 10} more`;
+      let output = `📊 Model Information\n\n`;
+      output += `Current: ${model ? `${model.provider}/${model.id}` : 'None'}\n`;
+      if (model) {
+        const m = model as any;
+        output += `  Context: ${m.contextSize || 'Unknown'} tokens\n`;
+        output += `  Pricing: ${m.pricing ? `$${m.pricing.prompt || 0}/1M prompt, $${m.pricing.completion || 0}/1M completion` : 'Unknown'}\n`;
+        if (m.capabilities && m.capabilities.length > 0) {
+          output += `  Capabilities: ${m.capabilities.join(', ')}\n`;
+        }
       }
+      output += `\nAvailable models (${available.length}):\n`;
+      available.forEach((m, idx) => {
+        const mi = m as any;
+        output += `  ${idx + 1}. ${m.provider}/${m.id}`;
+        if (mi.contextSize) output += ` (ctx: ${mi.contextSize})`;
+        if (mi.pricing) output += ` [$${mi.pricing.prompt || 0}/$${mi.pricing.completion || 0}]`;
+        output += `\n`;
+      });
+      return output;
+    });
+
+    this.register("select-model", async (handlers) => {
+      const registry = handlers.agent.getModelRegistry();
+      const available = await registry.getAvailable();
+      if (available.length === 0) {
+        return "❌ No models available";
+      }
+      // Show list and prompt for selection (simple version for CLI)
+      let output = `Select a model (1-${available.length}):\n\n`;
+      available.forEach((m, idx) => {
+        const mi = m as any;
+        output += `  ${idx + 1}. ${m.provider}/${m.id}`;
+        if (mi.contextSize) output += ` (ctx: ${mi.contextSize})`;
+        if (mi.pricing) output += ` [$${mi.pricing.prompt || 0}/$${mi.pricing.completion || 0}/1M]`;
+        output += `\n`;
+      });
+      output += `\nEnter number (or press Enter to cancel): `;
+      // In CLI mode, we can use readline. For now, just show list and remind to use /cycle
+      output += `\nNote: Use /cycle to toggle through models, or set via /set model <provider/model>`;
       return output;
     });
 
