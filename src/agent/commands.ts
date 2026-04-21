@@ -733,6 +733,26 @@ Start typing to chat with the agent!`;
     });
 
     // ============================================================================
+    // Import (Phase 4 - Session Enhancements)
+    // ============================================================================
+
+    this.register("import", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "Usage: /import <file>\nImports a session from a JSONL file and switches to it.";
+      }
+      const filePath = args[0];
+      if (!fs.existsSync(filePath)) {
+        return `❌ File not found: ${filePath}`;
+      }
+      try {
+        await handlers.agent.importSession(filePath);
+        return `📥 Imported session from ${filePath}`;
+      } catch (error: any) {
+        return `❌ Import failed: ${error.message}`;
+      }
+    });
+
+    // ============================================================================
     // Setup Wizard (Phase 9)
     // ============================================================================
 
