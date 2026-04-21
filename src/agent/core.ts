@@ -268,6 +268,11 @@ Always strive to be accurate and thorough.`;
       case 'tool_execution_start':
         this.stats.toolCalls++;
         this.toolExecutionStart = Date.now();
+        // Check permissions
+        const toolName = event.tool?.name || (event.toolCall && event.toolCall.tool);
+        if (toolName) {
+          this.checkToolPermission(toolName, event.toolCall?.parameters);
+        }
         break;
       case 'tool_execution_end':
         if (this.toolExecutionStart) {
@@ -275,11 +280,53 @@ Always strive to be accurate and thorough.`;
           this.stats.toolExecutionTime += duration;
           this.toolExecutionStart = null;
         }
+        // Audit logging
+        this.logToolExecution(event);
         break;
       case 'error':
         this.stats.errors++;
         break;
     }
+  }
+
+  /** Check if a tool is allowed to execute */
+  private checkToolPermission(toolName: string, params: any = null): void {
+    const perms = this.currentSettings.toolPermissions || {};
+    const allowed = perms.allowedTools as string[] | undefined;
+    const denied = perms.deniedTools as string[] | undefined;
+
+    // If allowed list is non-empty, tool must be in it
+    if (allowed && allowed.length > 0 && !allowed.includes(toolName)) {
+      throw new Error(`Tool '${toolName}' is not in allowed list: ${allowed.join(', ')}`);
+    }
+    // If denied list contains tool, block it
+    if (denied && denied.includes(toolName)) {
+      throw new Error(`Tool '${toolName}' is denied by policy`);
+    }
+    // Path restrictions for file tools
+    if (params?.path && perms.allowedPaths && perms.allowedPaths.length > 0) {
+      const path = require('path').resolve(params.path);
+      const allowed = perms.allowedPaths.some((allowedPath: string) =>
+        path.startsWith(require('path').resolve(allowedPath))
+      );
+      if (!allowed) {
+        throw new Error(`Path '${params.path}' is not in allowed paths: ${perms.allowedPaths.join(', ')}`);
+      }
+    }
+    // Confirmation for destructive tools
+    if (perms.confirmDestructive && (toolName === 'write' || toolName === 'bash')) {
+      // In a real TUI, we'd prompt user. For now, just warn in verbose mode
+      if (this.verbose) {
+        this.log(`⚠️ Destructive tool '${toolName}' executed (params: ${JSON.stringify(params)})`);
+      }
+    }
+  }
+
+  /** Audit log for tool execution */
+  private logToolExecution(event: any): void {
+    const toolName = event.tool?.name || (event.toolCall && event.toolCall.tool);
+    const duration = this.toolExecutionStart ? (Date.now() - this.toolExecutionStart) : 0;
+    this.log(`🔧 Tool: ${toolName}, duration: ${duration}ms`);
   }
 
   private estimateCost(tokens: number, model?: Model<any>): number {
@@ -359,6 +406,12 @@ Always strive to be accurate and thorough.`;
       retry: { enabled: true, maxRetries: 2 },
       model: undefined,
       thinkingLevel: "off",
+      toolPermissions: {
+        allowedTools: [], // empty = allow all
+        deniedTools: ['write', 'bash'], // dangerous tools by default
+        confirmDestructive: true,
+        allowedPaths: [], // empty = allow all
+      },
     };
   }
 
