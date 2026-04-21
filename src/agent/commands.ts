@@ -479,11 +479,13 @@ Start typing to chat with the agent!`;
     this.register("stats", async (handlers) => {
       const stats = handlers.agent.getStats();
       const config = handlers.agent.getConfig();
+      const avgToolTime = stats.toolCalls > 0 ? (stats.toolExecutionTime / stats.toolCalls) : 0;
       return `📊 Session Statistics:
 
 Duration:    ${stats.sessionDuration.toFixed(1)}s
 Turns:       ${stats.turns}
 Tool calls:  ${stats.toolCalls}
+Tool time:   ${stats.toolExecutionTime.toFixed(0)}ms (avg: ${avgToolTime.toFixed(0)}ms)
 Errors:      ${stats.errors}
 
 Tokens:

@@ -32,6 +32,7 @@ export interface AgentStats {
   promptTokens: number;
   completionTokens: number;
   toolCalls: number;
+  toolExecutionTime: number; // Total time spent in tools (ms)
   errors: number;
   turns: number;
   sessionDuration: number;
@@ -77,11 +78,13 @@ export class AgentCore {
     promptTokens: 0,
     completionTokens: 0,
     toolCalls: 0,
+    toolExecutionTime: 0,
     errors: 0,
     turns: 0,
     sessionDuration: 0,
     estimatedCost: 0,
   };
+  private toolExecutionStart: number | null = null;
   private sessionStartTime: number = 0;
   private configFile?: string;
   private currentSettings: any = {};
@@ -262,6 +265,14 @@ Always strive to be accurate and thorough.`;
         break;
       case 'tool_execution_start':
         this.stats.toolCalls++;
+        this.toolExecutionStart = Date.now();
+        break;
+      case 'tool_execution_end':
+        if (this.toolExecutionStart) {
+          const duration = Date.now() - this.toolExecutionStart;
+          this.stats.toolExecutionTime += duration;
+          this.toolExecutionStart = null;
+        }
         break;
       case 'error':
         this.stats.errors++;
