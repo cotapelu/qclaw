@@ -38,6 +38,25 @@ export interface AgentStats {
   estimatedCost: number;
 }
 
+// Simple settings validation
+function validateSettings(settings: any): { valid: boolean; errors?: string[] } {
+  const errors: string[] = [];
+  if (settings.compaction) {
+    if (typeof settings.compaction.enabled !== 'boolean') errors.push('compaction.enabled must be boolean');
+    if (settings.compaction.tokens !== undefined && typeof settings.compaction.tokens !== 'number') errors.push('compaction.tokens must be number');
+  }
+  if (settings.retry) {
+    if (typeof settings.retry.enabled !== 'boolean') errors.push('retry.enabled must be boolean');
+    if (settings.retry.maxRetries !== undefined && typeof settings.retry.maxRetries !== 'number') errors.push('retry.maxRetries must be number');
+  }
+  if (settings.model !== undefined && typeof settings.model !== 'string') errors.push('model must be string');
+  if (settings.thinkingLevel) {
+    const validLevels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+    if (!validLevels.includes(settings.thinkingLevel)) errors.push(`thinkingLevel must be one of: ${validLevels.join(', ')}`);
+  }
+  return { valid: errors.length === 0, errors };
+}
+
 export class AgentCore {
   private session: AgentSession | null = null;
   private runtime: any = null;
@@ -288,7 +307,15 @@ Always strive to be accurate and thorough.`;
   private loadSettingsFromFile(settingsPath: string): any {
     try {
       const content = readFileSync(settingsPath, 'utf-8');
-      return JSON.parse(content);
+      const settings = JSON.parse(content);
+      const validation = validateSettings(settings);
+      if (!validation.valid) {
+        const errors = validation.errors?.join('; ') || 'Unknown error';
+        this.log(`⚠️ Settings validation failed: ${errors}`);
+        this.log(`⚠️ Using default settings instead`);
+        return this.getDefaultSettings();
+      }
+      return settings;
     } catch (error) {
       this.log(`⚠️ Failed to load settings from ${settingsPath}: ${error}`);
       return this.getDefaultSettings();
@@ -341,6 +368,12 @@ Always strive to be accurate and thorough.`;
         current = current[keys[i]];
       }
       current[keys[keys.length - 1]] = value;
+    }
+    // Validate before saving
+    const validation = validateSettings(this.currentSettings);
+    if (!validation.valid) {
+      const errors = validation.errors?.join('; ') || 'Unknown error';
+      throw new Error(`Invalid settings after update: ${errors}`);
     }
     this.saveSettings();
     this.log(`⚙️ Updated setting: ${key} = ${JSON.stringify(value)}`);
