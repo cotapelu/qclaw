@@ -10,6 +10,7 @@ interface CliOptions {
   config?: string;
   message?: string; // For print mode
   output?: string; // For print mode: file to write output
+  format?: "json" | "markdown" | "text"; // Output format for print mode
   verbose?: boolean;
   noSession?: boolean;
   help?: boolean;
@@ -28,6 +29,15 @@ function parseArgs(): CliOptions {
       }
     } else if (arg === "--output" || arg === "-o") {
       if (i + 1 < args.length) options.output = args[++i];
+    } else if (arg === "--format" || arg === "-f") {
+      if (i + 1 < args.length) {
+        const fmt = args[++i];
+        if (fmt === "json" || fmt === "markdown" || fmt === "text") {
+          options.format = fmt;
+        } else {
+          console.error(`Invalid format: ${fmt}. Use json, markdown, or text.`);
+        }
+      }
     } else if (arg === "--rpc") {
       options.mode = "rpc";
     } else if (arg === "--config" || arg === "-c") {
@@ -59,12 +69,14 @@ Usage:
 Options:
   -c, --config <file>    Path to config file (YAML/JSON)
   -o, --output <file>    Write print mode output to file
+  -f, --format <fmt>     Output format: json, markdown, text (default: text)
   -v, --verbose          Enable verbose logging
   --no-session           Disable session persistence
 
 Examples:
   npm start --print "Explain the code in main.ts"
   npm start --print "Summarize" --output summary.txt
+  npm start --print "Review" --format json > output.json
   npm start --config ./my-config.yaml
 
 Environment:
@@ -144,9 +156,13 @@ async function main(): Promise<void> {
   await agent.initialize();
   if (agentConfig.verbose) console.timeEnd("init");
 
-  // For print mode, prepare output stream if needed
+  // For print mode, prepare output stream or buffer
   let outputStream: any = null;
-  if (options.mode === "print" && options.output) {
+  let outputBuffer = '';
+  const format = options.format || 'text';
+  const useBuffer = format !== 'text' || options.output; // buffer if json/markdown or output file
+
+  if (options.mode === "print" && options.output && !useBuffer) {
     const fs = await import('fs');
     outputStream = fs.createWriteStream(options.output);
   }
@@ -158,14 +174,18 @@ async function main(): Promise<void> {
       session.subscribe((event: any) => {
         if (event.type === 'message_update' && event.assistantMessageEvent?.type === 'text_delta') {
           const data = event.assistantMessageEvent.delta;
-          if (outputStream) {
+          if (useBuffer) {
+            outputBuffer += data;
+          } else if (outputStream) {
             outputStream.write(data);
           } else {
             process.stdout.write(data);
           }
         } else if (event.type === 'turn_end') {
           const newline = '\n';
-          if (outputStream) {
+          if (useBuffer) {
+            outputBuffer += newline;
+          } else if (outputStream) {
             outputStream.write(newline);
           } else {
             console.log();
@@ -189,10 +209,45 @@ async function main(): Promise<void> {
       const message = options.message || options.config || "Hello";
       if (agentConfig.verbose) console.log(`[PRINT] ${message}`);
       await agent.prompt(message);
+
+      // Capture stats before dispose
+      const stats = agent.getStats();
+      const model = agent.getModel();
+      const settings = agent.getSettings();
+
       agent.dispose();
-      if (outputStream) {
+
+      // If buffering, format and write output
+      if (useBuffer) {
+        let finalOutput = outputBuffer;
+        if (format === 'json') {
+          const jsonOutput = {
+            text: outputBuffer.trim(),
+            stats: {
+              tokens: stats.totalTokens,
+              promptTokens: stats.promptTokens,
+              completionTokens: stats.completionTokens,
+              cost: stats.estimatedCost,
+              duration: stats.sessionDuration,
+            },
+            model: model ? `${model.provider}/${model.id}` : null,
+            thinkingLevel: settings?.thinkingLevel || 'off',
+          };
+          finalOutput = JSON.stringify(jsonOutput, null, 2);
+        }
+        // markdown format: leave as is (already markdown)
+        // text format: already plain
+
+        if (options.output) {
+          const fs = await import('fs');
+          fs.writeFileSync(options.output, finalOutput);
+        } else {
+          console.log(finalOutput);
+        }
+      } else if (outputStream) {
         outputStream.end();
       }
+
       process.exit(0);
       break;
     }
