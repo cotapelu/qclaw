@@ -911,6 +911,30 @@ Start typing to chat with the agent!`;
     });
 
     // ============================================================================
+    // Session Previews (Phase 4)
+    // ============================================================================
+
+    this.register('preview', async (handlers) => {
+      const entries = handlers.sessionManager.getEntries();
+      const messages = entries.filter(e => e.type === 'message');
+      const recent = messages.slice(-6); // last 6 messages (3 turns)
+      if (recent.length === 0) return '📭 No messages yet.';
+      let out = '📋 Recent Messages (preview):\n\n';
+      recent.forEach(e => {
+        const anyE = e as any;
+        const role = anyE.message.role;
+        const content = anyE.message.content || [];
+        const text = content
+          .filter((c: any) => c.type === 'text')
+          .map((c: any) => c.text)
+          .join(' ');
+        const snippet = text.length > 80 ? text.substring(0, 80) + '...' : text;
+        out += `[${role}] ${snippet}\n`;
+      });
+      return out;
+    });
+
+    // ============================================================================
     // Setup Wizard (Phase 9)
     // ============================================================================
 
