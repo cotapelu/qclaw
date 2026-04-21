@@ -680,6 +680,59 @@ Start typing to chat with the agent!`;
     });
 
     // ============================================================================
+    // Export (Phase 4 - Session Enhancements)
+    // ============================================================================
+
+    this.register("export", async (handlers, ...args) => {
+      const sessionManager = handlers.sessionManager;
+      const entries = sessionManager.getEntries();
+      if (entries.length === 0) {
+        return "❌ No entries to export";
+      }
+
+      let format = 'jsonl';
+      let fileArg: string | undefined;
+
+      // Parse args
+      const knownFormats = ['jsonl', 'json', 'yaml', 'markdown', 'md'];
+      if (args.length > 0 && knownFormats.includes(args[0])) {
+        format = args[0];
+        if (args[1]) fileArg = args[1];
+      } else if (args.length > 0) {
+        fileArg = args[0]; // assume file path, infer format from extension
+        const ext = path.extname(fileArg).slice(1).toLowerCase();
+        if (knownFormats.includes(ext)) format = ext;
+      }
+
+      const extMap: Record<string, string> = {
+        jsonl: 'jsonl',
+        json: 'json',
+        yaml: 'yaml',
+        markdown: 'md',
+        md: 'md'
+      };
+      const filePath = fileArg || path.join(process.cwd(), `session-export-${Date.now()}.${extMap[format]}`);
+
+      let content: string;
+      if (format === 'jsonl' || format === 'json') {
+        content = entries.map((e: any) => JSON.stringify(e)).join('\n');
+      } else if (format === 'yaml') {
+        content = entries.map((e: any) => simpleYaml(e)).join('\n---\n');
+      } else if (format === 'markdown' || format === 'md') {
+        content = entriesToMarkdown(entries);
+      } else {
+        return `❌ Unknown format: ${format}`;
+      }
+
+      try {
+        fs.writeFileSync(filePath, content, 'utf-8');
+        return `📤 Exported ${entries.length} entries to ${filePath}`;
+      } catch (error: any) {
+        return `❌ Export failed: ${error.message}`;
+      }
+    });
+
+    // ============================================================================
     // Setup Wizard (Phase 9)
     // ============================================================================
 
@@ -832,6 +885,64 @@ Start typing to chat with the agent!`;
       return `❌ Error: ${error.message}`;
     }
   }
+}
+
+// ============================================================================
+// Export helpers (JSON, YAML, Markdown)
+// ============================================================================
+
+function simpleYaml(obj: any, indent = 0): string {
+  const pad = '  '.repeat(indent);
+  let result = '';
+  for (const key in obj) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+    const value = obj[key];
+    if (value === undefined || value === null) continue;
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      result += `${pad}${key}:\n` + simpleYaml(value, indent + 1);
+    } else if (Array.isArray(value)) {
+      result += `${pad}${key}:\n`;
+      for (const item of value) {
+        if (typeof item === 'object' && item !== null) {
+          result += `${pad}  -\n` + simpleYaml(item, indent + 2);
+        } else {
+          result += `${pad}  - ${item}\n`;
+        }
+      }
+    } else {
+      const str = String(value);
+      if (/[\n:\#\[\]{}]/.test(str) || str.includes('"')) {
+        result += `${pad}${key}: "${str.replace(/"/g, '\"')}"\n`;
+      } else {
+        result += `${pad}${key}: ${str}\n`;
+      }
+    }
+  }
+  return result;
+}
+
+function entriesToMarkdown(entries: any[]): string {
+  let md = `# Session Export\n\nTotal entries: ${entries.length}\n\n`;
+  entries.forEach((e, idx) => {
+    md += `## Entry ${idx + 1}: ${e.id.substring(0, 8)}...\n\n`;
+    md += `- Type: ${e.type}\n`;
+    if (e.type === 'message') {
+      const role = e.message.role;
+      md += `- Role: ${role}\n`;
+      const textParts = e.message.content
+        .filter((c: any) => c.type === 'text')
+        .map((c: any) => c.text);
+      if (textParts.length) {
+        md += `- Content:\n\n\`\`\`
+${textParts.join('\n')}
+\`\`\`\n`;
+      }
+    } else if (e.type === 'branch_summary') {
+      md += `- Summary: ${e.summary}\n`;
+    }
+    md += '\n';
+  });
+  return md;
 }
 
 export const commandRegistry = new CommandRegistry();
