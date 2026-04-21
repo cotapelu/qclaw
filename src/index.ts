@@ -12,6 +12,7 @@ interface CliOptions {
   output?: string; // For print mode: file to write output
   format?: "json" | "markdown" | "text"; // Output format for print mode
   metadata?: boolean; // Include token usage and cost metadata in output
+  timeout?: number; // Timeout in seconds for print mode
   verbose?: boolean;
   noSession?: boolean;
   help?: boolean;
@@ -41,6 +42,15 @@ function parseArgs(): CliOptions {
       }
     } else if (arg === "--metadata") {
       options.metadata = true;
+    } else if (arg === "--timeout" || arg === "-t") {
+      if (i + 1 < args.length) {
+        const t = Number(args[++i]);
+        if (!isNaN(t) && t > 0) {
+          options.timeout = t;
+        } else {
+          console.error('Invalid timeout value. Must be a positive number.');
+        }
+      }
     } else if (arg === "--rpc") {
       options.mode = "rpc";
     } else if (arg === "--config" || arg === "-c") {
@@ -74,13 +84,14 @@ Options:
   -o, --output <file>    Write print mode output to file
   -f, --format <fmt>     Output format: json, markdown, text (default: text)
   --metadata             Include token usage and cost metadata (text/markdown)
+  -t, --timeout <sec>    Timeout for print mode in seconds
   -v, --verbose          Enable verbose logging
   --no-session           Disable session persistence
 
 Examples:
   npm start --print "Explain the code in main.ts"
   npm start --print "Summarize" --output summary.txt --metadata
-  npm start --print "Review" --format json > output.json
+  npm start --print "Review" --format json --timeout 30
   npm start --config ./my-config.yaml
 
 Environment:
@@ -213,7 +224,17 @@ async function main(): Promise<void> {
       try {
         const message = options.message || options.config || "Hello";
         if (agentConfig.verbose) console.log(`[PRINT] ${message}`);
-        await agent.prompt(message);
+
+        // Apply timeout if specified
+        if (options.timeout) {
+          const timeoutMs = options.timeout * 1000;
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`Timeout after ${options.timeout}s`)), timeoutMs);
+          });
+          await Promise.race([agent.prompt(message), timeoutPromise]);
+        } else {
+          await agent.prompt(message);
+        }
 
         // Capture stats before dispose
         const stats = agent.getStats();
