@@ -870,6 +870,28 @@ Start typing to chat with the agent!`;
     // Budget & Cost Analytics (Phase 8)
     // ============================================================================
 
+    this.register("cost project", async (handlers) => {
+      const history = handlers.agent.getCostHistory();
+      if (history.length === 0) return '📊 No cost history available for projection.';
+      // Aggregate costs by date
+      const daily = new Map<string, number>();
+      for (const e of history) {
+        const date = (e as any).date as string;
+        daily.set(date, (daily.get(date) || 0) + (e as any).cost);
+      }
+      const days = daily.size;
+      const totalCost = Array.from(daily.values()).reduce((sum, c) => sum + c, 0);
+      const avgDaily = totalCost / days;
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const daysSoFar = now.getDate();
+      const projectedMonth = avgDaily * daysInMonth;
+      const projectedRest = avgDaily * (daysInMonth - daysSoFar);
+      return `💰 Cost Projection:\n\n  Average daily: $${avgDaily.toFixed(2)}\n  Projected for this month (${daysInMonth} days): $${projectedMonth.toFixed(2)}\n  Remaining (${daysInMonth - daysSoFar} days): $${projectedRest.toFixed(2)}`;
+    });
+
     this.register("budget", async (handlers, ...args) => {
       if (args.length === 0) {
         const settings = handlers.agent.getSettings();
