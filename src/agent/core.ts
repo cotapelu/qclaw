@@ -181,6 +181,9 @@ export class AgentCore {
   private logger: FileLogger | null = null;
   private resourceWatchers: Array<{ dir: string; watcher: any }> = [];
   private resourceReloadTimer?: any;
+  private lastToolName: string | null = null;
+  private toolFailureTimestamps: Map<string, number[]> = new Map();
+  private toolCircuitOpenUntil: Map<string, number> = new Map();
 
   constructor(options: AgentCoreOptions = {}) {
     this.cwd = options.cwd ?? process.cwd();
@@ -380,10 +383,11 @@ Always strive to be accurate and thorough.`;
       case 'tool_execution_start':
         this.stats.toolCalls++;
         this.toolExecutionStart = Date.now();
-        // Check permissions
-        const toolName = event.tool?.name || (event.toolCall && event.toolCall.tool);
-        if (toolName) {
-          this.checkToolPermission(toolName, event.toolCall?.parameters);
+        // Track last tool for failure attribution
+        const toolNameStart = event.tool?.name || (event.toolCall && event.toolCall.tool);
+        if (toolNameStart) {
+          this.lastToolName = toolNameStart;
+          this.checkToolPermission(toolNameStart, event.toolCall?.parameters);
         }
         break;
       case 'tool_execution_end':
@@ -392,11 +396,22 @@ Always strive to be accurate and thorough.`;
           this.stats.toolExecutionTime += duration;
           this.toolExecutionStart = null;
         }
+        // Clear failure state on success
+        const toolNameEnd = event.tool?.name || (event.toolCall && event.toolCall.tool);
+        if (toolNameEnd) {
+          this.toolFailureTimestamps.delete(toolNameEnd);
+          this.toolCircuitOpenUntil.delete(toolNameEnd);
+          this.lastToolName = null;
+        }
         // Audit logging
         this.logToolExecution(event);
         break;
       case 'error':
         this.stats.errors++;
+        // Record tool failure for circuit breaker
+        if (this.lastToolName) {
+          this.recordToolFailure(this.lastToolName);
+        }
         break;
     }
   }
@@ -406,6 +421,11 @@ Always strive to be accurate and thorough.`;
     const perms = this.currentSettings.toolPermissions || {};
     const allowed = perms.allowedTools as string[] | undefined;
     const denied = perms.deniedTools as string[] | undefined;
+
+    // Circuit breaker check
+    if (this.isCircuitOpen(toolName)) {
+      throw new Error(`Circuit breaker open for tool '${toolName}' due to repeated failures. Please wait before retrying.`);
+    }
 
     // If allowed list is non-empty, tool must be in it
     if (allowed && allowed.length > 0 && !allowed.includes(toolName)) {
@@ -878,6 +898,32 @@ Always strive to be accurate and thorough.`;
       return new Error(`Authentication error. Please verify your API keys in ~/.pi/agent/auth.json and ensure they have not expired.`);
     }
     return error;
+  }
+
+  private recordToolFailure(toolName: string): void {
+    const now = Date.now();
+    const timestamps = this.toolFailureTimestamps.get(toolName) || [];
+    timestamps.push(now);
+    // Keep only failures within the last 60 seconds
+    const window = 60 * 1000;
+    const recent = timestamps.filter(t => now - t < window);
+    this.toolFailureTimestamps.set(toolName, recent);
+    if (recent.length >= 3) {
+      // Open circuit for 5 minutes
+      this.toolCircuitOpenUntil.set(toolName, now + 5 * 60 * 1000);
+      this.log(`⚡ Circuit breaker opened for tool '${toolName}' due to ${recent.length} recent failures`);
+    }
+  }
+
+  private isCircuitOpen(toolName: string): boolean {
+    const until = this.toolCircuitOpenUntil.get(toolName);
+    if (!until) return false;
+    if (Date.now() > until) {
+      this.toolCircuitOpenUntil.delete(toolName);
+      this.toolFailureTimestamps.delete(toolName);
+      return false;
+    }
+    return true;
   }
 
   log(...args: any[]): void {
