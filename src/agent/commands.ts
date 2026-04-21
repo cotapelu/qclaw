@@ -277,6 +277,55 @@ Start typing to chat with the agent!`;
       return output;
     });
 
+    this.register("search", async (handlers, ...args) => {
+      const sessionManager = handlers.sessionManager;
+      const entries = sessionManager.getEntries();
+      if (entries.length === 0) {
+        return "❌ No session entries to search.";
+      }
+      const query = args[0];
+      if (!query) {
+        return "Usage: /search <query> [--user|--assistant|--tool]\n";
+      }
+      // Simple filtering
+      let filtered = entries.filter(e => e.type === 'message');
+      // Filter by role if specified
+      const roleFilter = args.find(a => a === '--user' || a === '--assistant');
+      if (roleFilter === '--user') {
+        filtered = filtered.filter((e: any) => e.message.role === 'user');
+      } else if (roleFilter === '--assistant') {
+        filtered = filtered.filter((e: any) => e.message.role === 'assistant');
+      }
+      // Text search (case-insensitive substring)
+      const lowerQuery = query.toLowerCase();
+      const results = filtered.filter((e: any) => {
+        const content = e.message.content
+          .map((c: any) => (c.type === 'text' ? c.text : ''))
+          .join(' ')
+          .toLowerCase();
+        return content.includes(lowerQuery);
+      });
+
+      if (results.length === 0) {
+        return `No results for "${query}"`;
+      }
+
+      let output = `🔍 Search results for "${query}" (${results.length} matches):\n\n`;
+      results.slice(0, 20).forEach((e: any, idx: number) => {
+        const role = e.message.role;
+        const text = e.message.content
+          .map((c: any) => (c.type === 'text' ? c.text : ''))
+          .join(' ')
+          .trim();
+        const snippet = text.length > 80 ? text.substring(0, 80) + '...' : text;
+        output += `${idx + 1}. [${role}] ${snippet}\n`;
+      });
+      if (results.length > 20) {
+        output += `\n... and ${results.length - 20} more`;
+      }
+      return output;
+    });
+
     this.register("cycle", async (handlers) => {
       const success = await handlers.agent.cycleModel();
       if (success) {
