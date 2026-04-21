@@ -1,6 +1,8 @@
 import { type ThinkingLevel } from "@mariozechner/pi-ai";
 import { SessionManager, DefaultResourceLoader } from "@mariozechner/pi-coding-agent";
 import { AgentCore } from "./core.js";
+import * as path from "path";
+import * as fs from "fs";
 
 export interface CommandHandlers {
   agent: AgentCore;
@@ -323,6 +325,135 @@ Start typing to chat with the agent!`;
       if (results.length > 20) {
         output += `\n... and ${results.length - 20} more`;
       }
+      return output;
+    });
+
+    // ============================================================================
+    // Session Metadata (Labels & Notes)
+    // ============================================================================
+
+    this.register("labels", async (handlers) => {
+      const sessionManager = handlers.sessionManager;
+      const sessionDir = sessionManager.getSessionDir();
+      if (!sessionDir) {
+        return "❌ Session directory not available";
+      }
+      const metaPath = path.join(sessionDir,  'metadata.json');
+      if (!fs.existsSync(metaPath)) {
+        return "No labels set. Use /labels set <comma-separated> to add.";
+      }
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      if (!meta.labels || meta.labels.length === 0) {
+        return "No labels. Use /labels set <label1,label2> to add.";
+      }
+      return `🏷️  Labels: ${meta.labels.join(', ')}`;
+    });
+
+    this.register("labels set", async (handlers, ...args) => {
+      const labelsStr = args.join(' ');
+      const labels = labelsStr.split(',').map(l => l.trim()).filter(l => l);
+      const sessionManager = handlers.sessionManager;
+      const sessionDir = sessionManager.getSessionDir();
+      if (!sessionDir) {
+        return "❌ Session directory not available";
+      }
+      const metaPath = path.join(sessionDir,  'metadata.json');
+      let meta: any = { labels: [], notes: [] };
+      if (fs.existsSync(metaPath)) {
+        try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch {}
+      }
+      meta.labels = labels;
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+      return `✅ Labels set: ${labels.join(', ')}`;
+    });
+
+    this.register("labels clear", async (handlers) => {
+      const sessionManager = handlers.sessionManager;
+      const sessionDir = sessionManager.getSessionDir();
+      if (!sessionDir) {
+        return "❌ Session directory not available";
+      }
+      const metaPath = path.join(sessionDir,  'metadata.json');
+      if (!fs.existsSync(metaPath)) {
+        return "No labels to clear.";
+      }
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      meta.labels = [];
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+      return "✅ Labels cleared";
+    });
+
+    this.register("notes", async (handlers, ...args) => {
+      const sessionManager = handlers.sessionManager;
+      const sessionDir = sessionManager.getSessionDir();
+      if (!sessionDir) {
+        return "❌ Session directory not available";
+      }
+      const metaPath = path.join(sessionDir,  'metadata.json');
+      if (!fs.existsSync(metaPath)) {
+        return "No notes. Use /notes add <text> to create.";
+      }
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      if (!meta.notes || meta.notes.length === 0) {
+        return "No notes. Use /notes add <text> to create.";
+      }
+      let output = `📝 Notes (${meta.notes.length}):\n\n`;
+      meta.notes.forEach((n: any, idx: number) => {
+        const date = new Date(n.time).toLocaleString();
+        output += `${idx + 1}. [${date}] ${n.text}\n`;
+      });
+      return output;
+    });
+
+    this.register("notes add", async (handlers, ...args) => {
+      const text = args.join(' ');
+      if (!text) return "Usage: /notes add <note text>";
+      const sessionManager = handlers.sessionManager;
+      const sessionDir = sessionManager.getSessionDir();
+      if (!sessionDir) {
+        return "❌ Session directory not available";
+      }
+      const metaPath = path.join(sessionDir,  'metadata.json');
+      let meta: any = { labels: [], notes: [] };
+      if (fs.existsSync(metaPath)) {
+        try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch {}
+      }
+      if (!meta.notes) meta.notes = [];
+      meta.notes.push({ text, time: Date.now() });
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+      return `✅ Note added`;
+    });
+
+    this.register("notes clear", async (handlers) => {
+      const sessionManager = handlers.sessionManager;
+      const sessionDir = sessionManager.getSessionDir();
+      if (!sessionDir) {
+        return "❌ Session directory not available";
+      }
+      const metaPath = path.join(sessionDir,  'metadata.json');
+      if (!fs.existsSync(metaPath)) {
+        return "No notes to clear.";
+      }
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      meta.notes = [];
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+      return "✅ Notes cleared";
+    });
+
+    this.register("metadata", async (handlers) => {
+      const sessionManager = handlers.sessionManager;
+      const sessionDir = sessionManager.getSessionDir();
+      if (!sessionDir) {
+        return "❌ Session directory not available";
+      }
+      const metaPath = path.join(sessionDir,  'metadata.json');
+      if (!fs.existsSync(metaPath)) {
+        return "No metadata available.";
+      }
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      let output = `📋 Session Metadata\n\n`;
+      output += `Labels: ${meta.labels?.join(', ') || 'None'}\n`;
+      output += `Notes: ${meta.notes?.length || 0} entries\n`;
       return output;
     });
 
