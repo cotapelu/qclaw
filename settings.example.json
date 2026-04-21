@@ -1,0 +1,12 @@
+{
+  "compaction": {
+    "enabled": true,
+    "tokens": 2000
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 2
+  },
+  "model": "anthropic/claude-sonnet-4-5",
+  "thinkingLevel": "off"
+}
