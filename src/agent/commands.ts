@@ -626,7 +626,43 @@ Start typing to chat with the agent!`;
       return output;
     });
 
-    this.register("cost", async (handlers) => {
+    this.register("cost", async (handlers, ...args) => {
+      if (args[0] === 'history' || args[0] === 'stats') {
+        const history = handlers.agent.getCostHistory();
+        if (history.length === 0) {
+          return '📊 No cost history available yet.';
+        }
+        // Aggregate daily
+        const daily = new Map<string, {cost: number, tokens: number}>();
+        for (const entry of history) {
+          const d = entry.date as string;
+          if (!daily.has(d)) daily.set(d, {cost: 0, tokens: 0});
+          const agg = daily.get(d)!;
+          agg.cost += entry.cost;
+          agg.tokens += entry.tokens;
+        }
+        const sortedDaily = Array.from(daily.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+        let output = '💰 Cost History (daily totals):\n\n';
+        for (const [date, data] of sortedDaily) {
+          output += `${date}: $${data.cost.toFixed(4)} (${data.tokens.toLocaleString()} tokens)\n`;
+        }
+        // Monthly aggregates
+        const monthly = new Map<string, {cost: number, tokens: number}>();
+        for (const entry of history) {
+          const month = (entry.date as string).slice(0, 7); // YYYY-MM
+          if (!monthly.has(month)) monthly.set(month, {cost: 0, tokens: 0});
+          const agg = monthly.get(month)!;
+          agg.cost += entry.cost;
+          agg.tokens += entry.tokens;
+        }
+        output += '\nMonthly aggregates:\n';
+        const sortedMonthly = Array.from(monthly.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+        for (const [month, data] of sortedMonthly) {
+          output += `${month}: $${data.cost.toFixed(4)} (${data.tokens.toLocaleString()} tokens)\n`;
+        }
+        return output;
+      }
+      // Current session
       const stats = handlers.agent.getStats();
       return `💰 Estimated cost: $${stats.estimatedCost.toFixed(4)} (${stats.totalTokens.toLocaleString()} tokens)`;
     });

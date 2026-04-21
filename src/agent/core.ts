@@ -611,6 +611,21 @@ Always strive to be accurate and thorough.`;
     return this.modelRegistry;
   }
 
+  /** Get cost history from persistent log */
+  getCostHistory(): any[] {
+    if (!this.agentDir) return [];
+    const logPath = join(this.agentDir, 'cost-history.jsonl');
+    if (!existsSync(logPath)) return [];
+    try {
+      const content = readFileSync(logPath, 'utf-8');
+      const lines = content.split('\n').filter(l => l.trim());
+      return lines.map(l => JSON.parse(l));
+    } catch (error) {
+      this.log(`Failed to read cost history: ${error}`);
+      return [];
+    }
+  }
+
   async cycleModel(): Promise<boolean> {
     const available = await this.modelRegistry.getAvailable();
     if (available.length <= 1) return false;
@@ -928,6 +943,24 @@ Always strive to be accurate and thorough.`;
     }
     if (this.logger) {
       this.logger.close();
+    }
+    // Persist cost for historical tracking
+    try {
+      if (this.stats.estimatedCost > 0) {
+        const entry = {
+          date: new Date().toISOString().split('T')[0],
+          cost: this.stats.estimatedCost,
+          tokens: this.stats.totalTokens,
+          model: this.model ? `${this.model.provider}/${this.model.id}` : null,
+        };
+        const logPath = join(this.agentDir, 'cost-history.jsonl');
+        if (!existsSync(this.agentDir)) {
+          mkdirSync(this.agentDir, { recursive: true });
+        }
+        writeFileSync(logPath, JSON.stringify(entry) + '\n', { flag: 'a' });
+      }
+    } catch (e) {
+      // ignore
     }
     this.log("🛑 Agent disposed");
   }
