@@ -580,6 +580,26 @@ Always strive to be accurate and thorough.`;
     this.log(`⚙️ Updated setting: ${key} = ${JSON.stringify(value)}`);
   }
 
+  /** Apply multiple setting overrides at once (used by profiles) */
+  applySettings(overrides: any): void {
+    const merge = (target: any, src: any) => {
+      for (const key in src) {
+        if (src[key] && typeof src[key] === 'object' && !Array.isArray(src[key])) {
+          if (!target[key]) target[key] = {};
+          merge(target[key], src[key]);
+        } else {
+          target[key] = src[key];
+        }
+      }
+    };
+    merge(this.currentSettings, overrides);
+    const validation = validateSettings(this.currentSettings);
+    if (!validation.valid) {
+      throw new Error('Invalid settings after profile merge: ' + (validation.errors?.join('; ') || ''));
+    }
+    this.saveSettings();
+  }
+
   /** Reset settings to defaults */
   resetSettings(): void {
     this.currentSettings = this.getDefaultSettings();

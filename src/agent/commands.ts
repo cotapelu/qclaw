@@ -753,6 +753,84 @@ Start typing to chat with the agent!`;
     });
 
     // ============================================================================
+    // Profiles (Phase 10 - Multi-Project)
+    // ============================================================================
+
+    this.register("profiles", async (handlers) => {
+      const agentDir = handlers.agent.getAgentDir();
+      const profilesPath = path.join(agentDir, 'profiles.json');
+      let profiles: Record<string, any> = {};
+      if (fs.existsSync(profilesPath)) {
+        try { profiles = JSON.parse(fs.readFileSync(profilesPath, 'utf-8')); } catch (e) {}
+      }
+      const settings = handlers.agent.getSettings();
+      // @ts-ignore
+      const active = (settings.activeProfile as string | undefined) || 'none';
+      let output = "📂 Profiles:\n";
+      const names = Object.keys(profiles);
+      if (names.length === 0) {
+        output += "  (none)\n";
+      } else {
+        names.forEach(name => {
+          const marker = name === active ? ' (*)' : '';
+          output += `  ${name}${marker}\n`;
+        });
+      }
+      output += `\nActive: ${active}\n`;
+      output += "\nCommands:\n  /profile create <name> - create from current settings\n  /profile use <name> - activate profile\n  /profile delete <name> - remove profile";
+      return output;
+    });
+
+    this.register("profile", async (handlers, ...args) => {
+      if (args.length < 1) return "Usage: /profile <create|use|delete> <name>";
+      const cmd = args[0];
+      const name = args[1];
+      if (!name) return "❌ Profile name required";
+      const agent = handlers.agent;
+      const agentDir = agent.getAgentDir();
+      const profilesPath = path.join(agentDir, 'profiles.json');
+      // Ensure profiles file exists
+      if (!fs.existsSync(profilesPath)) {
+        fs.writeFileSync(profilesPath, JSON.stringify({}, null, 2));
+      }
+      let profiles: Record<string, any> = {};
+      try {
+        profiles = JSON.parse(fs.readFileSync(profilesPath, 'utf-8'));
+      } catch (e) {
+        profiles = {};
+      }
+      if (cmd === 'create') {
+        if (profiles[name]) return `❌ Profile '${name}' already exists`;
+        const current = agent.getSettings();
+        const { activeProfile, ...rest } = current as any;
+        profiles[name] = rest;
+        fs.writeFileSync(profilesPath, JSON.stringify(profiles, null, 2));
+        return `✅ Created profile '${name}'`;
+      } else if (cmd === 'use') {
+        if (!profiles[name]) return `❌ Profile '${name}' not found`;
+        try {
+          agent.applySettings(profiles[name]);
+          agent.updateSetting('activeProfile', name);
+          return `🔀 Switched to profile '${name}'. Some settings may require restart for full effect.`;
+        } catch (error: any) {
+          return `❌ Failed to apply profile: ${error.message}`;
+        }
+      } else if (cmd === 'delete') {
+        if (!profiles[name]) return `❌ Profile '${name}' not found`;
+        delete profiles[name];
+        fs.writeFileSync(profilesPath, JSON.stringify(profiles, null, 2));
+        const settings = agent.getSettings();
+        // @ts-ignore
+        if (settings.activeProfile === name) {
+          try { agent.updateSetting('activeProfile', null); } catch (e) {}
+        }
+        return `🗑️ Deleted profile '${name}'`;
+      } else {
+        return "❌ Unknown command. Use create, use, delete.";
+      }
+    });
+
+    // ============================================================================
     // Setup Wizard (Phase 9)
     // ============================================================================
 
