@@ -161,6 +161,33 @@ export class CommandRegistry {
       return output;
     });
 
+    this.register("graph", async (handlers) => {
+      const tree = handlers.sessionManager.getTree();
+      if (tree.length === 0) {
+        return "📭 Session tree is empty";
+      }
+      let output = "📊 Session Graph:\n\n";
+      const print = (node: any, indent: string, isLast: boolean) => {
+        const entry = node.entry;
+        let meta = '';
+        if (entry.type === 'message') {
+          meta = entry.message.role === 'user' ? '[USER]' : '[ASSISTANT]';
+        } else if (entry.type === 'branch_summary') {
+          meta = '[BRANCH]';
+        } else if (entry.type === 'label') {
+          meta = `[LABEL: ${(entry as any).label}]`;
+        }
+        const branch = isLast ? '└──' : '├──';
+        output += `${indent}${branch} ${meta} ${entry.id.substring(0, 8)}...\n`;
+        const childCount = node.children.length;
+        node.children.forEach((child: any, i: number) => {
+          print(child, indent + (isLast ? '    ' : '│   '), i === childCount - 1);
+        });
+      };
+      tree.forEach((root: any, i: number) => print(root, '', i === tree.length - 1));
+      return output;
+    });
+
     this.register("session", async (handlers) => {
       const tree = handlers.sessionManager.getTree();
       const entries = handlers.sessionManager.getEntries();
