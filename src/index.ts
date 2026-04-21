@@ -11,6 +11,7 @@ interface CliOptions {
   message?: string; // For print mode
   output?: string; // For print mode: file to write output
   format?: "json" | "markdown" | "text"; // Output format for print mode
+  metadata?: boolean; // Include token usage and cost metadata in output
   verbose?: boolean;
   noSession?: boolean;
   help?: boolean;
@@ -38,6 +39,8 @@ function parseArgs(): CliOptions {
           console.error(`Invalid format: ${fmt}. Use json, markdown, or text.`);
         }
       }
+    } else if (arg === "--metadata") {
+      options.metadata = true;
     } else if (arg === "--rpc") {
       options.mode = "rpc";
     } else if (arg === "--config" || arg === "-c") {
@@ -70,12 +73,13 @@ Options:
   -c, --config <file>    Path to config file (YAML/JSON)
   -o, --output <file>    Write print mode output to file
   -f, --format <fmt>     Output format: json, markdown, text (default: text)
+  --metadata             Include token usage and cost metadata (text/markdown)
   -v, --verbose          Enable verbose logging
   --no-session           Disable session persistence
 
 Examples:
   npm start --print "Explain the code in main.ts"
-  npm start --print "Summarize" --output summary.txt
+  npm start --print "Summarize" --output summary.txt --metadata
   npm start --print "Review" --format json > output.json
   npm start --config ./my-config.yaml
 
@@ -234,6 +238,15 @@ async function main(): Promise<void> {
             thinkingLevel: settings?.thinkingLevel || 'off',
           };
           finalOutput = JSON.stringify(jsonOutput, null, 2);
+        } else if (options.metadata) {
+          // Append metadata summary for text/markdown
+          const meta = `\n---\n` +
+            `📊 Tokens: ${stats.totalTokens.toLocaleString()} (prompt: ${stats.promptTokens.toLocaleString()}, completion: ${stats.completionTokens.toLocaleString()})\n` +
+            `💰 Cost: $${stats.estimatedCost.toFixed(6)}\n` +
+            `⏱️  Duration: ${stats.sessionDuration.toFixed(2)}s\n` +
+            `🤖 Model: ${model ? `${model.provider}/${model.id}` : 'N/A'}\n` +
+            `🧠 Thinking: ${settings?.thinkingLevel || 'off'}`;
+          finalOutput += meta;
         }
         // markdown format: leave as is (already markdown)
         // text format: already plain
