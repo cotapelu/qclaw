@@ -1008,6 +1008,25 @@ Always strive to be accurate and thorough.`;
     } catch (e) {
       // ignore
     }
+    // Check budget alerts
+    try {
+      const budget = this.currentSettings.budget as any || {};
+      if (budget.daily || budget.monthly) {
+        const history = this.getCostHistory();
+        const today = new Date().toISOString().split('T')[0];
+        const month = today.slice(0, 7);
+        const dailySum = history.filter(e => e.date === today).reduce((sum: number, e: any) => sum + e.cost, 0);
+        const monthlySum = history.filter(e => e.date.startsWith(month)).reduce((sum: number, e: any) => sum + e.cost, 0);
+        if (budget.daily && dailySum >= budget.daily) {
+          this.log(`⚠️ Daily budget limit reached: $${dailySum.toFixed(2)} / $${budget.daily}`);
+        }
+        if (budget.monthly && monthlySum >= budget.monthly) {
+          this.log(`⚠️ Monthly budget limit reached: $${monthlySum.toFixed(2)} / $${budget.monthly}`);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
     this.log("🛑 Agent disposed");
   }
 }
