@@ -481,22 +481,25 @@ Start typing to chat with the agent!`;
       const stats = handlers.agent.getStats();
       const config = handlers.agent.getConfig();
       const avgToolTime = stats.toolCalls > 0 ? (stats.toolExecutionTime / stats.toolCalls) : 0;
-      return `📊 Session Statistics:
+      return `📊 Session Statistics:\n\nDuration:    ${stats.sessionDuration.toFixed(1)}s\nTurns:       ${stats.turns}\nTool calls:  ${stats.toolCalls}\nTool time:   ${stats.toolExecutionTime.toFixed(0)}ms (avg: ${avgToolTime.toFixed(0)}ms)\nErrors:      ${stats.errors}\n\nTokens:\n  Prompt:    ${stats.promptTokens.toLocaleString()}\n  Completion: ${stats.completionTokens.toLocaleString()}\n  Total:      ${stats.totalTokens.toLocaleString()}\n\nEstimated cost: $${stats.estimatedCost.toFixed(4)}\nVerbose:      ${config.verbose ? 'ON' : 'OFF'}\nPersistence:  ${config.persisted ? 'Yes' : 'No'}`;
+    });
 
-Duration:    ${stats.sessionDuration.toFixed(1)}s
-Turns:       ${stats.turns}
-Tool calls:  ${stats.toolCalls}
-Tool time:   ${stats.toolExecutionTime.toFixed(0)}ms (avg: ${avgToolTime.toFixed(0)}ms)
-Errors:      ${stats.errors}
+    this.register("perf", async (handlers) => {
+      const stats = handlers.agent.getStats();
+      const duration = stats.sessionDuration || 1;
+      const tokensPerMin = (stats.totalTokens / (duration / 60)).toFixed(0);
+      const toolPercent = stats.turns > 0 ? ((stats.toolExecutionTime / (duration * 1000)) * 100).toFixed(1) : 0;
+      const errorRate = ((stats.errors / Math.max(stats.turns, 1)) * 100).toFixed(1);
 
-Tokens:
-  Prompt:    ${stats.promptTokens.toLocaleString()}
-  Completion: ${stats.completionTokens.toLocaleString()}
-  Total:      ${stats.totalTokens.toLocaleString()}
-
-Estimated cost: $${stats.estimatedCost.toFixed(4)}
-Verbose:      ${config.verbose ? 'ON' : 'OFF'}
-Persistence:  ${config.persisted ? 'Yes' : 'No'}`;
+      let output = `⚡ Performance Dashboard:\n\n`;
+      output += `Session Duration: ${duration.toFixed(2)}s\n`;
+      output += `Turns: ${stats.turns}\n`;
+      output += `Token Rate: ${tokensPerMin} tokens/min\n`;
+      output += `Tool Time: ${stats.toolExecutionTime}ms (${toolPercent}% of session)\n`;
+      output += `Avg Tool Call: ${stats.toolCalls > 0 ? (stats.toolExecutionTime / stats.toolCalls).toFixed(0) : 0}ms\n`;
+      output += `Errors: ${stats.errors} (${errorRate}% of turns)\n`;
+      output += `Estimated Cost: $${stats.estimatedCost.toFixed(4)}\n`;
+      return output;
     });
 
     this.register("cost", async (handlers) => {
