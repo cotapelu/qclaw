@@ -64,6 +64,103 @@ export class CommandRegistry {
       return `Recent sessions (${sessions.length} total):\n${list.join('\n')}` + (sessions.length > 20 ? `\n  ... and ${sessions.length - 20} more` : '');
     });
 
+    this.register("diff", async (handlers, ...args) => {
+      const sessionManager = handlers.sessionManager;
+      const tree = sessionManager.getTree();
+      const leaf = sessionManager.getLeafEntry();
+      if (!leaf) {
+        return "❌ No current session";;
+      }
+      // If no target specified, show available branches
+      if (args.length === 0) {
+        // Collect all leaf nodes (branches)
+        const leaves: any[] = [];
+        const collect = (node: any) => {
+          if (node.children.length === 0) {
+            leaves.push(node.entry);
+          } else {
+            node.children.forEach(collect);
+          }
+        };
+        tree.forEach((root: any) => collect(root));
+        const list = leaves.map(e => {
+          const isCurrent = e.id === leaf.id;
+          return `  ${e.id.substring(0, 12)}... ${isCurrent ? '(current)' : ''}`;
+        });
+        return `Usage: /diff <branch-id>\n\nBranches (leaves):\n${list.join('\n')}\n\nUse first 8+ chars of branch ID to diff against current.`;
+      }
+      // Find target leaf by ID prefix
+      const targetIdPrefix = args[0];
+      const allLeaves: any[] = [];
+      const collectLeaves = (node: any) => {
+        if (node.children.length === 0) allLeaves.push(node.entry);
+        else node.children.forEach(collectLeaves);
+      };
+      tree.forEach((root: any) => collectLeaves(root));
+      const target = allLeaves.find(e => e.id.startsWith(targetIdPrefix));
+      if (!target) {
+        return `❌ No branch found with ID starting with "${targetIdPrefix}"`;
+      }
+      if (target.id === leaf.id) {
+        return "⚠️ Cannot diff current branch against itself";
+      }
+      // Get entry IDs for current branch and target branch
+      const getEntryIds = (leafEntry: any): Set<string> => {
+        const ids = new Set<string>();
+        // Walk up to root to include all ancestors
+        let current: any = leafEntry;
+        while (current) {
+          ids.add(current.id);
+          // Find parent by scanning tree
+          const findParent = (node: any): any => {
+            if (node.children.some((c: any) => c.id === current.id)) {
+              return node.entry;
+            }
+            for (const child of node.children) {
+              const p = findParent(child);
+              if (p) return p;
+            }
+            return null;
+          };
+          const parent = tree.length > 0 ? tree.map((root: any) => findParent(root)).find((p: any) => p) : null;
+          current = parent;
+        }
+        return ids;
+      };
+      const currentIds = getEntryIds(leaf);
+      const targetIds = getEntryIds(target);
+      // Compute differences
+      const onlyInCurrent = [...currentIds].filter(id => !targetIds.has(id));
+      const onlyInTarget = [...targetIds].filter(id => !currentIds.has(id));
+      // Build output
+      let output = `📊 Diff: current vs ${target.id.substring(0, 8)}...\n\n`;
+      output += `Current branch entries: ${currentIds.size}\n`;
+      output += `Target branch entries: ${targetIds.size}\n\n`;
+      if (onlyInCurrent.length === 0 && onlyInTarget.length === 0) {
+        output += "✅ Branches are identical (same set of entries)";
+        return output;
+      }
+      if (onlyInCurrent.length > 0) {
+        output += `Only in current (${onlyInCurrent.length}):\n`;
+        onlyInCurrent.slice(0, 10).forEach(id => {
+          output += `  - ${id.substring(0, 8)}...\n`;
+        });
+        if (onlyInCurrent.length > 10) {
+          output += `  ... and ${onlyInCurrent.length - 10} more\n`;
+        }
+      }
+      if (onlyInTarget.length > 0) {
+        output += `\nOnly in target (${onlyInTarget.length}):\n`;
+        onlyInTarget.slice(0, 10).forEach(id => {
+          output += `  - ${id.substring(0, 8)}...\n`;
+        });
+        if (onlyInTarget.length > 10) {
+          output += `  ... and ${onlyInTarget.length - 10} more\n`;
+        }
+      }
+      return output;
+    });
+
     this.register("session", async (handlers) => {
       const tree = handlers.sessionManager.getTree();
       const entries = handlers.sessionManager.getEntries();
