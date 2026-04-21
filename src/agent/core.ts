@@ -65,6 +65,7 @@ export class AgentCore {
   };
   private sessionStartTime: number = 0;
   private configFile?: string;
+  private currentSettings: any = {};
 
   constructor(options: AgentCoreOptions = {}) {
     this.cwd = options.cwd ?? process.cwd();
@@ -87,11 +88,19 @@ export class AgentCore {
     if (settingsPath && existsSync(settingsPath)) {
       this.log(`Loading settings from ${settingsPath}`);
       this.settingsManager = SettingsManager.create(this.cwd, this.agentDir);
+      // Load settings into cache
+      this.currentSettings = this.loadSettingsFromFile(settingsPath);
     } else {
       this.settingsManager = SettingsManager.inMemory({
         compaction: { enabled: true },
         retry: { enabled: true, maxRetries: 2 },
       });
+      this.currentSettings = {
+        compaction: { enabled: true, tokens: 2000 },
+        retry: { enabled: true, maxRetries: 2 },
+        model: undefined,
+        thinkingLevel: "off",
+      };
     }
 
     // 3. Session manager
@@ -273,6 +282,75 @@ Always strive to be accurate and thorough.`;
 
   getAuthStorage(): AuthStorage {
     return this.authStorage;
+  }
+
+  /** Load settings from file (internal) */
+  private loadSettingsFromFile(settingsPath: string): any {
+    try {
+      const content = readFileSync(settingsPath, 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      this.log(`⚠️ Failed to load settings from ${settingsPath}: ${error}`);
+      return this.getDefaultSettings();
+    }
+  }
+
+  /** Get default settings */
+  private getDefaultSettings(): any {
+    return {
+      compaction: { enabled: true, tokens: 2000 },
+      retry: { enabled: true, maxRetries: 2 },
+      model: undefined,
+      thinkingLevel: "off",
+    };
+  }
+
+  /** Save current settings to file */
+  saveSettings(): void {
+    if (!this.agentDir) {
+      throw new Error("Cannot save settings: agentDir not set");
+    }
+    const settingsPath = join(this.agentDir, "settings.json");
+    try {
+      if (!existsSync(this.agentDir)) {
+        mkdirSync(this.agentDir, { recursive: true });
+      }
+      writeFileSync(settingsPath, JSON.stringify(this.currentSettings, null, 2));
+      this.log(`💾 Settings saved to ${settingsPath}`);
+    } catch (error) {
+      this.log(`❌ Failed to save settings to ${settingsPath}: ${error}`);
+      throw error;
+    }
+  }
+
+  /** Get current settings */
+  getSettings(): any {
+    return { ...this.currentSettings };
+  }
+
+  /** Update a setting and persist to file */
+  updateSetting(key: string, value: any): void {
+    // Support nested keys like "compaction.enabled"
+    const keys = key.split('.');
+    if (keys.length === 1) {
+      this.currentSettings[key] = value;
+    } else {
+      let current: any = this.currentSettings;
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (!current[keys[i]]) current[keys[i]] = {};
+        current = current[keys[i]];
+      }
+      current[keys[keys.length - 1]] = value;
+    }
+    this.saveSettings();
+    this.log(`⚙️ Updated setting: ${key} = ${JSON.stringify(value)}`);
+  }
+
+  /** Reset settings to defaults */
+  resetSettings(): void {
+    this.currentSettings = this.getDefaultSettings();
+    this.saveSettings();
+    this.log("🔄 Settings reset to defaults");
   }
 
   getModelRegistry(): ModelRegistry {

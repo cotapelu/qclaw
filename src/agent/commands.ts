@@ -312,6 +312,49 @@ Persistence:  ${config.persisted ? 'Yes' : 'No'}`;
       await handlers.agent.prompt(`Use the list_files tool to list ${path}`);
       return "";
     });
+
+    // ============================================================================
+    // Settings
+    // ============================================================================
+
+    this.register("settings", async (handlers) => {
+      const settings = handlers.agent.getSettings();
+      let output = `⚙️ Current Settings:\n\n`;
+      output += `Compaction:\n`;
+      output += `  enabled: ${settings.compaction?.enabled ?? 'N/A'}\n`;
+      output += `  tokens: ${settings.compaction?.tokens ?? 'N/A'}\n\n`;
+      output += `Retry:\n`;
+      output += `  enabled: ${settings.retry?.enabled ?? 'N/A'}\n`;
+      output += `  maxRetries: ${settings.retry?.maxRetries ?? 'N/A'}\n\n`;
+      output += `Model: ${settings.model ?? 'Not set (auto-select)'}\n`;
+      output += `Thinking Level: ${settings.thinkingLevel ?? 'off'}\n`;
+      return output;
+    });
+
+    this.register("set", async (handlers, ...args) => {
+      if (args.length < 2) {
+        return `❌ Usage: /set <key> <value>\nExample: /set compaction.enabled false\nKeys: compaction.enabled, compaction.tokens, retry.enabled, retry.maxRetries, model, thinkingLevel`;
+      }
+      const key = args[0];
+      const valueStr = args.slice(1).join(' ');
+      // Parse value (boolean, number, string)
+      let value: any = valueStr;
+      if (valueStr === 'true') value = true;
+      else if (valueStr === 'false') value = false;
+      else if (!isNaN(Number(valueStr))) value = Number(valueStr);
+
+      try {
+        handlers.agent.updateSetting(key, value);
+        return `✅ Set ${key} = ${JSON.stringify(value)}`;
+      } catch (error: any) {
+        return `❌ Failed to update setting: ${error.message}`;
+      }
+    });
+
+    this.register("reset-settings", async (handlers) => {
+      handlers.agent.resetSettings();
+      return "🔄 Settings reset to defaults";
+    });
   }
 
   register(name: string, handler: CommandHandler): void {
