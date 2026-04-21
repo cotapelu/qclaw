@@ -11,7 +11,8 @@ import {
   type AgentSession,
   type CompactionResult,
 } from "@mariozechner/pi-coding-agent";
-import { readFileSync, existsSync, writeFileSync, mkdirSync, watch } from "fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync, watch, createWriteStream, WriteStream } from "fs";
+import { homedir } from "os";
 import { join } from "path";
 
 export interface AgentCoreOptions {
@@ -58,6 +59,92 @@ function validateSettings(settings: any): { valid: boolean; errors?: string[] } 
   return { valid: errors.length === 0, errors };
 }
 
+class FileLogger {
+  private dir: string;
+  private level: string;
+  private rotation: 'daily' | 'hourly' | 'none';
+  private format: 'text' | 'json';
+  private stream: WriteStream | null = null;
+  private currentDate: string = '';
+
+  constructor(settings: any) {
+    const defaults = {
+      dir: join(homedir(), '.pi', 'agent', 'logs'),
+      level: 'info',
+      rotation: 'daily' as const,
+      format: 'text' as const
+    };
+    this.dir = settings.dir ?? defaults.dir;
+    this.level = (settings.level as string) ?? defaults.level;
+    this.rotation = (settings.rotation as 'daily' | 'hourly' | 'none') ?? defaults.rotation;
+    this.format = (settings.format as 'text' | 'json') ?? defaults.format;
+  }
+
+  async init(): Promise<void> {
+    this.ensureDir(this.dir);
+    this.rotate();
+  }
+
+  private ensureDir(dir: string): void {
+    try {
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+    } catch (error) {
+      throw new Error(`Failed to create directory ${dir}: ${error}`);
+    }
+  }
+
+  private rotate(): void {
+    if (this.stream) {
+      this.stream.end();
+    }
+    const now = new Date();
+    let date = now.toISOString().split('T')[0];
+    if (this.rotation === 'hourly') {
+      date += '-' + String(now.getHours()).padStart(2, '0');
+    }
+    if (date === this.currentDate) return;
+    this.currentDate = date;
+    const filename = join(this.dir, `agent-${date}.log`);
+    this.stream = createWriteStream(filename, { flags: 'a' });
+  }
+
+  private rotateIfNeeded(): void {
+    if (this.rotation === 'daily' || this.rotation === 'hourly') {
+      const now = new Date();
+      let date = now.toISOString().split('T')[0];
+      if (this.rotation === 'hourly') {
+        date += '-' + String(now.getHours()).padStart(2, '0');
+      }
+      if (date !== this.currentDate) {
+        this.rotate();
+      }
+    }
+  }
+
+  log(level: string, message: string): void {
+    const levels = ['debug', 'info', 'warn', 'error'];
+    if (levels.indexOf(level) < levels.indexOf(this.level)) {
+      return;
+    }
+    this.rotateIfNeeded();
+    const timestamp = new Date().toISOString();
+    const line = this.format === 'json'
+      ? JSON.stringify({ timestamp, level, message })
+      : `${timestamp} [${level.toUpperCase()}] ${message}\n`;
+    if (this.stream) {
+      this.stream.write(line);
+    }
+  }
+
+  close(): void {
+    if (this.stream) {
+      this.stream.end();
+    }
+  }
+}
+
 export class AgentCore {
   private session: AgentSession | null = null;
   private runtime: any = null;
@@ -91,6 +178,7 @@ export class AgentCore {
   private currentSettings: any = {};
   private settingsWatcher?: any;
   private settingsReloadTimer?: any;
+  private logger: FileLogger | null = null;
 
   constructor(options: AgentCoreOptions = {}) {
     this.cwd = options.cwd ?? process.cwd();
@@ -121,12 +209,7 @@ export class AgentCore {
         compaction: { enabled: true },
         retry: { enabled: true, maxRetries: 2 },
       });
-      this.currentSettings = {
-        compaction: { enabled: true, tokens: 2000 },
-        retry: { enabled: true, maxRetries: 2 },
-        model: undefined,
-        thinkingLevel: "off",
-      };
+      this.currentSettings = this.getDefaultSettings();
     }
     // Start watching settings file for hot-reload
     this.startSettingsWatcher();
@@ -145,6 +228,9 @@ export class AgentCore {
       settingsManager: this.settingsManager,
       systemPromptOverride: this.buildSystemPrompt.bind(this),
     });
+
+    // 5. Initialize file logger
+    this.logger = null;
   }
 
   private buildSystemPrompt(): string {
@@ -181,6 +267,16 @@ Always strive to be accurate and thorough.`;
 
   async initialize(): Promise<void> {
     this.log("🔧 Initializing Agent Core...");
+
+    // Initialize file logging
+    try {
+      this.logger = new FileLogger(this.currentSettings.logging || {});
+      await this.logger.init();
+      this.log(`📝 File logging enabled: ${this.logger['dir']}`);
+    } catch (e) {
+      this.log(`⚠️ File logging disabled: ${e}`);
+      this.logger = null;
+    }
 
     // Load resources (extensions, skills, prompts)
     await this.resourceLoader.reload();
@@ -411,6 +507,12 @@ Always strive to be accurate and thorough.`;
         deniedTools: ['write', 'bash'], // dangerous tools by default
         confirmDestructive: true,
         allowedPaths: [], // empty = allow all
+      },
+      logging: {
+        dir: join(homedir(), '.pi', 'agent', 'logs'),
+        level: 'info', // debug, info, warn, error
+        rotation: 'daily', // daily, hourly, none
+        format: 'text', // text, json
       },
     };
   }
@@ -675,6 +777,15 @@ Always strive to be accurate and thorough.`;
     if (this.verbose && !this.quiet) {
       console.log('[AGENT]', ...args);
     }
+    // Also log to file if logger is available
+    if (this.logger) {
+      try {
+        const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+        this.logger.log('info', msg);
+      } catch (e) {
+        // ignore file write errors
+      }
+    }
   }
 
   /** Start watching settings file for changes */
@@ -717,6 +828,9 @@ Always strive to be accurate and thorough.`;
     }
     if (this.settingsReloadTimer) {
       clearTimeout(this.settingsReloadTimer);
+    }
+    if (this.logger) {
+      this.logger.close();
     }
     this.log("🛑 Agent disposed");
   }
