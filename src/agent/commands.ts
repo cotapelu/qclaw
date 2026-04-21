@@ -556,6 +556,37 @@ Start typing to chat with the agent!`;
     });
 
     // ============================================================================
+    // Setup Wizard (Phase 9)
+    // ============================================================================
+
+    this.register("init", async (handlers) => {
+      const agent = handlers.agent;
+      const agentDir = agent.getAgentDir();
+      // Ensure agent directory exists
+      try {
+        if (!fs.existsSync(agentDir)) {
+          fs.mkdirSync(agentDir, { recursive: true });
+        }
+        // Create subdirectories
+        const subdirs = ['extensions', 'skills', 'prompts', 'logs'];
+        for (const name of subdirs) {
+          const dir = path.join(agentDir, name);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+        }
+        // Check for auth.json
+        const authPath = path.join(agentDir, 'auth.json');
+        if (!fs.existsSync(authPath)) {
+          return `✅ Initialized agent directory in ${agentDir}\n\nSubdirectories created: extensions, skills, prompts, logs\n\nNext steps:\n1. Create ${authPath} with your API keys (see README)\n2. Optionally copy ${path.join(agentDir, 'settings.example.json')} to ${path.join(agentDir, 'settings.json')} and customize\n3. Use /reload to load any extensions/skills you add\n4. Use /set to configure preferences\n`;
+        }
+        return `✅ Agent already initialized in ${agentDir}. Directories ensured.`;
+      } catch (error: any) {
+        return `❌ Initialization failed: ${error.message}`;
+      }
+    });
+
+    // ============================================================================
     // Logging (Phase 6)
     // ============================================================================
 

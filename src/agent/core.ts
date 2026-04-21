@@ -703,6 +703,10 @@ Always strive to be accurate and thorough.`;
     };
   }
 
+  getAgentDir(): string {
+    return this.agentDir;
+  }
+
   /** Watch extension/skill/prompt directories for hot-reloading */
   private startResourceWatchers(): void {
     const watchDirs = [
