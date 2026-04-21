@@ -867,6 +867,50 @@ Start typing to chat with the agent!`;
     });
 
     // ============================================================================
+    // Budget & Cost Analytics (Phase 8)
+    // ============================================================================
+
+    this.register("budget", async (handlers, ...args) => {
+      if (args.length === 0) {
+        const settings = handlers.agent.getSettings();
+        const b = (settings.budget as any) || {};
+        return `Budget thresholds:\n  Daily: ${b.daily ? '$' + b.daily.toFixed(2) : 'not set'}\n  Monthly: ${b.monthly ? '$' + b.monthly.toFixed(2) : 'not set'}\n\nSet with: /budget daily <amount>\n      or: /budget monthly <amount>`;
+      }
+      if (args[0] === 'daily' && args[1]) {
+        const amount = parseFloat(args[1]);
+        if (isNaN(amount)) return '❌ Invalid amount';
+        handlers.agent.updateSetting('budget.daily', amount);
+        return `✅ Daily budget set to $${amount}`;
+      }
+      if (args[0] === 'monthly' && args[1]) {
+        const amount = parseFloat(args[1]);
+        if (isNaN(amount)) return '❌ Invalid amount';
+        handlers.agent.updateSetting('budget.monthly', amount);
+        return `✅ Monthly budget set to $${amount}`;
+      }
+      return 'Usage: /budget [daily <amount> | monthly <amount>]';
+    });
+
+    this.register("cost breakdown", async (handlers) => {
+      const history = handlers.agent.getCostHistory();
+      if (history.length === 0) return '📊 No cost history available.';
+      const byModel = new Map<string, {cost: number, tokens: number}>();
+      for (const e of history) {
+        const model = (e as any).model || 'unknown';
+        if (!byModel.has(model)) byModel.set(model, {cost: 0, tokens: 0});
+        const agg = byModel.get(model)!;
+        agg.cost += (e as any).cost;
+        agg.tokens += (e as any).tokens;
+      }
+      let out = '💰 Cost breakdown by model:\n\n';
+      const sorted = Array.from(byModel.entries()).sort((a, b) => b[1].cost - a[1].cost);
+      for (const [model, data] of sorted) {
+        out += `  ${model}: $${data.cost.toFixed(4)} (${data.tokens.toLocaleString()} tokens)\n`;
+      }
+      return out;
+    });
+
+    // ============================================================================
     // Setup Wizard (Phase 9)
     // ============================================================================
 
