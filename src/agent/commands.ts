@@ -284,6 +284,19 @@ export class CommandRegistry {
       return output;
     });
 
+    
+    this.register("image", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "📷 Usage: /image <path> [question] - Read and analyze an image file";
+      }
+      
+      const imagePath = args[0];
+      const question = args.slice(1).join(' ') || "Describe this image";
+      
+      await handlers.agent.prompt(`Read and analyze the image at "${imagePath}". ${question}`);
+      return "";
+    });
+
     this.register("help", async () => {
       return `🤖 Pi SDK Agent - Help
 
@@ -931,6 +944,144 @@ Start typing to chat with the agent!`;
       }
       return out;
     });
+
+    // ============================================================================
+    // Backup & Restore (Phase 14)
+    // ============================================================================
+
+    this.register("backup", async (handlers, ...args) => {
+      const { createBackup, listBackups } = await import("../utils/backup.js");
+      const agentDir = handlers.agent.getAgentDir();
+      
+      if (args[0] === 'list') {
+        const backupDir = path.join(agentDir, '.backups');
+        const backups = listBackups(backupDir);
+        if (backups.length === 0) {
+          return "📭 No backups found";
+        }
+        let output = `📦 Backups (${backups.length}):\n\n`;
+        backups.slice(0, 10).forEach((b, i) => {
+          const size = (b.size / 1024 / 1024).toFixed(2);
+          output += `${i + 1}. ${b.name} (${size} MB) - ${b.date.toLocaleString()}\n`;
+        });
+        return output;
+      }
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      const backupDir = path.join(agentDir, '.backups');
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+      
+      const outputPath = args[0] 
+        ? path.resolve(args[0])
+        : path.join(backupDir, `backup-${timestamp}.tar.gz`);
+      
+      const result = await createBackup(agentDir, outputPath, {
+        includeLogs: args.includes('--logs'),
+        includeSessions: true,
+        includeExtensions: true,
+      });
+      
+      if (result.success) {
+        const size = (result.size / 1024 / 1024).toFixed(2);
+        return `✅ Backup created:\n File: ${result.filePath}\n Size: ${size} MB\n Files: ${result.filesIncluded}\n Duration: ${(result.duration / 1000).toFixed(1)}s`;
+      } else {
+        return `❌ Backup failed: ${result.error}`;
+      }
+    });
+
+    this.register("restore", async (handlers, ...args) => {
+      const { restoreBackup, listBackups } = await import("../utils/backup.js");
+      
+      if (args.length === 0) {
+        const agentDir = handlers.agent.getAgentDir();
+        const backupDir = path.join(agentDir, '.backups');
+        const backups = listBackups(backupDir);
+        
+        if (backups.length === 0) {
+          return "❌ No backups found. Usage: /restore <backup-file>";
+        }
+        
+        let output = "📦 Available backups (select with /restore <number>):\n\n";
+        backups.slice(0, 10).forEach((b, i) => {
+          const size = (b.size / 1024 / 1024).toFixed(2);
+          output += `${i + 1}. ${b.name} (${size} MB) - ${b.date.toLocaleString()}\n`;
+        });
+        output += "\nUsage: /restore <backup-file> or /restore <number> from list";
+        return output;
+      }
+      
+      let backupPath = args[0];
+      const numMatch = backupPath.match(/^\d+$/);
+      if (numMatch) {
+        const index = parseInt(backupPath) - 1;
+        const agentDir = handlers.agent.getAgentDir();
+        const backupDir = path.join(agentDir, '.backups');
+        const backups = listBackups(backupDir);
+        if (index < 0 || index >= backups.length) {
+          return `❌ Invalid backup number: ${backupPath}`;
+        }
+        backupPath = backups[index].path;
+      }
+      
+      if (!fs.existsSync(backupPath)) {
+        return `❌ Backup file not found: ${backupPath}`;
+      }
+      
+      const targetDir = handlers.agent.getAgentDir();
+      const merge = args.includes('--merge');
+      
+      const result = await restoreBackup(backupPath, targetDir);
+      
+      if (result.success) {
+        return `✅ Restored from backup:\n From: ${backupPath}\n To: ${result.extractedTo}\n Files: ${result.filesRestored}\n Duration: ${(result.duration / 1000).toFixed(1)}s\n\nNote: You may need to restart the agent for changes to take effect.`;
+      } else {
+        return `❌ Restore failed: ${result.error}`;
+      }
+    });
+
+    this.register("auto-backup", async (handlers, ...args) => {
+      const { BackupAutomation, loadBackupSchedule, saveBackupSchedule } = await import("../utils/backup-automation.js");
+      const agentDir = handlers.agent.getAgentDir();
+      const schedule = loadBackupSchedule(agentDir);
+
+      if (args.length === 0 || args[0] === 'status') {
+        const stats = new BackupAutomation(agentDir, schedule).getStats();
+        return `🔄 Auto-backup Status:
+Enabled: ${stats.enabled ? 'Yes' : 'No'}
+Interval: ${stats.interval}
+Max backups: ${stats.maxBackups}
+Total auto-backups: ${stats.autoBackupsCount}
+Last backup: ${stats.lastBackup || 'Never'}`;
+      }
+
+      if (args[0] === 'enable') {
+        const interval = (args[1] as 'daily' | 'weekly') || 'daily';
+        const maxBackups = parseInt(args[2]) || 7;
+        
+        const newSchedule = {
+          enabled: true,
+          interval,
+          maxBackups,
+        };
+        
+        saveBackupSchedule(agentDir, newSchedule);
+        const automation = new BackupAutomation(agentDir, newSchedule);
+        automation.start();
+        
+        return `✅ Auto-backup enabled: ${interval}, keeping ${maxBackups} backups`;
+      }
+
+      if (args[0] === 'disable') {
+        schedule.enabled = false;
+        saveBackupSchedule(agentDir, schedule);
+        return '🔄 Auto-backup disabled';
+      }
+
+      return 'Usage: /auto-backup [enable <daily|weekly> <max>] | [disable] | [status]';
+    });
+
 
     // ============================================================================
     // Session Previews (Phase 4)

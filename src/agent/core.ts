@@ -184,6 +184,7 @@ export class AgentCore {
   private lastToolName: string | null = null;
   private toolFailureTimestamps: Map<string, number[]> = new Map();
   private toolCircuitOpenUntil: Map<string, number> = new Map();
+  private compactionEnabled: boolean = true;
 
   constructor(options: AgentCoreOptions = {}) {
     this.cwd = options.cwd ?? process.cwd();
@@ -576,6 +577,22 @@ Always strive to be accurate and thorough.`;
     return { ...this.currentSettings };
   }
 
+  /** Check if compaction is enabled */
+  isCompactionEnabled(): boolean {
+    return this.compactionEnabled;
+  }
+
+  /** Toggle compaction */
+  setCompactionEnabled(enabled: boolean): void {
+    this.compactionEnabled = enabled;
+    // Also update settings
+    this.currentSettings.compaction = {
+      ...this.currentSettings.compaction,
+      enabled
+    };
+    this.log(`🗜️ Compaction ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
   /** Update a setting and persist to file */
   updateSetting(key: string, value: any): void {
     // Support nested keys like "compaction.enabled"
@@ -699,15 +716,42 @@ Always strive to be accurate and thorough.`;
     this.log("   ✅ Session recreated with new model");
   }
 
-  async compact(summary?: string): Promise<void> {
+  async compact(summary?: string, preview: boolean = false): Promise<string> {
+    if (!this.compactionEnabled && !preview) {
+      return "🗜️ Compaction is disabled (use /compact-on to enable)";
+    }
+    
     if (this.session) {
+      if (preview) {
+        // Return preview info without actually compacting
+        const entries = this.sessionManager.getEntries();
+        const total = entries.length;
+        const target = this.currentSettings.compaction?.tokens || 2000;
+        // Estimate: assume 4 chars per token
+        const totalChars = entries
+          .filter((e: any) => e.type === 'message')
+          .reduce((sum: number, e: any) => {
+            const text = e.message?.content?.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ') || '';
+            return sum + text.length;
+          }, 0);
+        const estimatedTokens = Math.ceil(totalChars / 4);
+        const wouldRemove = estimatedTokens > target ? Math.floor(total * 0.3) : 0; // rough estimate
+        
+        return `🗜️ Compaction Preview:
+Total entries: ${total}
+Est. tokens: ~${estimatedTokens}
+Target threshold: ${target}
+Would remove: ~${wouldRemove} entries`;
+      }
+      
       const result: any = await this.session.compact(summary);
       if (result) {
-        this.log(`🗜️ Compacted: ${result.removedEntries} entries removed`);
+        return `🗜️ Compacted: ${result.removedEntries} entries removed`;
       } else {
-        this.log(`🗜️ Compaction: no result`);
+        return "🗜️ Compaction: no result";
       }
     }
+    return "❌ No active session";
   }
 
   async abort(): Promise<void> {

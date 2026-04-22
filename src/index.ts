@@ -317,3 +317,7 @@ process.on('uncaughtException', (error: any) => {
 });
 
 main();
+
+// Export sandbox utilities
+export * from './tools/sandbox.js';
+
