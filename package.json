@@ -9,7 +9,7 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "lint": "eslint src/**/*.ts --fix",
-    "test": "tsx tests/agent.test.ts && tsx tests/commands.test.ts",
+    "test": "tsx tests/agent.test.ts && tsx tests/commands.test.ts && tsx tests/e2e.test.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck",
     "clean": "rm -rf dist"
