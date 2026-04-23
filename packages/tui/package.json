@@ -1,7 +1,7 @@
 {
-  "name": "@qclaw/tui",
-  "version": "0.1.0",
-  "description": "TUI module for qclaw coding agent",
+  "name": "@mariozechner/pi-tui-professional",
+  "version": "1.0.0",
+  "description": "Professional TUI components built on pi-tui and pi-coding-agent",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,25 +9,51 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./theme": {
+      "types": "./dist/theme/index.d.ts",
+      "import": "./dist/theme/index.js"
+    },
+    "./components/*": {
+      "types": "./dist/components/*/index.d.ts",
+      "import": "./dist/components/*/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
     }
   },
   "scripts": {
-    "clean": "rm -rf dist",
     "build": "tsc -p tsconfig.json",
-    "dev": "tsc -p tsconfig.json --watch",
-    "test": "node --test test/*.test.js"
+    "test": "tsx tests/run.test.ts",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@mariozechner/pi-coding-agent": "^0.68.0",
     "@mariozechner/pi-tui": "^0.68.0",
-    "@mariozechner/pi-coding-agent": "^0.68.0"
+    "@mariozechner/pi-agent-core": "^0.68.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
   },
   "peerDependencies": {
     "@mariozechner/pi-tui": "^0.68.0",
     "@mariozechner/pi-coding-agent": "^0.68.0"
-  }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "tui",
+    "terminal",
+    "coding-agent",
+    "ai",
+    "assistant",
+    "cli"
+  ],
+  "author": "Qcoder Team",
+  "license": "MIT"
 }
