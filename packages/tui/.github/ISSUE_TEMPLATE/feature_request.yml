@@ -1,0 +1,68 @@
+name: Feature Request
+description: Suggest an idea for this project
+title: "[FEATURE] "
+labels: ["enhancement", "needs-discussion"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We love hearing new ideas! Please provide a clear and concise description of the feature you'd like to see.
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: Problem / Use Case
+      description: "Is your feature request related to a problem? Please describe. Example: 'I'm always frustrated when [...]'"
+      placeholder: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: A clear and concise description of what you want to happen.
+      placeholder: Describe the solution you'd like
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives-considered
+    attributes:
+      label: Alternatives Considered
+      description: "Describe any alternative solutions or features you've considered."
+      placeholder: What other approaches did you think about?
+  - type: textarea
+    id: example-use-case
+    attributes:
+      label: Example Use Case
+      description: Provide a concrete example of how this feature would be used.
+      placeholder: |
+        ```typescript
+        import { NewFeature } from '@mariozechner/pi-tui-professional';
+
+        const feature = new NewFeature({ option: 'value' });
+        ```
+      render: typescript
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How important is this feature to you?
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical
+      default: 0
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm
+      options:
+        - label: I have checked that this feature doesn't already exist
+          required: true
+        - label: I understand this may take time to implement
+          required: true
+        - label: I am willing to help with testing or implementation
+          required: false

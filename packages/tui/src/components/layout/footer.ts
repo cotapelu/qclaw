@@ -1,6 +1,6 @@
 import { Text, Container } from "@mariozechner/pi-tui";
 import type { Component } from "@mariozechner/pi-tui";
-import type { ThemeManager } from "../theme";
+import { ThemeManager } from "../../theme/theme-manager";
 
 /**
  * Footer data structure
@@ -47,6 +47,13 @@ export class FooterComponent extends Container implements Component {
   updateData(data: Partial<FooterData>): void {
     this.data = { ...this.data, ...data };
     this.invalidate();
+  }
+
+  /**
+   * Get current footer data (readonly copy)
+   */
+  getData(): Readonly<FooterData> {
+    return { ...this.data };
   }
 
   /**
@@ -138,10 +145,7 @@ export class FooterComponent extends Container implements Component {
     return prefix + lastTwo;
   }
 
-  /**
-   * Render footer segments
-   */
-  private renderSegments(width: number): string[] {
+  render(width: number): string[] {
     const segments: string[] = [];
 
     // CWD
@@ -213,17 +217,8 @@ export class FooterComponent extends Container implements Component {
       segments.push(statusDisplay);
     }
 
-    return segments;
-  }
-
-  render(width: number): string[] {
-    const segments = this.renderSegments(width);
     const line = segments.join(" ");
-
-    // Pad to width
-    const padded = line.padEnd(width).slice(0, width);
-
-    return [padded];
+    return [line.padEnd(width).slice(0, width)];
   }
 }
 

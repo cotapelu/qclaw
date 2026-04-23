@@ -11,6 +11,10 @@ export {
   createSimpleFooter,
   DynamicBorder,
   createBorder,
+  ScrollableContainer,
+  createScrollableContainer,
+  ProgressBar,
+  createProgressBarComponent,
 } from "./components/layout/index.js";
 export type {
   ChatContainerProps,
@@ -30,6 +34,9 @@ export {
   formatSize,
   formatDuration,
 } from "./utils/index.js";
+
+// Overlay components (our custom)
+export { ModalComponent, showModalMessage, showModalConfirm } from "./components/overlays/index.js";
 
 // Re-export pi-tui core components for convenience
 export { TUI, ProcessTerminal, Container, Text, Box, Spacer, Input } from "@mariozechner/pi-tui";
@@ -62,7 +69,6 @@ export {
 } from "@mariozechner/pi-coding-agent";
 
 // Re-export selected theme functions from pi-coding-agent
-// Note: For full theme control, use ThemeManager from this package
 export {
   initTheme,
   getMarkdownTheme,
@@ -71,9 +77,3 @@ export {
   getLanguageFromPath,
   highlightCode,
 } from "@mariozechner/pi-coding-agent";
-
-// pi-coding-agent's theme API (setTheme, onThemeChange, theme) are also available directly
-// import { setTheme, onThemeChange, theme } from "@mariozechner/pi-coding-agent";
-
-// Re-export EditorTheme type (useful for custom themes)
-export type { EditorTheme, MarkdownTheme, SelectListTheme, SettingsListTheme } from "@mariozechner/pi-tui";

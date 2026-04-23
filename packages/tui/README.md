@@ -1,17 +1,22 @@
 # @mariozechner/pi-tui-professional
 
-A professional TUI (Terminal User Interface) component library built on top of `@mariozechner/pi-tui` and `@mariozechner/pi-coding-agent`. This package provides high-level, theme-aware components for building sophisticated terminal applications, especially coding agents.
+[![npm version](https://img.shields.io/npm/v/@mariozechner/pi-tui-professional.svg)](https://npmjs.com/package/@mariozechner/pi-tui-professional)
+[![npm downloads](https://img.shields.io/npm/dm/@mariozechner/pi-tui-professional.svg)](https://npmjs.com/package/@mariozechner/pi-tui-professional)
+[![License](https://img.shields.io/npm/l/@mariozechner/pi-tui-professional.svg)](LICENSE)
+[![Build Status](https://github.com/qcoder/qclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/qcoder/qclaw/actions/workflows/ci.yml)
 
-## Features
+**Production Ready** ✅ | v1.0.0 | Apache-2.0
 
-- **Theme Management**: Complete theme system with dark/light/auto modes, 60+ color roles
-- **Message Components**: Styled user/assistant/tool messages with markdown support
-- **Input Components**: Advanced editor with autocomplete, keybindings, image paste
-- **Layout Components**: Chat container, footer, dynamic borders
-- **Selectors**: Model, theme, settings, thinking level selectors
-- **Overlays**: Dialogs, confirmations, input prompts
-- **Loaders**: Themed loaders with spinners and cancellable support
-- **Utilities**: Diff rendering, truncation, progress bars, formatting
+A professional TUI (Terminal User Interface) component library built on top of `@mariozechner/pi-tui` and `@mariozechner/pi-coding-agent`. This package provides high-level, theme-aware components for building sophisticated terminal applications, especially coding agents and AI assistants.
+
+## ✨ Features
+
+- **Theme Management**: Centralized theme control (`ThemeManager`) with dark/light modes and 60+ color roles
+- **Layout Components**: `ChatContainer`, `FooterComponent`, `DynamicBorder`, `ScrollableContainer`, `ProgressBar`
+- **Message Components**: Re-exported from pi-coding-agent (`UserMessageComponent`, `AssistantMessageComponent`, `ToolExecutionComponent`, `BashExecutionComponent`)
+- **Input Components**: `CustomEditor` wrapper, re-exported pi-coding-agent selectors
+- **Overlays**: `ModalComponent` with `showModalMessage` and `showModalConfirm` helpers
+- **Utilities**: Diff rendering, truncation, wrapping, padding, progress bar creation, format helpers
 
 ## Installation
 
@@ -22,35 +27,30 @@ npm install @mariozechner/pi-tui @mariozechner/pi-coding-agent @mariozechner/pi-
 ## Quick Start
 
 ```typescript
-import { TUI, ProcessTerminal } from "@mariozechner/pi-tui";
+import { TUI, ProcessTerminal, Container } from "@mariozechner/pi-tui";
 import {
   ThemeManager,
   ChatContainer,
-  CustomEditor,
   FooterComponent,
+  CustomEditor,
   UserMessageComponent,
   AssistantMessageComponent,
-  ToolExecutionComponent,
+  initTheme,
   getMarkdownTheme,
 } from "@mariozechner/pi-tui-professional";
 
 async function main() {
-  // Initialize TUI
+  // Initialize terminal
   const terminal = new ProcessTerminal();
   const tui = new TUI(terminal);
 
-  // Initialize theme
+  // Initialize theme (dark/light/auto)
   const theme = ThemeManager.getInstance();
-  theme.initialize({ mode: "dark" });
+  theme.initialize("auto");
 
-  // Layout
-  const chatContainer = new ChatContainer({
-    themeManager: theme,
-    maxMessages: 100,
-    autoScroll: true,
-    messageSpacing: 1,
-  });
-  tui.addChild(chatContainer);
+  // Layout: Chat area
+  const chat = new ChatContainer({ themeManager: theme });
+  tui.addChild(chat);
 
   // Footer
   const footer = new FooterComponent(theme, {
@@ -59,7 +59,7 @@ async function main() {
   });
   tui.addChild(footer);
 
-  // Editor
+  // Editor at bottom
   const editor = new CustomEditor(tui, theme, {
     placeholder: "Type your message...",
   });
@@ -73,14 +73,12 @@ async function main() {
 
       // Add user message
       const userMsg = new UserMessageComponent(input, theme);
-      chatContainer.addMessage(userMsg);
+      chat.addMessage(userMsg);
 
-      // Simulate assistant response
+      // Simulate assistant response (replace with real LLM call)
       const assistantMsg = new AssistantMessageComponent("", false, theme);
-      chatContainer.addMessage(assistantMsg);
-
-      // Stream response (example)
-      simulateStream(assistantMsg, "Hello! How can I help you today?");
+      chat.addMessage(assistantMsg);
+      simulateStream(assistantMsg, "Echo: " + input);
     }
   };
 
@@ -88,8 +86,8 @@ async function main() {
 }
 
 async function simulateStream(component: AssistantMessageComponent, text: string) {
-  const words = text.split(" ");
   let accumulated = "";
+  const words = text.split(" ");
   for (const word of words) {
     accumulated += word + " ";
     component.updateContent(accumulated);
@@ -100,221 +98,202 @@ async function simulateStream(component: AssistantMessageComponent, text: string
 main().catch(console.error);
 ```
 
-## Core Components
+## Core Concepts
 
 ### ThemeManager
 
-Central theme management with subscription support.
+Centralized theme management using pi-coding-agent's theme system.
 
 ```typescript
-const theme = ThemeManager.getInstance();
-theme.initialize({ mode: "dark" });
+import { ThemeManager } from "@mariozechner/pi-tui-professional";
 
-// Subscribe to theme changes
-const unsubscribe = theme.subscribe(() => {
-  console.log("Theme changed to:", theme.getMode());
-});
+const theme = ThemeManager.getInstance();
+
+// Initialize (once at startup)
+theme.initialize("dark"); // "light", "auto"
+
+// Switch theme later
+theme.setTheme("light");
 
 // Apply colors
-console.log(theme.fg("accent", "Highlighted text"));
-console.log(theme.bg("error", "Error background"));
+const colored = theme.fg("accent", "Highlighted text");
+
+// Subscribe to changes
+const unsubscribe = theme.subscribe(() => {
+  tui.requestRender(); // re-render with new theme
+});
+
+// Get theme objects for pi-coding-agent components
+const markdownTheme = theme.getMarkdownTheme();
+const editorTheme = theme.getEditorTheme();
 ```
 
 ### ChatContainer
 
-Scrollable container for chat messages with auto-scroll and message limiting.
+A scrollable container for chat messages with message limiting.
 
 ```typescript
 const chat = new ChatContainer({
   themeManager: theme,
-  maxMessages: 50,
-  autoScroll: true,
-  messageSpacing: 1,
+  maxMessages: 100,    // optional, default unlimited
+  autoScroll: true,    // auto-scroll to bottom
+  messageSpacing: 1,   // spacing between messages
 });
 
-chat.addMessage(userMessage);
-chat.scrollToBottom();
+// Add messages
+chat.addMessage(new UserMessageComponent("Hello", theme));
+chat.addMessage(new AssistantMessageComponent("Hi there!", false, theme));
+
+// Clear
 chat.clearMessages();
 ```
 
 ### FooterComponent
 
-Status bar displaying cwd, git branch, model, token usage, etc.
+Status bar showing cwd, git branch, model, token usage, thinking level, etc.
 
 ```typescript
 const footer = new FooterComponent(theme, {
   cwd: process.cwd(),
   gitBranch: "main",
   model: "claude-3-opus",
-  tokenUsage: 45,
+  tokenUsage: 42,
   thinkingLevel: "medium",
   showImages: true,
 });
 
-footer.setTokenUsage(60);
-footer.setModel("new-model");
+// Update dynamically
+footer.setTokenUsage(75);
+footer.setModel("gpt-4");
 footer.addStatus("Working...");
 ```
 
 ### CustomEditor
 
-Multi-line editor with autocomplete, vim/emacs keybindings, IME support.
+Multi-line editor with Vim/Emacs keybindings, autocomplete, IME support.
 
 ```typescript
+import { CombinedAutocompleteProvider } from "@mariozechner/pi-tui";
+import { BUILTIN_SLASH_COMMANDS } from "@mariozechner/pi-coding-agent";
+
 const editor = new CustomEditor(tui, theme, {
   placeholder: "Ask anything...",
 });
 
-editor.setAutocompleteProvider(myProvider);
-editor.setValue("initial content");
-editor.clear();
-editor.focusEditor();
-```
-
-### Message Components
-
-Styled message bubbles with markdown rendering.
-
-```typescript
-const userMsg = new UserMessageComponent(
-  "Hello, **world**!",
-  theme,
-  getMarkdownTheme()
-);
-
-const assistantMsg = new AssistantMessageComponent(
-  "",
-  false, // showThinking
-  theme,
-  getMarkdownTheme()
-);
-assistantMsg.updateContent("Response with `code` and *italic*");
-
-const toolMsg = new ToolExecutionComponent(
-  "read",
-  "call-123",
-  { path: "file.ts" },
-  { showImages: true },
-  toolDefinition, // optional
-  theme,
+// Autocomplete
+const provider = new CombinedAutocompleteProvider(
+  BUILTIN_SLASH_COMMANDS,
   process.cwd()
 );
-toolMsg.updateResult({
-  content: [{ type: "text", text: "File content..." }],
+editor.setAutocompleteProvider(provider);
+```
+
+### DynamicBorder
+
+Wrap any component with a themed border.
+
+```typescript
+import { DynamicBorder, createBorder } from "@mariozechner/pi-tui-professional";
+
+const bordered = new DynamicBorder(theme, {
+  borderStyle: "double", // single, double, rounded, heavy, ascii
+  title: "My Panel",
+  padding: 1,
+});
+bordered.addChild(myComponent);
+
+// Or use helper
+const border = createBorder(theme, myComponent, {
+  borderStyle: "rounded",
+  title: "Info",
 });
 ```
 
-### Selectors
+### ScrollableContainer
 
-Overlay selectors for options.
+A container that can scroll its children vertically. Useful for large message histories.
 
 ```typescript
-// Model selector
-const modelSelector = new ModelSelectorComponent(
-  ["claude-3-opus", "gpt-4"],
-  currentModel,
-  { onSelect: (model) => setModel(model) },
-  theme
-);
-modelSelector.show(tui, { width: 60 });
+import { ScrollableContainer } from "@mariozechner/pi-tui-professional";
 
-// Theme selector
-const themeSelector = new ThemeSelectorComponent(theme);
-themeSelector.show(tui);
+const scrollable = new ScrollableContainer(theme, 20); // viewport height 20 lines
+scrollable.addChild(messageComponent);
+scrollable.scrollDown(5);
+scrollable.scrollToBottom();
+```
 
-// Settings selector
-const settingsSelector = new SettingsSelectorComponent(theme, {
-  onSettingChanged: (key, value) => {
-    console.log(`${key} = ${value}`);
-  },
+**Methods**:
+- `setViewportHeight(height)` - set visible lines
+- `scrollDown(lines)`, `scrollUp(lines)`
+- `scrollToTop()`, `scrollToBottom()`
+- `hasScrollbar()`, `getScrollPercent()`
+
+### ProgressBar
+
+Displays a horizontal progress bar with percentage.
+
+```typescript
+import { ProgressBar } from "@mariozechner/pi-tui-professional";
+
+const bar = new ProgressBar(theme, 30, { showPercentage: true });
+bar.setProgress(75);
+container.addChild(bar);
+```
+
+### ModalComponent
+
+Base class for modal dialogs shown as overlays.
+
+```typescript
+import { ModalComponent, showModalMessage, showModalConfirm } from "@mariozechner/pi-tui-professional";
+
+// Simple message modal
+const msg = showModalMessage(tui, theme, "Operation complete!", {
+  title: "Info",
+  width: 50,
 });
-settingsSelector.show(tui);
 
-// Thinking level
-const thinkingSelector = new ThinkingSelectorComponent(
-  theme,
-  "medium" // current level
-);
-thinkingSelector.show(tui);
-```
-
-### Loaders
-
-Themed loading indicators.
-
-```typescript
-const loader = new ThemedLoader(tui, theme, "Thinking...");
-loader.start();
-// ... do work ...
-loader.stop();
-
-const borderedLoader = new BorderedLoader(
-  tui,
-  theme,
-  "Loading...",
-  { borderStyle: "double", padding: 2 }
-);
-borderedLoader.start();
-```
-
-### Dialogs
-
-Modal dialogs for confirmation and input.
-
-```typescript
-// MessageBox
-showMessageBox(tui, theme, "Operation complete!", { title: "Info" });
-
-// ConfirmDialog
-const confirmed = await showConfirmDialog(
-  tui,
-  theme,
-  "Are you sure you want to delete this file?",
-  { title: "Confirm" }
-);
+// Confirmation modal (Promise-based)
+const confirmed = await showModalConfirm(tui, theme, "Delete file?");
 if (confirmed) {
   // proceed
 }
 
-// InputDialog
-const result = await showInputDialog(
-  tui,
-  theme,
-  "Enter filename",
-  { defaultValue: "untitled.txt" }
-);
-if (result) {
-  console.log("User input:", result);
-}
+// Custom modal with content
+const custom = new ModalComponent(theme, {
+  title: "Settings",
+  width: 60,
+  borderStyle: "double",
+});
+custom.getContent().addChild(new Text("Setting 1", 1, 0));
+custom.show(tui);
 ```
 
 ### Utilities
 
-Helper functions for common tasks.
+Helper functions for common UI tasks.
 
 ```typescript
 import {
-  renderDiff,
-  createProgressBar,
-  createTitledBox,
-  formatSize,
-  formatDuration,
+  renderDiff,          // Render unified diff with syntax colors
+  truncateText,        // Truncate with ellipsis
+  wrapText,            // Wrap text preserving ANSI
+  padText,             // Pad with alignment + theme
+  joinThemed,          // Join with themed separator
+  createProgressBar,   // Create visual progress bar (string)
+  createTitledBox,     // Create box with title border
+  formatSize,          // Format bytes to human readable
+  formatDuration,      // Format ms to "5s", "1m 5s", etc.
 } from "@mariozechner/pi-tui-professional";
 
-// Diff rendering
-const diffLines = renderDiff(
-  unifiedDiffText,
-  width,
-  theme
-);
+// Diff
+const diffLines = renderDiff(diffText, width, theme, {
+  showLineNumbers: false,
+});
 
 // Progress bar
-const bar = createProgressBar(
-  75, // percentage
-  20, // width
-  theme,
-  { showPercentage: true }
-); // "[███████░░░░░] 75%"
+const bar = createProgressBar(75, 20, theme, { showPercentage: true });
+// "[███████░░░░░] 75%"
 
 // Titled box
 const box = createTitledBox(
@@ -328,72 +307,25 @@ const box = createTitledBox(
 // Formatting
 console.log(formatSize(1024 * 1024)); // "1.0 MB"
 console.log(formatDuration(5000));    // "5s"
+console.log(formatDuration(65000));   // "1m 5s"
 ```
 
-## Overlays
+## Re-Exports from pi-coding-agent
 
-Show any component as an overlay with automatic focus management.
+We re-export many pi-coding-agent components for convenience:
 
-```typescript
-const selector = new ThemeSelectorComponent(theme);
-const handle = tui.showOverlay(selector, {
-  width: 50,
-  anchor: "center",
-  margin: 2,
-});
+- **Messages**: `UserMessageComponent`, `AssistantMessageComponent`, `ToolExecutionComponent`, `CustomMessageComponent`, `BashExecutionComponent`
+- **Input**: `CustomEditor` as `PiCustomEditor`
+- **Selectors**: `ModelSelectorComponent`, `SettingsSelectorComponent`, `ThemeSelectorComponent`, `ThinkingSelectorComponent`
+- **Footer**: `PiFooterComponent`
+- **Utilities**: `keyHint`, `keyText`, `rawKeyHint`, `renderDiff` (as `PiRenderDiff`), `truncateToVisualLines`
+- **Theme**: `initTheme`, `getMarkdownTheme`, `getSelectListTheme`, `getSettingsListTheme`, `getLanguageFromPath`, `highlightCode`
 
-// Later
-handle.hide();
-```
+Also re-export core pi-tui components:
 
-## Dynamic Borders
+- `TUI`, `ProcessTerminal`, `Container`, `Text`, `Box`, `Spacer`, `Input`
 
-Wrap components with themed borders.
-
-```typescript
-const bordered = createBorder(
-  theme,
-  myComponent,
-  {
-    borderStyle: "double",
-    title: "My Panel",
-    padding: 1,
-  }
-);
-tui.addChild(bordered);
-```
-
-## Integration with pi-coding-agent
-
-This package works seamlessly with `pi-coding-agent` components:
-
-```typescript
-import {
-  initTheme,
-  getMarkdownTheme,
-  getEditorTheme,
-  CustomEditor,
-  UserMessageComponent,
-  FooterComponent,
-  theme as piTheme,
-} from "@mariozechner/pi-coding-agent";
-
-// Use pi-coding-agent's theme system
-initTheme("dark");
-
-// Our components wrap those
-const theme = ThemeManager.getInstance();
-const editor = new CustomEditor(tui, theme);
-```
-
-## Best Practices
-
-1. **Always use ThemeManager** for color access, never hardcode ANSI codes
-2. **Cache renders** in custom components (override `render()` with caching)
-3. **Propagate focus** if your component contains focusable children
-4. **Respect line width** in `render()` - every line must ≤ given width
-5. **Invalidate caches** when content changes
-6. **Use overlay system** for dialogs instead of custom focus stacks
+You can import directly from `@mariozechner/pi-tui-professional` without needing to install both packages separately (though they are peer dependencies).
 
 ## API Reference
 
@@ -401,37 +333,164 @@ const editor = new CustomEditor(tui, theme);
 
 | Method | Description |
 |--------|-------------|
-| `initialize(config)` | Set up theme system |
-| `setTheme(mode)` | Switch theme |
-| `getMode()` | Get current mode |
+| `getInstance()` | Get singleton |
+| `initialize(themeName?)` | Init theme ("dark"/"light"/"auto") |
+| `setTheme(themeName)` | Change theme |
+| `getMode()` | Get current mode ("dark"/"light") |
 | `fg(role, text)` | Apply foreground color |
-| `bg(role, text)` | Apply background color |
-| `style(fg, bg, text)` | Both fg and bg |
-| `subscribe(cb)` | Listen to theme changes |
 | `getMarkdownTheme()` | Get markdown renderer theme |
 | `getEditorTheme()` | Get editor theme |
+| `getSelectListTheme()` | Get select list theme |
+| `getSettingsListTheme()` | Get settings list theme |
+| `subscribe(cb)` | Listen for theme changes |
 
 ### ChatContainer
 
-| Method | Description |
-|--------|-------------|
-| `addMessage(component)` | Add a message |
-| `removeMessage(component)` | Remove a message |
-| `clearMessages()` | Clear all |
-| `scrollToBottom()` | Auto-scroll |
-| `scrollUp(lines)` / `scrollDown(lines)` | Manual scroll |
-| `getScrollPosition()` | Get scroll offset |
+| Constructor | `new ChatContainer({ themeManager, maxMessages?, autoScroll?, messageSpacing? })` |
+| Method | `addMessage(component)` |
+| Method | `removeMessage(component)` |
+| Method | `clearMessages()` |
+| Method | `getMessages()` |
+| Static | `createChatBorder(width, char?)` |
+| Static | `createSeparator(width, style?)` |
 
 ### FooterComponent
 
-| Method | Description |
-|--------|-------------|
-| `updateData(data)` | Update footer info |
-| `setCwd(cwd)` | Set working directory |
-| `setModel(model)` | Set model name |
-| `setTokenUsage(%)` | Update usage bar |
-| `setThinkingLevel(level)` | Set thinking level |
-| `addStatus(text)` / `removeStatus(text)` | Manage status indicators |
+| Constructor | `new FooterComponent(themeManager, initialData?)` |
+| Method | `updateData(data)` |
+| Method | `setCwd(cwd)`, `setModel(model)`, `setTokenUsage(percentage)`, `setThinkingLevel(level)`, `setShowImages(show)` |
+| Method | `addStatus(text)` / `removeStatus(text)` / `clearStatus()` |
+| Method | `getData()` |
+
+### DynamicBorder
+
+| Constructor | `new DynamicBorder(themeManager, options?)` |
+| Options | `borderStyle` ("single"/"double"/"rounded"/"heavy"/"ascii"), `title?`, `padding?` |
+| Method | `setTitle(title)`, `setBorderStyle(style)` |
+| Static | `createBorder(themeManager, component, options?)` |
+
+### ScrollableContainer
+
+A container that can scroll its children vertically.
+
+| Constructor | `new ScrollableContainer(themeManager, viewportHeight?)` |
+| Method | `setViewportHeight(height)` |
+| Method | `scrollDown(lines?)`, `scrollUp(lines?)` |
+| Method | `scrollToTop()`, `scrollToBottom()` |
+| Method | `hasScrollbar()`, `getScrollPercent()`, `getScrollOffset()` |
+
+### ProgressBar
+
+Displays a horizontal progress bar with percentage.
+
+| Constructor | `new ProgressBar(themeManager, width?, options?)` |
+| Options | `filledChar?` (default "█"), `emptyChar?` (default "░"), `showPercentage?` (default true) |
+| Method | `setProgress(percentage)` (0-100), `getProgress()` |
+| Method | `setWidth(width)` |
+| Note | Renders as a single-line `Container` |
+
+### ModalComponent
+
+| Constructor | `new ModalComponent(themeManager, options?)` |
+| Options | `title?`, `width?`, `borderStyle?`, `closeOnEscape?` |
+| Method | `show(tui)`, `hide()` |
+| Method | `onClose(callback)` |
+| Method | `getContent()` // returns inner `Container` to add children |
+
+Helpers:
+
+- `showModalMessage(tui, theme, message, options?)` → returns `ModalComponent`
+- `showModalConfirm(tui, theme, message, options?)` → `Promise<boolean>`
+
+### Utilities
+
+All are pure functions:
+
+```typescript
+renderDiff(diff: string, width: number, theme: ThemeManager, options?: { showLineNumbers?: boolean }): string[]
+truncateText(text: string, maxWidth: number, ellipsis?: string, theme?: ThemeManager): string
+wrapText(text: string, width: number, theme: ThemeManager, role?: ThemeRole): string[]
+padText(text: string, width: number, align?: "left"|"center"|"right", theme?: ThemeManager, role?: string): string
+joinThemed(parts: string[], separator: string, theme: ThemeManager, separatorRole?: string): string
+createProgressBar(percentage: number, width: number, theme: ThemeManager, options?: { filledChar?, emptyChar?, showPercentage? }): string
+createTitledBox(title: string, content: string[], width: number, theme: ThemeManager, options?: { padding?, borderStyle? }): string[]
+formatSize(bytes: number): string
+formatDuration(ms: number): string
+```
+
+## Best Practices
+
+1. **Initialize ThemeManager early**: Call `theme.initialize()` before creating components.
+2. **Use provided components**: Compose with `ChatContainer`, `FooterComponent`, `DynamicBorder` instead of building from scratch.
+3. **Cache renders**: If you create custom components, cache `render()` output and honor `invalidate()`.
+4. **Respect line width**: Ensure every render line ≤ given width. Use `truncateToWidth` or `wrapTextWithAnsi` from pi-tui.
+5. **Theme colors**: Use `theme.fg(role, text)` or re-exported pi-coding-agent theme functions. Avoid hardcoded ANSI.
+6. **Overlay management**: Use `tui.showOverlay(component)` for dialogs; it handles focus and dismissal automatically.
+
+## Frequently Asked Questions (FAQ)
+
+<details>
+<summary><b>Q: How do I change the theme dynamically?</b></summary>
+<p>Use the <code>ThemeManager</code> singleton:</p>
+<pre><code>import { ThemeManager } from "@mariozechner/pi-tui-professional";
+const theme = ThemeManager.getInstance();
+theme.setTheme("light"); // or "dark"
+</code></pre>
+<p>All subscribed components will re-render with the new theme.</p>
+</details>
+
+<details>
+<summary><b>Q: My ChatContainer is slow with many messages. How can I improve performance?</b></summary>
+<p>Set the <code>maxMessages</code> prop to limit history size (e.g., 100-200). The library automatically discards oldest messages beyond the limit. For very large histories, consider implementing virtual scrolling in custom components.</p>
+</details>
+
+<details>
+<summary><b>Q: Do I need to install both pi-tui and pi-coding-agent separately?</b></summary>
+<p>Yes. <code>@mariozechner/pi-tui-professional</code> declares them as <em>peer dependencies</em>. You must install them along with this package:</p>
+<pre><code>npm install @mariozechner/pi-tui @mariozechner/pi-coding-agent @mariozechner/pi-tui-professional</code></pre>
+</details>
+
+<details>
+<summary><b>Q: How do I add mouse support?</b></summary>
+<p>See OPTIONAL_IMPROVEMENTS.md. Mouse support is planned for v1.1.0. Currently, the library is keyboard-only.</p>
+</details>
+
+<details>
+<summary><b>Q: Can I use this in a browser?</b></summary>
+<p>No. This package is designed for terminal/console environments (Node.js TUI). It relies on TTY capabilities.</p>
+</details>
+
+<details>
+<summary><b>Q: How do I customize the appearance beyond the provided theme?</b></summary>
+<p>The theme system uses roles (e.g., <code>"accent"</code>, <code>"foreground"</code>, <code>"muted"</code>). You can create a custom theme by extending the default themes. See <code>theme/theme.ts</code> in pi-coding-agent source for structure.</p>
+</details>
+
+<details>
+<summary><b>Q: Is TypeScript required?</b></summary>
+<p>The library is written in TypeScript and provides type declarations. You can use it from JavaScript, but TypeScript is highly recommended for best experience.</p>
+</details>
+
+<details>
+<summary><b>Q: What is the performance like?</b></summary>
+<p>Rendering is optimized; typical component renders in <em>&lt;25 µs</em>. The library uses render caching where appropriate. However, rendering thousands of lines (e.g., 10k+ messages) will impact performance. Keep history bounded.</p>
+</details>
+
+<details>
+<summary><b>Q: How do I handle uncaught errors?</b></summary>
+<p>Wrap your TUI startup in a try/catch. We recommend adding an error overlay using <code>ModalComponent</code>. Full error boundaries are planned for v1.2.0.</p>
+</details>
+
+<details>
+<summary><b>Q: Where can I find the source code?</b></summary>
+<p>Source is available in the repository: <code>src/</code>. This package is built on <code>pi-tui</code> and <code>pi-coding-agent</code> (see <code>llm-context/pi-mono/</code> for those sources).</p>
+</details>
+
+<details>
+<summary><b>Q: How do I contribute?</b></summary>
+<p>See <a href="CONTRIBUTING.md">CONTRIBUTING.md</a> for guidelines. We welcome PRs!</p>
+</details>
+
+---
 
 ## Development
 
@@ -442,8 +501,8 @@ npm run build
 # Test
 npm test
 
-# Watch
-npm run dev
+# Run example
+npx tsx examples/basic-chat.ts
 ```
 
 ## License

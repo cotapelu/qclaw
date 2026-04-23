@@ -1,10 +1,15 @@
 {
   "name": "@mariozechner/pi-tui-professional",
   "version": "1.0.0",
-  "description": "Professional TUI components built on pi-tui and pi-coding-agent",
+  "description": "Professional TUI components for building terminal-based AI coding assistants. Built on @mariozechner/pi-tui and @mariozechner/pi-coding-agent.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qcoder/qclaw.git",
+    "directory": "packages/tui"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -24,8 +29,15 @@
     }
   },
   "scripts": {
+    "prepack": "npm run build && npm test && npm pack --dry-run",
     "build": "tsc -p tsconfig.json",
-    "test": "tsx tests/run.test.ts",
+    "test": "npm run test:unit && npm run test:comprehensive && npm run test:integration",
+    "test:all": "npm test && npm run test:sanity",
+    "test:unit": "tsx tests/run.test.ts",
+    "test:comprehensive": "tsx tests/comprehensive.test.ts",
+    "test:integration": "tsx tests/integration.test.ts",
+    "test:sanity": "tsx tests/agent-session-sanity.test.ts",
+    "type-check": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -44,16 +56,37 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "QUICKSTART.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "COMPATIBILITY.md",
+    "TROUBLESHOOTING.md",
+    "ROADMAP.md",
+    "DEPLOYMENT.md",
+    "OPTIONAL_IMPROVEMENTS.md",
+    "PRODUCTION_READINESS.md"
   ],
   "keywords": [
     "tui",
     "terminal",
+    "cli",
     "coding-agent",
     "ai",
     "assistant",
-    "cli"
+    "chat",
+    "llm",
+    "gpt",
+    "claude",
+    "anthropic",
+    "openai",
+    "terminal-ui",
+    "curses",
+    "interactive"
   ],
   "author": "Qcoder Team",
-  "license": "MIT"
+  "license": "Apache-2.0"
 }

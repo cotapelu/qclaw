@@ -1,2 +1,2 @@
-export { ThemeManager, themeText, themedBorder } from "./theme-manager.js";
-export type { ThemeRole, ThemeConfig } from "./theme-manager.js";
+export { ThemeManager, themeText, themedBorder } from "./theme-manager";
+export type { ThemeRole, ThemeConfig } from "./theme-manager";

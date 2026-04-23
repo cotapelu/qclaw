@@ -1,4 +1,4 @@
-import type { ThemeManager } from "../theme/theme-manager.js";
+import { ThemeManager } from "../theme/theme-manager";
 import { truncateToWidth, wrapTextWithAnsi, CURSOR_MARKER } from "@mariozechner/pi-tui";
 
 /**
@@ -244,11 +244,15 @@ export function formatSize(bytes: number): string {
  */
 export function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${ms}ms`;
+  if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
-  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`;
+  if (minutes < 60) {
+    if (remainingSeconds === 0) return `${minutes}m`;
+    return `${minutes}m ${remainingSeconds}s`;
+  }
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
+  if (remainingMinutes === 0) return `${hours}h`;
   return `${hours}h ${remainingMinutes}m`;
 }

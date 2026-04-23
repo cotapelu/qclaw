@@ -1,6 +1,6 @@
 import { Container } from "@mariozechner/pi-tui";
 import type { Component } from "@mariozechner/pi-tui";
-import type { ThemeManager } from "../theme/theme-manager";
+import { ThemeManager } from "../../theme/theme-manager";
 
 /**
  * Border style options

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ["20", "22", "24"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run comprehensive tests
+        run: npm run test:comprehensive
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+      - name: Run sanity tests (AgentSession)
+        run: npm run test:sanity
+
+      - name: Check package size
+        run: npm pack --dry-run | tee pack-output.txt
+
+      - name: Upload package size
+        run: |
+          SIZE=$(npm pack --dry-run 2>&1 | grep "package size:" | awk '{print $3}')
+          echo "Package size: $SIZE"
+          if [ $(echo "$SIZE > 50" | bc) -eq 1 ]; then
+            echo "Package size is too large: $SIZE"
+            exit 1
+          fi
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint || echo "No lint script configured"

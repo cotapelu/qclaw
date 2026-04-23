@@ -5,7 +5,7 @@
     "rootDir": "./src",
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
