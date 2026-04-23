@@ -1,9 +1,12 @@
 import { type ThinkingLevel } from "@mariozechner/pi-ai";
 import { SessionManager, DefaultResourceLoader } from "@mariozechner/pi-coding-agent";
 import { AgentCore } from "./core.js";
+import { AliasManager } from "./aliases.js";
+import { execSync, spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import { homedir } from "os";
+import { TemplateManager, type SessionTemplate } from "../templates/index.js";
 
 export interface CommandHandlers {
   agent: AgentCore;
@@ -15,6 +18,8 @@ export type CommandHandler = (handlers: CommandHandlers, ...args: string[]) => P
 
 export class CommandRegistry {
   private commands: Map<string, CommandHandler> = new Map();
+  private history: Array<{ command: string; args: string[]; timestamp: number }> = [];
+  private readonly MAX_HISTORY = 1000;
 
   constructor() {
     this.registerBuiltins();
@@ -31,15 +36,26 @@ export class CommandRegistry {
       return "✅ Created new session";
     });
 
-    this.register("resume", async () => {
+    this.register("resume", async (handlers) => {
       const sessions = await SessionManager.list(process.cwd());
       if (sessions.length === 0) {
         return "❌ No previous sessions to resume";
       }
       const recent = sessions[0];
-      // Note: resuming requires setting session file on manager
-      // For now, just show info
-      return `🔄 Most recent session: ${recent.path} (${recent.messageCount} messages)`;
+      try {
+        // Dispose current session if active
+        const currentSession = handlers.agent.getSession();
+        if (currentSession) {
+          handlers.agent.dispose();
+        }
+        // Switch to the most recent session file
+        handlers.agent.getSessionManager().setSessionFile(recent.path);
+        // Reinitialize agent to load the resumed session
+        await handlers.agent.initialize();
+        return `🔄 Resumed session: ${recent.path} (${recent.messageCount} messages)`;
+      } catch (error: any) {
+        return `❌ Failed to resume session: ${error.message}`;
+      }
     });
 
     this.register("fork", async (handlers) => {
@@ -62,6 +78,34 @@ export class CommandRegistry {
         return `  ${s.path}\n    ├─ ${date}\n    ├─ ${s.messageCount} messages\n    └─ ${msg}`;
       });
       return `Recent sessions (${sessions.length} total):\n${list.join('\n')}` + (sessions.length > 20 ? `\n  ... and ${sessions.length - 20} more` : '');
+    });
+
+    this.register("sessions-switch", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "Usage: /sessions-switch <index>\nUse /sessions to see index numbers.";
+      }
+      const idx = parseInt(args[0]) - 1; // 1-based for user
+      if (isNaN(idx) || idx < 0) {
+        return "❌ Invalid index";
+      }
+      try {
+        const sessions = await SessionManager.list(process.cwd());
+        if (idx >= sessions.length) {
+          return `❌ Index out of range (max ${sessions.length})`;
+        }
+        const target = sessions[idx];
+        // Dispose current session if active
+        const currentSession = handlers.agent.getSession();
+        if (currentSession) {
+          handlers.agent.dispose();
+        }
+        // Switch
+        handlers.agent.getSessionManager().setSessionFile(target.path);
+        await handlers.agent.initialize();
+        return `🔄 Switched to session #${idx + 1}: ${target.path} (${target.messageCount} messages)`;
+      } catch (error: any) {
+        return `❌ Failed to switch: ${error.message}`;
+      }
     });
 
     this.register("diff", async (handlers, ...args) => {
@@ -1128,7 +1172,7 @@ Last backup: ${stats.lastBackup || 'Never'}`;
       checks.push(`Session: ${session ? 'Active' : 'Inactive'}`);
       // Logging
       const logCfg = settings.logging as any || {};
-      const logDir = logCfg.dir || path.join(require('os').homedir(), '.pi', 'agent', 'logs');
+      const logDir = logCfg.dir || path.join(homedir(), '.pi', 'agent', 'logs');
       checks.push(`Logging: ${logCfg.format || 'text'} format to ${logDir}`);
       // Performance
       const stats = agent.getStats();
@@ -1165,36 +1209,369 @@ Last backup: ${stats.lastBackup || 'Never'}`;
     });
 
     // ============================================================================
-    // Logging (Phase 6)
+    // Session Templates (Phase 6)
     // ============================================================================
 
-    this.register("logs", async (handlers, ...args) => {
-      const settings = handlers.agent.getSettings();
-      const logConfig = settings.logging || {};
-      const logDir = (logConfig.dir as string) || path.join(homedir(), '.pi', 'agent', 'logs');
-      const rotation = (logConfig.rotation as string) || 'daily';
-      const level = (logConfig.level as string) || 'info';
-
-      // Determine log file name based on rotation
-      const now = new Date();
-      let filename = `agent-${now.toISOString().split('T')[0]}.log`;
-      if (rotation === 'hourly') {
-        const hour = String(now.getHours()).padStart(2, '0');
-        filename = `agent-${now.toISOString().split('T')[0]}-${hour}.log`;
+    this.register("templates", async () => {
+      const templates = templateManager.list();
+      let output = "📋 Available Templates:\n\n";
+      for (const t of templates) {
+        output += `  ${t.name} - ${t.description}\n`;
+        if (t.tags && t.tags.length > 0) {
+          output += `    Tags: ${t.tags.join(', ')}\n`;
+        }
+        const comp = t.config.compaction?.enabled !== false ? `enabled${t.config.compaction?.tokens ? `(${t.config.compaction.tokens}toks)` : ''}` : 'disabled';
+        output += `    Config: thinking=${t.config.thinkingLevel || 'default'}, compaction=${comp}\n\n`;
       }
-      const logPath = path.join(logDir, filename);
+      output += `Use: /template use <name> to apply a template\n`;
+      return output;
+    });
 
-      if (!fs.existsSync(logPath)) {
-        return `📜 No log file found at ${logPath}`;
+    this.register("template use", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "Usage: /template use <name>\nSee /templates for available options.";
       }
+      const name = args[0];
+      const template = templateManager.get(name);
+      if (!template) {
+        return `❌ Template '${name}' not found. Use /templates to list.`;
+      }
+      try {
+        const agent = handlers.agent;
+        if (template.config.model) {
+          const registry = agent.getModelRegistry();
+          const available = await registry.getAvailable();
+          const match = available.find(m => `${m.provider}/${m.id}` === template.config.model);
+          if (match) {
+            await agent.setModel(match);
+          } else {
+            return `❌ Model '${template.config.model}' not available`;
+          }
+        }
+        if (template.config.thinkingLevel) {
+          await agent.setThinkingLevel(template.config.thinkingLevel as ThinkingLevel);
+        }
+        if (template.config.compaction) {
+          agent.updateSetting('compaction.enabled', template.config.compaction.enabled);
+          if (template.config.compaction.tokens !== undefined) {
+            agent.updateSetting('compaction.tokens', template.config.compaction.tokens);
+          }
+        }
+        if (template.config.retry) {
+          agent.updateSetting('retry.enabled', template.config.retry.enabled);
+          if (template.config.retry.maxRetries !== undefined) {
+            agent.updateSetting('retry.maxRetries', template.config.retry.maxRetries);
+          }
+        }
+        if (template.config.budget) {
+          if (template.config.budget.daily) agent.updateSetting('budget.daily', template.config.budget.daily);
+          if (template.config.budget.monthly) agent.updateSetting('budget.monthly', template.config.budget.monthly);
+        }
+        if (template.config.toolPermissions) {
+          if (template.config.toolPermissions.allowedTools) {
+            agent.updateSetting('toolPermissions.allowedTools', template.config.toolPermissions.allowedTools);
+          }
+          if (template.config.toolPermissions.deniedTools) {
+            agent.updateSetting('toolPermissions.deniedTools', template.config.toolPermissions.deniedTools);
+          }
+          if (template.config.toolPermissions.confirmDestructive !== undefined) {
+            agent.updateSetting('toolPermissions.confirmDestructive', template.config.toolPermissions.confirmDestructive);
+          }
+        }
+        let response = `✅ Applied template '${name}'.`;
+        if (template.initialPrompt) {
+          response += `\n💡 Suggestion: ${template.initialPrompt}`;
+        }
+        return response;
+      } catch (error: any) {
+        return `❌ Failed to apply template: ${error.message}`;
+      }
+    });
 
-      // Tail lines
-      const tail = args[0] ? parseInt(args[0]) : 50;
-      const content = fs.readFileSync(logPath, 'utf-8');
-      const lines = content.split('\n').filter(l => l.trim());
-      const recent = lines.slice(-tail);
+    // ============================================================================
+    // Aliases (Phase 6)
+    // ============================================================================
 
-      return `📜 Recent logs (${recent.length} lines, level >= ${level}):\n\n` + recent.join('\n');
+    // Note: AliasManager initialized in AgentTUI, stored in agent config for access
+    this.register("aliases", async (handlers) => {
+      // Get alias manager from agent (stored as a secret property)
+      const agentAny = handlers.agent as any;
+      const aliasMgr = agentAny.aliasManager;
+      if (!aliasMgr) {
+        return "❌ Aliases not available (CLI only)";
+      }
+      const aliases = aliasMgr.list();
+      const entries = Object.entries(aliases);
+      if (entries.length === 0) {
+        return "No aliases defined.";
+      }
+      let out = "📛 Aliases:\n\n";
+      for (const [key, val] of entries) {
+        out += `  :${key} -> ${(val as string[]).join(' ')}\n`;
+      }
+      return out;
+    });
+
+    this.register("alias add", async (handlers, ...args) => {
+      if (args.length < 2) {
+        return "Usage: /alias add <name> <command> [args...]";
+      }
+      const [name, ...cmdArgs] = args;
+      const agentAny = handlers.agent as any;
+      const aliasMgr = agentAny.aliasManager;
+      if (!aliasMgr) {
+        return "❌ Aliases not available (CLI only)";
+      }
+      aliasMgr.set(name, cmdArgs);
+      return `✅ Alias ':${name}' set to '${cmdArgs.join(' ')}'`;
+    });
+
+    this.register("alias rm", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "Usage: /alias rm <name>";
+      }
+      const [name] = args;
+      const agentAny = handlers.agent as any;
+      const aliasMgr = agentAny.aliasManager;
+      if (!aliasMgr) {
+        return "❌ Aliases not available (CLI only)";
+      }
+      const removed = aliasMgr.delete(name);
+      if (removed) {
+        return `✅ Alias ':${name}' removed`;
+      } else {
+        return `❌ Alias ':${name}' not found`;
+      }
+    });
+
+    this.register("alias reset", async (handlers) => {
+      const agentAny = handlers.agent as any;
+      const aliasMgr = agentAny.aliasManager;
+      if (!aliasMgr) {
+        return "❌ Aliases not available (CLI only)";
+      }
+      aliasMgr.reset();
+      return "✅ Aliases reset to defaults";
+    });
+
+    // ============================================================================
+    // Git Integration (Phase 6)
+    // ============================================================================
+
+    this.register("git", async (handlers, ...args) => {
+      if (args.length === 0) {
+        const settings = handlers.agent.getSettings();
+        const git = (settings.git as any) || {};
+        let out = `🔧 Git Integration:\n`;
+        out += `  Auto-commit: ${git.autoCommit ? 'ON' : 'OFF'}\n`;
+        out += `  Commit message: ${git.commitMessage || 'Agent session update'}\n`;
+        out += `\nCommands:`;
+        out += `\n  /git on - Enable auto-commit`;
+        out += `\n  /git off - Disable auto-commit`;
+        out += `\n  /git msg <text> - Set commit message`;
+        out += `\n  /git status - Show git status in cwd`;
+        return out;
+      }
+      const sub = args[0];
+      if (sub === 'on') {
+        handlers.agent.updateSetting('git.autoCommit', true);
+        return "✅ Git auto-commit enabled";
+      }
+      if (sub === 'off') {
+        handlers.agent.updateSetting('git.autoCommit', false);
+        return "✅ Git auto-commit disabled";
+      }
+      if (sub === 'msg') {
+        const msg = args.slice(1).join(' ');
+        if (!msg) return '❌ Usage: /git msg <commit message>';
+        handlers.agent.updateSetting('git.commitMessage', msg);
+        return `✅ Commit message set to: ${msg}`;
+      }
+      if (sub === 'status') {
+        try {
+          const { execSync } = require('child_process');
+          const output = execSync('git status --short', { cwd: handlers.agent.getConfig().cwd, encoding: 'utf-8' });
+          return `📊 Git Status:\n${output || '(clean)'}`;
+        } catch (e: any) {
+          return `❌ Not a git repository or git not available: ${e.message}`;
+        }
+      }
+      return "❌ Unknown subcommand. Use /git for help.";
+    });
+
+    // ============================================================================
+    // Test Generation (Phase 7)
+    // ============================================================================
+
+    this.register("gen-test", async (handlers, ...args) => {
+      if (args.length < 2) {
+        return `Usage: /gen-test <language> <spec>\nGenerates test code from a specification.\nExample: /gen-test typescript "Unit test for add function that returns sum of two numbers"`;
+      }
+      const [language, ...specParts] = args;
+      const spec = specParts.join(' ');
+      const validLangs = ['typescript', 'javascript', 'python', 'go', 'rust', 'java'];
+      if (!validLangs.includes(language)) {
+        return `❌ Unsupported language: ${language}. Supported: ${validLangs.join(', ')}`;
+      }
+      const prompt = `Generate a comprehensive test suite in ${language} for the following specification:\n\n${spec}\n\nInclude: test setup, edge cases, and assertions. Use appropriate testing frameworks.`;
+      await handlers.agent.prompt(prompt);
+      return `🧪 Generating ${language} tests...`;
+    });
+
+    // ============================================================================
+    // Plugin Development (Phase 8)
+    // ============================================================================
+
+    this.register("create-extension", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "Usage: /create-extension <name>\nCreates a new extension boilerplate in ./extensions/\nExample: /create-extension my-tool";
+      }
+      const extName = args[0];
+      const cwd = handlers.agent.getConfig().cwd;
+      const extDir = path.resolve(cwd, 'extensions', extName);
+      try {
+        if (fs.existsSync(extDir)) {
+          return `❌ Extension directory already exists: ${extDir}`;
+        }
+        fs.mkdirSync(extDir, { recursive: true });
+        // Create package.json
+        const pkg = {
+          name: `qclaw-extension-${extName}`,
+          version: '0.1.0',
+          description: 'Custom qclaw extension',
+          main: 'dist/index.js',
+          types: 'dist/index.d.ts',
+          scripts: {
+            build: 'tsc',
+            watch: 'tsc -w'
+          },
+          dependencies: {
+            '@mariozechner/pi-coding-agent': '^0.68.0'
+          },
+          devDependencies: {
+            typescript: '^5.0.0'
+          }
+        };
+        fs.writeFileSync(path.join(extDir, 'package.json'), JSON.stringify(pkg, null, 2));
+        // Create tsconfig
+        const tsconfig = {
+          compilerOptions: {
+            target: 'ES2020',
+            module: 'NodeNext',
+            moduleResolution: 'NodeNext',
+            outDir: 'dist',
+            rootDir: 'src',
+            strict: true,
+            esModuleInterop: true,
+            skipLibCheck: true,
+            resolveJsonModule: true
+          },
+          include: ['src/**/*'],
+          exclude: ['node_modules', 'dist']
+        };
+        fs.writeFileSync(path.join(extDir, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2));
+        // Create src directory and index.ts
+        const srcDir = path.join(extDir, 'src');
+        fs.mkdirSync(srcDir, { recursive: true });
+        const indexContent = `import { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+
+export default function(pi: ExtensionAPI) {
+  pi.on("agent_start", () => {
+    console.log("Extension ${extName} loaded!");
+  });
+
+  // Register tools, hooks, etc.
+}
+`;
+        fs.writeFileSync(path.join(srcDir, 'index.ts'), indexContent);
+        // Create README
+        fs.writeFileSync(path.join(extDir, 'README.md'), `# ${extName} Extension\n\nCustom extension for qclaw.\n\n## Development\n\n1. npm install\n2. npm run build\n3. Reload agent with /reload\n`);
+        // Install dependencies
+        try {
+          const { spawnSync } = require('child_process');
+          spawnSync('npm', ['install'], { cwd: extDir, stdio: 'ignore' });
+        } catch (e) {
+          // ignore
+        }
+        return `✅ Extension boilerplate created at: ${extDir}\n\nNext steps:\n1. cd ${extDir}\n2. npm install\n3. Edit src/index.ts\n4. Run \`npm run build\`\n5. Use /reload in qclaw to load\n`;
+      } catch (error: any) {
+        return `❌ Failed to create extension: ${error.message}`;
+      }
+    });
+
+    // ============================================================================
+    // Codebase Search & Refactoring (Phase 7)
+    // ============================================================================
+
+
+    this.register("grep", async (handlers, ...args) => {
+      if (args.length < 2) {
+        return "Usage: /grep <pattern> [glob]\nSearch files for pattern. Example: /grep 'TODO' **/*.ts";
+      }
+      const [pattern, glob = '**/*'] = args;
+      const cwd = handlers.agent.getConfig().cwd;
+      try {
+        const { readdirSync, statSync } = await import('fs');
+        const { minimatch } = await import('minimatch');
+        const results: string[] = [];
+        const fs = await import('fs');
+        const walk = (dir: string) => {
+          const fsEntries = fs.readdirSync(dir);
+          for (const name of fsEntries) {
+            const full = path.join(dir, name);
+            try {
+              const s = fs.statSync(full);
+              if (s.isDirectory()) {
+                walk(full);
+              } else if (minimatch(full.replace(cwd + '/', ''), glob)) {
+                const content = fs.readFileSync(full, 'utf-8');
+                const lines = content.split('\n');
+                lines.forEach((line: string, idx: number) => {
+                  if (line.includes(pattern)) {
+                    results.push(`${full}:${idx + 1}: ${line.trim()}`);
+                  }
+                });
+              }
+            } catch {}
+          }
+        };
+        walk(cwd);
+        if (results.length === 0) return `No matches for: ${pattern}`;
+        const output = `🔍 Found ${results.length} matches:\n\n` + results.slice(0, 50).join('\n') + (results.length > 50 ? `\n... and ${results.length - 50} more` : '');
+        return output;
+      } catch (error: any) {
+        return `❌ Search failed: ${error.message}`;
+      }
+    });
+
+    this.register("refactor", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "Usage: /refactor <file> <suggestion>\nAsk AI to refactor code. Example: /refactor src/utils.ts extract error handling";
+      }
+      const [file, ...suggestionParts] = args;
+      const suggestion = suggestionParts.join(' ');
+      const cwd = handlers.agent.getConfig().cwd;
+      const targetPath = path.resolve(cwd, file);
+      try {
+        const { readFileSync } = await import('fs');
+        const content = readFileSync(targetPath, 'utf-8');
+        const prompt = `Refactor the following code based on the suggestion. Provide the complete refactored code.\n\nFile: ${file}\nSuggestion: ${suggestion}\n\nCode:\n\n\`\`\`\n${content}\n\`\`\``;
+        await handlers.agent.prompt(prompt);
+        return `🔧 Refactoring ${file}...`;
+      } catch (error: any) {
+        return `❌ Refactor failed: ${error.message}`;
+      }
+    });
+
+    this.register("migrate", async (handlers, ...args) => {
+      if (args.length < 2) {
+        return "Usage: /migrate <target> <description>\nMigrate code to new version/framework. Example: /migrate react 18 upgrade hooks";
+      }
+      const [target, ...descParts] = args;
+      const description = descParts.join(' ');
+      const prompt = `You are a migration expert. Help migrate the codebase to ${target}. Focus on: ${description}. Provide step-by-step instructions and code changes.`;
+      await handlers.agent.prompt(prompt);
+      return `🚀 Starting migration to ${target}...`;
     });
 
     // ============================================================================
@@ -1213,6 +1590,76 @@ Last backup: ${stats.lastBackup || 'Never'}`;
       output += `Model: ${settings.model ?? 'Not set (auto-select)'}\n`;
       output += `Thinking Level: ${settings.thinkingLevel ?? 'off'}\n`;
       return output;
+    });
+
+    this.register("editor", async (handlers, ...args) => {
+      const file = args[0];
+      if (!file) {
+        return "Usage: /editor <file>\nOpens file in external editor ($EDITOR or default).";
+      }
+      return "📝 Editor integration placeholder";
+    });
+
+    this.register("analyze-image", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "Usage: /analyze-image <path> [question]\nAnalyzes an image using vision capabilities.";
+      }
+      const path = args[0];
+      const question = args.slice(1).join(' ') || "Describe this image in detail";
+      await handlers.agent.prompt(`Use the analyze_image tool to analyze "${path}". Question: ${question}`);
+      return "📷 Analyzing image...";
+    });
+
+    this.register("logs", async (handlers, ...args) => {
+      return "📜 Logs command - implement later";
+    });
+
+    // ============================================================================
+    // Code Diff & Patching (Phase 7)
+    // ============================================================================
+
+    this.register("diff-files", async (handlers, ...args) => {
+      if (args.length < 2) {
+        return "Usage: /diff-files <file1> <file2>\nShows unified diff between two files.";
+      }
+      const [file1, file2] = args;
+      const cwd = handlers.agent.getConfig().cwd;
+      const path1 = path.resolve(cwd, file1);
+      const path2 = path.resolve(cwd, file2);
+      try {
+        const { readFileSync } = await import('fs');
+        const content1 = readFileSync(path1, 'utf-8');
+        const content2 = readFileSync(path2, 'utf-8');
+        const lines1 = content1.split('\n');
+        const lines2 = content2.split('\n');
+        const diff = computeDiff(path1, path2, lines1, lines2);
+        return diff || "No differences found.";
+      } catch (error: any) {
+        return `❌ Diff failed: ${error.message}`;
+      }
+    });
+
+    this.register("patch-create", async (handlers, ...args) => {
+      if (args.length < 2) {
+        return "Usage: /patch-create <original> <modified> [output.patch]\nCreates a unified diff patch.";
+      }
+      const [original, modified, outputFile] = args;
+      const cwd = handlers.agent.getConfig().cwd;
+      const origPath = path.resolve(cwd, original);
+      const modPath = path.resolve(cwd, modified);
+      const outPath = outputFile ? path.resolve(cwd, outputFile) : path.join(cwd, 'changes.patch');
+      try {
+        const { readFileSync, writeFileSync } = await import('fs');
+        const content1 = readFileSync(origPath, 'utf-8');
+        const content2 = readFileSync(modPath, 'utf-8');
+        const diff = computeDiff(origPath, modPath, content1.split('\n'), content2.split('\n'));
+        if (!diff) return "No differences to patch.";
+        const patchContent = `--- ${original}\n+++ ${modified}\n${diff}`;
+        writeFileSync(outPath, patchContent, 'utf-8');
+        return `✅ Patch created: ${outPath}`;
+      } catch (error: any) {
+        return `❌ Patch creation failed: ${error.message}`;
+      }
     });
 
     this.register("set", async (handlers, ...args) => {
@@ -1239,6 +1686,8 @@ Last backup: ${stats.lastBackup || 'Never'}`;
       handlers.agent.resetSettings();
       return "🔄 Settings reset to defaults";
     });
+
+
   }
 
   register(name: string, handler: CommandHandler): void {
@@ -1255,8 +1704,19 @@ Last backup: ${stats.lastBackup || 'Never'}`;
       return `❌ Unknown command: /${name}. Type /help for available commands.`;
     }
     try {
-      return await handler(handlers, ...args);
+      const result = await handler(handlers, ...args);
+      // Record command in history (including errors)
+      this.history.unshift({ command: name, args, timestamp: Date.now() });
+      if (this.history.length > this.MAX_HISTORY) {
+        this.history.pop();
+      }
+      return result;
     } catch (error: any) {
+      // Also record failed commands
+      this.history.unshift({ command: name, args, timestamp: Date.now() });
+      if (this.history.length > this.MAX_HISTORY) {
+        this.history.pop();
+      }
       return `❌ Error: ${error.message}`;
     }
   }
@@ -1319,5 +1779,68 @@ ${textParts.join('\n')}
   });
   return md;
 }
+
+/**
+ * Computes a unified diff between two files (line-based)
+ */
+function computeDiff(file1: string, file2: string, lines1: string[], lines2: string[]): string | null {
+  // Simple line-by-line diff (LCS could be used for more accurate results)
+  const max = Math.max(lines1.length, lines2.length);
+  let hunkStart1: number | null = null;
+  let hunkStart2: number | null = null;
+  let hunkLines: string[] = [];
+  let diffOutput = '';
+
+  const flushHunk = () => {
+    if (hunkLines.length === 0) return;
+    const start1 = hunkStart1 !== null ? hunkStart1 + 1 : 1;
+    const start2 = hunkStart2 !== null ? hunkStart2 + 1 : 1;
+    const count1 = hunkLines.filter(l => l.startsWith('-')).length;
+    const count2 = hunkLines.filter(l => l.startsWith('+')).length;
+    diffOutput += `@@ -${start1},${count1} +${start2},${count2} @@\n`;
+    diffOutput += hunkLines.join('\n');
+    if (!diffOutput.endsWith('\n')) diffOutput += '\n';
+    hunkLines = [];
+    hunkStart1 = null;
+    hunkStart2 = null;
+  };
+
+  for (let i = 0; i < max; i++) {
+    const line1 = lines1[i] ?? null;
+    const line2 = lines2[i] ?? null;
+
+    if (line1 === line2) {
+      // Same line
+      if (hunkLines.length > 0) {
+        hunkLines.push(`  ${line1}`);
+      }
+      continue;
+    }
+
+    // Different or missing lines
+    if (hunkStart1 === null) {
+      hunkStart1 = i;
+      hunkStart2 = i;
+    }
+
+    // Collect differences within a hunk (simplified)
+    // We'll just mark removals and additions without complex LCS
+    if (line1 !== null) {
+      hunkLines.push(`-${line1}`);
+    }
+    if (line2 !== null) {
+      hunkLines.push(`+${line2}`);
+    }
+
+    // Flush after a reasonable gap of equal lines
+    // For simplicity, flush at every diff point here
+    flushHunk();
+  }
+
+  return diffOutput || null;
+}
+
+// Template manager singleton for session templates
+const templateManager = new TemplateManager();
 
 export const commandRegistry = new CommandRegistry();

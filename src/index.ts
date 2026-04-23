@@ -216,8 +216,8 @@ async function main(): Promise<void> {
   // Run mode
   switch (options.mode) {
     case "cli": {
-      const cli = new (await import("./agent/cli.js")).AgentCLI(agent, agentConfig.verbose);
-      await cli.start();
+      const tui = new (await import("./agent/tui-cli.js")).AgentTUI(agent, agentConfig.verbose);
+      await tui.start();
       break;
     }
 

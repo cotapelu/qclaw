@@ -13,6 +13,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import { readFileSync, existsSync, writeFileSync, mkdirSync, watch, createWriteStream, WriteStream } from "fs";
 import { homedir } from "os";
+import { execSync } from "child_process";
 import { join } from "path";
 
 export interface AgentCoreOptions {
@@ -55,6 +56,10 @@ function validateSettings(settings: any): { valid: boolean; errors?: string[] } 
   if (settings.thinkingLevel) {
     const validLevels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'];
     if (!validLevels.includes(settings.thinkingLevel)) errors.push(`thinkingLevel must be one of: ${validLevels.join(', ')}`);
+  }
+  if (settings.git) {
+    if (typeof settings.git.autoCommit !== 'boolean') errors.push('git.autoCommit must be boolean');
+    if (typeof settings.git.commitMessage !== 'string') errors.push('git.commitMessage must be string');
   }
   return { valid: errors.length === 0, errors };
 }
@@ -145,6 +150,24 @@ class FileLogger {
   }
 }
 
+/**
+ * AgentCore - Main orchestrator for the Pi SDK Agent.
+ *
+ * Manages session lifecycle, configuration, resource loading,
+ * tool permissions, error handling, and cost tracking.
+ *
+ * @example
+ * ```typescript
+ * const agent = new AgentCore({
+ *   cwd: process.cwd(),
+ *   agentDir: '~/.pi/agent',
+ *   usePersistence: true,
+ *   verbose: false
+ * });
+ * await agent.initialize();
+ * await agent.prompt('Hello!');
+ * ```
+ */
 export class AgentCore {
   private session: AgentSession | null = null;
   private runtime: any = null;
@@ -160,6 +183,7 @@ export class AgentCore {
   private interactive: boolean;
   private verbose: boolean;
   private quiet: boolean;
+  private usePersistence: boolean;
   private stats: AgentStats = {
     totalTokens: 0,
     promptTokens: 0,
@@ -183,9 +207,18 @@ export class AgentCore {
   private resourceReloadTimer?: any;
   private lastToolName: string | null = null;
   private toolFailureTimestamps: Map<string, number[]> = new Map();
+  // Phase 6: Alias support (will be lazy-initialized in TUI)
+  private aliasManager?: any = undefined;
   private toolCircuitOpenUntil: Map<string, number> = new Map();
   private compactionEnabled: boolean = true;
+  private modelCache: Model<any>[] | null = null;
+  private modelCacheTime: number = 0;
+  private readonly MODEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+  /**
+   * Creates a new AgentCore instance.
+   * @param options - Configuration options
+   */
   constructor(options: AgentCoreOptions = {}) {
     this.cwd = options.cwd ?? process.cwd();
     this.agentDir = options.agentDir ?? getAgentDir();
@@ -195,6 +228,7 @@ export class AgentCore {
     this.verbose = options.verbose ?? false;
     this.quiet = options.quiet ?? false;
     this.configFile = options.configFile;
+    this.usePersistence = options.usePersistence ?? true;
     this.sessionStartTime = Date.now();
     this.maxRetries = this.currentSettings.retry?.maxRetries ?? 2;
 
@@ -282,6 +316,12 @@ Always strive to be accurate and thorough.`;
     return prompt;
   }
 
+  /**
+   * Initializes the agent.
+   *
+   * Sets up file logging, loads resources (extensions, skills, prompts),
+   * selects a model, and creates the session.
+   */
   async initialize(): Promise<void> {
     this.log("🔧 Initializing Agent Core...");
 
@@ -304,7 +344,7 @@ Always strive to be accurate and thorough.`;
 
     // Select model
     if (!this.model) {
-      const available = await this.modelRegistry.getAvailable();
+      const available = await this.getCachedAvailableModels();
       if (available.length === 0) {
         throw new Error("No models available. Please set up API keys in ~/.pi/agent/auth.json");
       }
@@ -380,6 +420,15 @@ Always strive to be accurate and thorough.`;
         break;
       case 'turn_end':
         this.stats.turns++;
+        // Auto-commit if enabled
+        try {
+          const gitCfg = this.currentSettings.git as any || {};
+          if (gitCfg.autoCommit) {
+            this.performAutoCommit();
+          }
+        } catch (e) {
+          this.log(`⚠️ Auto-commit error: ${e}`);
+        }
         break;
       case 'tool_execution_start':
         this.stats.toolCalls++;
@@ -481,6 +530,9 @@ Always strive to be accurate and thorough.`;
     return (tokens / 1_000_000) * rate;
   }
 
+  /**
+   * Returns current session statistics.
+   */
   getStats(): AgentStats {
     const duration = (Date.now() - this.sessionStartTime) / 1000;
     return {
@@ -489,26 +541,32 @@ Always strive to be accurate and thorough.`;
     };
   }
 
+  /** Returns the current active session, if any. */
   getSession(): AgentSession | null {
     return this.session;
   }
 
+  /** Returns the session manager. */
   getSessionManager(): SessionManager {
     return this.sessionManager;
   }
 
+  /** Returns the resource loader. */
   getResourceLoader(): DefaultResourceLoader {
     return this.resourceLoader;
   }
 
+  /** Returns the current model in use. */
   getModel(): Model<any> | undefined {
     return this.model;
   }
 
+  /** Returns the settings manager. */
   getSettingsManager(): SettingsManager {
     return this.settingsManager;
   }
 
+  /** Returns the auth storage. */
   getAuthStorage(): AuthStorage {
     return this.authStorage;
   }
@@ -551,11 +609,18 @@ Always strive to be accurate and thorough.`;
         rotation: 'daily', // daily, hourly, none
         format: 'text', // text, json
       },
+      git: {
+        autoCommit: false,
+        commitMessage: 'Agent session update',
+      },
     };
   }
 
   /** Save current settings to file */
   saveSettings(): void {
+    if (!this.usePersistence) {
+      throw new Error("Cannot save settings: persistence disabled (usePersistence=false)");
+    }
     if (!this.agentDir) {
       throw new Error("Cannot save settings: agentDir not set");
     }
@@ -593,7 +658,11 @@ Always strive to be accurate and thorough.`;
     this.log(`🗜️ Compaction ${enabled ? 'enabled' : 'disabled'}`);
   }
 
-  /** Update a setting and persist to file */
+  /**
+   * Updates a setting and persists to file.
+   * @param key - Setting key (supports nested like 'compaction.enabled')
+   * @param value - New value
+   */
   updateSetting(key: string, value: any): void {
     // Support nested keys like "compaction.enabled"
     const keys = key.split('.');
@@ -617,7 +686,9 @@ Always strive to be accurate and thorough.`;
     this.log(`⚙️ Updated setting: ${key} = ${JSON.stringify(value)}`);
   }
 
-  /** Apply multiple setting overrides at once (used by profiles) */
+  /**
+   * Applies multiple setting overrides at once (used by profiles).
+   */
   applySettings(overrides: any): void {
     const merge = (target: any, src: any) => {
       for (const key in src) {
@@ -644,11 +715,13 @@ Always strive to be accurate and thorough.`;
     this.log("🔄 Settings reset to defaults");
   }
 
+  /** Returns the model registry. */
   getModelRegistry(): ModelRegistry {
     return this.modelRegistry;
   }
 
   /** Get cost history from persistent log */
+  /** Returns the cost history array. */
   getCostHistory(): any[] {
     if (!this.agentDir) return [];
     const logPath = join(this.agentDir, 'cost-history.jsonl');
@@ -663,8 +736,12 @@ Always strive to be accurate and thorough.`;
     }
   }
 
+  /**
+   * Cycles to the next available model.
+   * @returns true if a different model was selected
+   */
   async cycleModel(): Promise<boolean> {
-    const available = await this.modelRegistry.getAvailable();
+    const available = await this.getCachedAvailableModels();
     if (available.length <= 1) return false;
 
     const current = this.model;
@@ -680,6 +757,9 @@ Always strive to be accurate and thorough.`;
     return true;
   }
 
+  /**
+   * Sets the thinking level for the current session.
+   */
   async setThinkingLevel(level: ThinkingLevel): Promise<void> {
     if (this.session) {
       await this.session.setThinkingLevel(level);
@@ -687,6 +767,9 @@ Always strive to be accurate and thorough.`;
     }
   }
 
+  /**
+   * Switches to a different model and recreates the session.
+   */
   async setModel(model: Model<any>): Promise<void> {
     this.model = model;
     // Save preference to settings
@@ -716,6 +799,11 @@ Always strive to be accurate and thorough.`;
     this.log("   ✅ Session recreated with new model");
   }
 
+  /**
+   * Compacts the session context.
+   * @param summary - Optional summary message
+   * @param preview - If true, returns a preview without compacting
+   */
   async compact(summary?: string, preview: boolean = false): Promise<string> {
     if (!this.compactionEnabled && !preview) {
       return "🗜️ Compaction is disabled (use /compact-on to enable)";
@@ -754,6 +842,7 @@ Would remove: ~${wouldRemove} entries`;
     return "❌ No active session";
   }
 
+  /** Aborts the current turn. */
   async abort(): Promise<void> {
     if (this.session) {
       await this.session.abort();
@@ -762,6 +851,9 @@ Would remove: ~${wouldRemove} entries`;
   }
 
   /** Export current session to JSONL file */
+  /**
+   * Exports the current session to a JSONL file.
+   */
   async exportSession(filePath?: string): Promise<string> {
     const entries = this.sessionManager.getEntries();
     const jsonl = entries.map(e => JSON.stringify(e)).join('\n');
@@ -772,6 +864,9 @@ Would remove: ~${wouldRemove} entries`;
   }
 
   /** Import session from JSONL file (replaces current session) */
+  /**
+   * Imports a session from a JSONL file and switches to it.
+   */
   async importSession(filePath: string): Promise<void> {
     if (!existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`);
@@ -793,6 +888,9 @@ Would remove: ~${wouldRemove} entries`;
     this.log(`📥 Imported session from: ${filePath} (${entries.length} entries)`);
   }
 
+  /**
+   * Reloads extensions, skills, and prompts from disk.
+   */
   async reloadResources(): Promise<void> {
     await this.resourceLoader.reload();
     const exts = this.resourceLoader.getExtensions();
@@ -801,6 +899,7 @@ Would remove: ~${wouldRemove} entries`;
     this.log(`✅ Reloaded: ${exts.extensions.length} extensions, ${skills.skills.length} skills, ${prompts.prompts.length} commands`);
   }
 
+  /** Returns current agent configuration. */
   getConfig() {
     return {
       cwd: this.cwd,
@@ -813,8 +912,63 @@ Would remove: ~${wouldRemove} entries`;
     };
   }
 
+  /** Get available models with caching */
+  private async getCachedAvailableModels(): Promise<Model<any>[]> {
+    const now = Date.now();
+    if (this.modelCache && (now - this.modelCacheTime) < this.MODEL_CACHE_TTL) {
+      return this.modelCache;
+    }
+    const available = await this.modelRegistry.getAvailable();
+    this.modelCache = available;
+    this.modelCacheTime = now;
+    return available;
+  }
+
+  /** Returns the agent directory path. */
   getAgentDir(): string {
     return this.agentDir;
+  }
+
+  /**
+   * Performs auto-commit of current session changes to git.
+   */
+  private performAutoCommit(): void {
+    const gitCfg = this.currentSettings.git as any || {};
+    const message = gitCfg.commitMessage || 'Agent session update';
+    // Check if in a git repo
+    try {
+      // Simple check: does .git exist in cwd or parent
+      let dir = this.cwd;
+      let found = false;
+      for (let i = 0; i < 5; i++) {
+        if (existsSync(join(dir, '.git'))) {
+          found = true;
+          break;
+        }
+        const parent = dir.split('/').slice(0, -1).join('/') || '.';
+        if (parent === dir) break;
+        dir = parent;
+      }
+      if (!found) return; // Not a git repo
+
+      // Use simple git commands
+      execSync('git add -A', { cwd: this.cwd, stdio: 'ignore' });
+      // Only commit if there are changes (exit code 1 means nothing to commit)
+      try {
+        execSync(`git commit -m ${JSON.stringify(message)}`, { cwd: this.cwd, stdio: 'ignore' });
+        this.log(`📦 Auto-committed changes`);
+      } catch (e: any) {
+        // Git commit returns 1 when there is nothing to commit - ignore
+        if (!e.message?.includes('nothing to commit')) {
+          throw e;
+        }
+      }
+    } catch (e: any) {
+      // Silently ignore auto-commit errors (not critical)
+      if (this.verbose) {
+        this.log(`⚠️ Auto-commit failed: ${e.message}`);
+      }
+    }
   }
 
   /** Watch extension/skill/prompt directories for hot-reloading */
@@ -851,6 +1005,10 @@ Would remove: ~${wouldRemove} entries`;
     });
   }
 
+  /**
+   * Subscribes to agent session events.
+   * @returns Unsubscribe function
+   */
   subscribe(callback: (event: any) => void): () => void {
     if (!this.session) {
       throw new Error("Agent not initialized");
@@ -858,6 +1016,12 @@ Would remove: ~${wouldRemove} entries`;
     return this.session.subscribe(callback);
   }
 
+  /**
+   * Sends a prompt to the agent and streams the response.
+   *
+   * Handles retries, fallback models, and error enhancement.
+   * @param text - User message
+   */
   async prompt(text: string): Promise<void> {
     if (!this.session) {
       throw new Error("Agent not initialized");
@@ -952,6 +1116,18 @@ Would remove: ~${wouldRemove} entries`;
     const window = 60 * 1000;
     const recent = timestamps.filter(t => now - t < window);
     this.toolFailureTimestamps.set(toolName, recent);
+    // Prune old entries from all tools to prevent memory leak (run every 10 failures)
+    if (Math.random() < 0.1) {
+      for (const [name, times] of this.toolFailureTimestamps) {
+        const filtered = times.filter(t => now - t < window);
+        if (filtered.length === 0) {
+          this.toolFailureTimestamps.delete(name);
+          this.toolCircuitOpenUntil.delete(name);
+        } else {
+          this.toolFailureTimestamps.set(name, filtered);
+        }
+      }
+    }
     if (recent.length >= 3) {
       // Open circuit for 5 minutes
       this.toolCircuitOpenUntil.set(toolName, now + 5 * 60 * 1000);
@@ -970,6 +1146,9 @@ Would remove: ~${wouldRemove} entries`;
     return true;
   }
 
+  /**
+   * Logs a message (to console and file if verbose).
+   */
   log(...args: any[]): void {
     if (this.verbose && !this.quiet) {
       console.log('[AGENT]', ...args);
@@ -1015,6 +1194,9 @@ Would remove: ~${wouldRemove} entries`;
     }
   }
 
+  /**
+   * Disposes the agent, closing all resources.
+   */
   dispose(): void {
     if (this.session) {
       this.session.dispose();
@@ -1050,7 +1232,7 @@ Would remove: ~${wouldRemove} entries`;
         writeFileSync(logPath, JSON.stringify(entry) + '\n', { flag: 'a' });
       }
     } catch (e) {
-      // ignore
+      this.log(`⚠️ Failed to write cost history: ${e}`);
     }
     // Check budget alerts
     try {

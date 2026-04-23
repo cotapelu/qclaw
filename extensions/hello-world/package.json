@@ -1,0 +1,17 @@
+{
+  "name": "qclaw-extension-hello-world",
+  "version": "0.1.0",
+  "description": "Minimal hello world extension for qclaw",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "^0.68.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

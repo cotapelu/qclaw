@@ -1,0 +1,66 @@
+{
+  "name": "qclaw",
+  "displayName": "qclaw - Pi SDK Agent",
+  "description": "AI coding assistant powered by Pi SDK",
+  "version": "0.1.0",
+  "publisher": "mariozechner",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Programming Tools"
+  ],
+  "activationEvents": [
+    "onCommand:qclaw.start"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "qclaw.start",
+        "title": "Qclaw: Start Agent"
+      },
+      {
+        "command": "qclaw.stop",
+        "title": "Qclaw: Stop Agent"
+      },
+      {
+        "command": "qclaw.send",
+        "title": "Qclaw: Send to Agent"
+      }
+    ],
+    "configuration": {
+      "title": "Qclaw",
+      "properties": {
+        "qclaw.agentPath": {
+          "type": "string",
+          "default": "qclaw",
+          "description": "Path to qclaw executable"
+        },
+        "qclaw.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for LLM provider"
+        },
+        "qclaw.model": {
+          "type": "string",
+          "default": "",
+          "description": "Default model (e.g., claude-sonnet-4-5)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vsce": "^2.15.0"
+  }
+}

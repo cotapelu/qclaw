@@ -29,7 +29,8 @@ const mockAgent = {
   updateSetting: () => {},
   applySettings: () => {},
   getAgentDir: () => '/tmp/agent',
-  getCostHistory: () => []
+  getCostHistory: () => [],
+  getSession: () => null // No active session in tests
 };
 
 const mockSessionManager = {
@@ -39,7 +40,10 @@ const mockSessionManager = {
   getHeader: () => ({ id: 'test' }),
   getCwd: () => process.cwd(),
   isPersisted: () => false,
-  getSessionDir: () => null
+  getSessionDir: () => null,
+  newSession: () => {},
+  branch: (id: string) => {},
+  setSessionFile: (path: string) => {}
 };
 
 const mockResourceLoader = {
@@ -93,5 +97,70 @@ describe('Command Registry', () => {
   test('export command usage', async () => {
     const result = await commandRegistry.execute('export', handlers);
     assert.ok(result.includes('No entries') || result.includes('Exported'), 'Should handle export');
+  });
+
+  test('new command creates session', async () => {
+    const result = await commandRegistry.execute('new', handlers);
+    assert.ok(result.includes('new session'), 'Should confirm new session');
+  });
+
+  test('fork command branches session', async () => {
+    // Setup: leaf entry exists
+    mockSessionManager.getLeafEntry = () => ({ id: 'leaf123' });
+    const result = await commandRegistry.execute('fork', handlers);
+    assert.ok(result.includes('Forked'), 'Should confirm fork');
+  });
+
+  test('fork without leaf returns error', async () => {
+    mockSessionManager.getLeafEntry = () => null;
+    const result = await commandRegistry.execute('fork', handlers);
+    assert.ok(result.includes('No current leaf') || result.includes('❌'), 'Should error without leaf');
+  });
+
+  test('session command shows session info', async () => {
+    mockSessionManager.getTree = () => [{ entry: { id: 'test' }, children: [] }];
+    mockSessionManager.getHeader = () => ({ id: 'header123' });
+    mockSessionManager.isPersisted = () => true;
+    mockSessionManager.getEntries = () => [{ type: 'message' }];
+    const result = await commandRegistry.execute('session', handlers);
+    assert.ok(result.includes('Session Info'), 'Should show session info');
+  });
+
+  test('graph command visualizes tree', async () => {
+    mockSessionManager.getTree = () => [{
+      entry: { id: 'root' },
+      children: [{ entry: { id: 'child' }, children: [] }]
+    }];
+    const result = await commandRegistry.execute('graph', handlers);
+    assert.ok(result.includes('Session Graph') || result.includes('└'), 'Should show graph');
+  });
+
+  test('search command finds messages', async () => {
+    mockSessionManager.getEntries = () => [{
+      type: 'message',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'Hello world test query' }]
+      }
+    }];
+    const result = await commandRegistry.execute('search', handlers, 'test query');
+    assert.ok(result.includes('Search results') || result.includes('world'), 'Should find matches');
+  });
+
+  test('labels and notes commands with missing session dir', async () => {
+    // sessionDir is null in mock, so command should return error
+    const result = await commandRegistry.execute('labels', handlers);
+    assert.ok(result.includes('Session directory not available') || result.includes('Labels'), 'Should handle missing session dir');
+  });
+
+  test('profiles command shows profiles', async () => {
+    const result = await commandRegistry.execute('profiles', handlers);
+    assert.ok(result.includes('Profiles'), 'Should show profiles list');
+  });
+
+  test('health command runs diagnostics', async () => {
+    const result = await commandRegistry.execute('health', handlers);
+    console.log('HEALTH OUTPUT:', result); // Debug
+    assert.ok(result.includes('Health Check') || result.includes('🩺'), 'Should show health info');
   });
 });

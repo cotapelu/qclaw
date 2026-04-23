@@ -34,7 +34,7 @@ export async function runRpcServer(options: RpcServerOptions): Promise<void> {
     if (!line.trim()) return;
     try {
       const req = JSON.parse(line);
-      handleRequest(req, session, pendingRequests);
+      handleRequest(req, session, pendingRequests, agent);
     } catch (error: any) {
       // Parse error - respond if has id
       // Can't get id from malformed JSON, so just log
@@ -59,7 +59,8 @@ export async function runRpcServer(options: RpcServerOptions): Promise<void> {
 async function handleRequest(
   req: any,
   session: any,
-  pendingRequests: Map<any, { resolve: (v: any) => void; reject: (e: any) => void }>
+  pendingRequests: Map<any, { resolve: (v: any) => void; reject: (e: any) => void }>,
+  agent: any
 ) {
   // Validate JSON-RPC 2.0 request
   if (!req.jsonrpc || req.jsonrpc !== "2.0") {
@@ -116,6 +117,23 @@ async function handleRequest(
         // Example additional method
         const sessions = await session.sessionManager.list();
         if (!isNotification) sendResult(id, { sessions });
+        break;
+      }
+
+      case "health": {
+        const stats = agent.getStats();
+        const config = agent.getConfig();
+        const model = agent.getModel();
+        const result = {
+          status: "healthy",
+          uptime: stats.sessionDuration,
+          model: model ? `${model.provider}/${model.id}` : null,
+          tokens: stats.totalTokens,
+          cost: stats.estimatedCost,
+          persisted: config.persisted,
+          version: process.env.npm_package_version || 'dev'
+        };
+        if (!isNotification) sendResult(id, result);
         break;
       }
 
