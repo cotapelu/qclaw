@@ -11,6 +11,7 @@ import {
   type AgentSession,
   type CompactionResult,
 } from "@mariozechner/pi-coding-agent";
+import { validateSettings as validateSettingsSchema, formatValidationErrors } from "../config/validation.js";
 import { readFileSync, existsSync, writeFileSync, mkdirSync, watch, createWriteStream, WriteStream } from "fs";
 import { homedir } from "os";
 import { execSync } from "child_process";
@@ -39,29 +40,6 @@ export interface AgentStats {
   turns: number;
   sessionDuration: number;
   estimatedCost: number;
-}
-
-// Simple settings validation
-function validateSettings(settings: any): { valid: boolean; errors?: string[] } {
-  const errors: string[] = [];
-  if (settings.compaction) {
-    if (typeof settings.compaction.enabled !== 'boolean') errors.push('compaction.enabled must be boolean');
-    if (settings.compaction.tokens !== undefined && typeof settings.compaction.tokens !== 'number') errors.push('compaction.tokens must be number');
-  }
-  if (settings.retry) {
-    if (typeof settings.retry.enabled !== 'boolean') errors.push('retry.enabled must be boolean');
-    if (settings.retry.maxRetries !== undefined && typeof settings.retry.maxRetries !== 'number') errors.push('retry.maxRetries must be number');
-  }
-  if (settings.model !== undefined && typeof settings.model !== 'string') errors.push('model must be string');
-  if (settings.thinkingLevel) {
-    const validLevels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'];
-    if (!validLevels.includes(settings.thinkingLevel)) errors.push(`thinkingLevel must be one of: ${validLevels.join(', ')}`);
-  }
-  if (settings.git) {
-    if (typeof settings.git.autoCommit !== 'boolean') errors.push('git.autoCommit must be boolean');
-    if (typeof settings.git.commitMessage !== 'string') errors.push('git.commitMessage must be string');
-  }
-  return { valid: errors.length === 0, errors };
 }
 
 class FileLogger {
@@ -576,16 +554,16 @@ Always strive to be accurate and thorough.`;
     try {
       const content = readFileSync(settingsPath, 'utf-8');
       const settings = JSON.parse(content);
-      const validation = validateSettings(settings);
-      if (!validation.valid) {
-        const errors = validation.errors?.join('; ') || 'Unknown error';
-        this.log(`⚠️ Settings validation failed: ${errors}`);
+      const result = validateSettingsSchema(settings);
+      if (!result.valid) {
+        const errors = formatValidationErrors(result.errors);
+        this.log(`⚠️ Settings validation failed:\n${errors}`);
         this.log(`⚠️ Using default settings instead`);
         return this.getDefaultSettings();
       }
       return settings;
-    } catch (error) {
-      this.log(`⚠️ Failed to load settings from ${settingsPath}: ${error}`);
+    } catch (error: any) {
+      this.log(`⚠️ Failed to load settings from ${settingsPath}: ${error.stack || error.message}`);
       return this.getDefaultSettings();
     }
   }
@@ -677,10 +655,10 @@ Always strive to be accurate and thorough.`;
       current[keys[keys.length - 1]] = value;
     }
     // Validate before saving
-    const validation = validateSettings(this.currentSettings);
-    if (!validation.valid) {
-      const errors = validation.errors?.join('; ') || 'Unknown error';
-      throw new Error(`Invalid settings after update: ${errors}`);
+    const result = validateSettingsSchema(this.currentSettings);
+    if (!result.valid) {
+      const errors = formatValidationErrors(result.errors);
+      throw new Error('Invalid settings after update:\n' + errors);
     }
     this.saveSettings();
     this.log(`⚙️ Updated setting: ${key} = ${JSON.stringify(value)}`);
@@ -701,9 +679,10 @@ Always strive to be accurate and thorough.`;
       }
     };
     merge(this.currentSettings, overrides);
-    const validation = validateSettings(this.currentSettings);
-    if (!validation.valid) {
-      throw new Error('Invalid settings after profile merge: ' + (validation.errors?.join('; ') || ''));
+    const result = validateSettingsSchema(this.currentSettings);
+    if (!result.valid) {
+      const errors = formatValidationErrors(result.errors);
+      throw new Error('Invalid settings after profile merge:\n' + errors);
     }
     this.saveSettings();
   }

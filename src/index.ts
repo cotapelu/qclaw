@@ -158,14 +158,30 @@ async function main(): Promise<void> {
   // Create agent
   const agent = new AgentCore(agentConfig);
 
-  // Signal handling
+  // Signal handling with graceful shutdown
   const shutdown = async (signal: string) => {
-    if (!agentConfig.quiet) console.log(`\nReceived ${signal}, shutting down...`);
-    agent.dispose();
-    process.exit(0);
+    if (!agentConfig.quiet) console.log(`\nReceived ${signal}, shutting down gracefully...`);
+    const timeoutMs = 15000; // 15 seconds to cleanup
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error('Shutdown timeout')), timeoutMs);
+    });
+    try {
+      await Promise.race([agent.dispose(), timeoutPromise]);
+      if (!agentConfig.quiet) console.log('✅ Shutdown complete');
+    } catch (error: any) {
+      console.error(`⚠️ Shutdown error: ${error.message}`);
+    } finally {
+      process.exit(0);
+    }
   };
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
+  // Also handle SIGHUP (reload)
+  process.on('SIGHUP', () => {
+    if (!agentConfig.quiet) console.log('\nReceived SIGHUP, reloading...');
+    // Could trigger resource reload here
+    process.exit(0);
+  });
 
   // Initialize
   if (agentConfig.verbose) console.time("init");
