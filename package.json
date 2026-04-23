@@ -1,6 +1,8 @@
 {
   "name": "pi-sdk-agent",
   "version": "1.0.0",
+  "private": true,
+  "workspaces": ["packages/*"],
   "description": "Custom AI agent using pi SDK",
   "type": "module",
   "main": "dist/index.js",
@@ -12,7 +14,9 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "lint": "eslint src/**/*.ts --fix",
-    "test": "tsx tests/agent.test.ts && tsx tests/commands.test.ts && tsx tests/e2e.test.ts",
+    "test": "npm run test:agent && npm run test:tui && npx tsx tests/main.test.ts",
+    "test:agent": "cd packages/agent && npm test",
+    "test:tui": "cd packages/tui && npm test",
     "coverage": "c8 --reporter=html --reporter=text npm test",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck",
@@ -25,7 +29,10 @@
     "@mariozechner/pi-coding-agent": "^0.68.0",
     "@mariozechner/pi-tui": "^0.68.0",
     "@mariozechner/pi-agent-core": "^0.68.0",
+    "@mariozechner/pi-agent": "workspace:*",
+    "@mariozechner/pi-tui-professional": "workspace:*",
     "@sinclair/typebox": "^0.32.0",
+    "commander": "^12.0.0",
     "prom-client": "^14.2.0"
   },
   "devDependencies": {

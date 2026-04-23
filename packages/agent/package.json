@@ -1,0 +1,66 @@
+{
+  "name": "@mariozechner/pi-agent",
+  "version": "1.0.0",
+  "description": "Professional AI agent library built on pi-agent-core and pi-coding-agent. Provides high-level abstractions for building coding assistants with event-driven architecture.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./bus": {
+      "types": "./dist/bus.d.ts",
+      "import": "./dist/bus.js"
+    },
+    "./factory": {
+      "types": "./dist/factory.d.ts",
+      "import": "./dist/factory.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx tests/sanity.test.ts && tsx tests/integration.test.ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@mariozechner/pi-agent-core": "^0.68.0",
+    "@mariozechner/pi-coding-agent": "^0.68.0",
+    "@mariozechner/pi-ai": "^0.68.0",
+    "@mariozechner/pi-tui": "^0.68.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-tui": "^0.68.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "ai",
+    "agent",
+    "coding-assistant",
+    "llm",
+    "tui",
+    "terminal",
+    "cli",
+    "automation",
+    "tools"
+  ],
+  "author": "Qcoder Team",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qcoder/qclaw.git",
+    "directory": "packages/agent"
+  }
+}
