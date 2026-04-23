@@ -1,8 +1,8 @@
-import type { AgentCore } from "./core.js";
-import { commandRegistry } from "./commands.js";
-import type { CommandHandlers } from "./commands.js";
-import { AliasManager } from "./aliases.js";
-import { t, type Locale } from "./i18n.js";
+import type { AgentCore } from "../agent/core.js";
+import { commandRegistry } from "../agent/commands.js";
+import type { CommandHandlers } from "../agent/commands.js";
+import { AliasManager } from "../agent/aliases.js";
+import { t, type Locale } from "../agent/i18n.js";
 import {
   TUI,
   Text,
@@ -894,4 +894,3 @@ export class AgentTUI {
     setTimeout(() => this.tui.hideOverlay(), 5000);
   }
 }
-

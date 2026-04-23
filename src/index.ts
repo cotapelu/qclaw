@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { AgentCore } from "./agent/core.js";
-import { AgentCLI } from "./agent/cli.js";
 import { AgentConfig } from "./config.js";
 import { getCustomTools } from "./tools/index.js";
 import { runRpcServer } from "./rpc.js";
@@ -252,7 +251,7 @@ async function main(): Promise<void> {
   // Run mode
   switch (options.mode) {
     case "cli": {
-      const tui = new (await import("./agent/tui-cli.js")).AgentTUI(agent, agentConfig.verbose);
+      const tui = new (await import("./tui/agent-tui.js")).AgentTUI(agent, agentConfig.verbose);
       await tui.start();
       break;
     }
