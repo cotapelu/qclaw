@@ -5,48 +5,70 @@ import { AliasManager } from "../agent/aliases.js";
 import { t, type Locale } from "../agent/i18n.js";
 import {
   TUI,
-  Text,
   ProcessTerminal,
   Container,
+  Text,
   Spacer,
-  CombinedAutocompleteProvider,
-  KeybindingsManager,
-  TUI_KEYBINDINGS,
-  setKeybindings,
   type SelectItem,
 } from "@mariozechner/pi-tui";
 import {
-  CustomEditor,
-  UserMessageComponent,
-  AssistantMessageComponent,
-  ToolExecutionComponent,
-  FooterComponent,
-  SettingsSelectorComponent,
   getMarkdownTheme,
   getEditorTheme,
   initTheme,
-  type ToolExecutionOptions,
   type FooterData,
 } from "@mariozechner/pi-coding-agent";
-import chalk from "chalk";
 
+import {
+  EventBus,
+  ConfigManager,
+  MessageContainer,
+  ChatEditor,
+  StatusFooter,
+  OverlayManager,
+  LoadingIndicator,
+  ThemeManager,
+  TerminalHelper,
+  LifecycleState,
+} from "./index.js";
+
+/**
+ * AgentTUI - Main TUI orchestrator for the coding agent.
+ *
+ * Features:
+ * - Event-driven architecture via EventBus
+ * - Lifecycle management
+ * - Modular components (MessageContainer, ChatEditor, StatusFooter)
+ * - Overlay management
+ * - Theme management
+ * - Configuration management
+ * - Performance metrics
+ *
+ * This class composes all TUI modules and provides a clean API.
+ */
 export class AgentTUI {
+  // Core dependencies
   private agent: AgentCore;
-  private verbose: boolean;
   private tui: TUI;
-  private editor: CustomEditor;
+  private eventBus: EventBus;
+  private config: ConfigManager;
+  private lifecycle: LifecycleManager;
+
+  // Components
+  private editor!: ChatEditor;
+  private messageContainer!: MessageContainer;
+  private footer!: StatusFooter;
+  private overlayManager!: OverlayManager;
+  private loadingIndicator!: LoadingIndicator;
+  private themeManager!: ThemeManager;
+  private terminalHelper!: TerminalHelper;
+
+  // State
+  private verbose: boolean = false;
   private commandHandlers: CommandHandlers;
-  private isResponding: boolean = false;
-  private welcome: Text;
-  private spacer: Spacer;
-  private lastRenderedAssistantId: string | null = null;
   private aliasManager: AliasManager;
-  private messageContainer: Container;
-  private currentTheme: string = 'dark';
   private locale: Locale = 'en';
-  private currentAssistantMessage: AssistantMessageComponent | null = null;
-  private currentToolComponent: ToolExecutionComponent | null = null;
-  private footer: FooterComponent | null = null;
+  private welcomeMessage: Text | null = null;
+
   // Performance tracking
   private frameCountSinceLastFps = 0;
   private lastFpsUpdate = 0;
@@ -64,18 +86,44 @@ export class AgentTUI {
       tui: this,
     };
     this.aliasManager = new AliasManager(agent.getAgentDir());
-    
-    // Load settings
-    const settings = this.agent.getSettings();
-    this.currentTheme = settings.theme || 'dark';
-    this.locale = (settings.locale as Locale) || 'en';
 
-    // Initialize theme system from pi-coding-agent
-    initTheme(this.currentTheme);
+    // Initialize core systems
+    this.eventBus = new EventBus();
+    this.config = new ConfigManager(agent.getSettings(), this.eventBus);
+    this.lifecycle = new LifecycleManager('agent-tui', this.eventBus);
 
+    // Initialize theme manager
+    this.themeManager = new ThemeManager(this.config.get('theme'));
+
+    // Apply theme
+    initTheme(this.config.get('theme'));
+
+    // Initialize terminal helper
+    this.terminalHelper = new TerminalHelper();
+
+    // Setup TUI
     const terminal = new ProcessTerminal();
     this.tui = new TUI(terminal);
-    
+    this.setupTUIHooks();
+
+    // Initialize components
+    this.overlayManager = new OverlayManager(this.tui);
+    this.setupComponents();
+
+    // Subscribe to agent events
+    this.agent.subscribe((event: any) => this.handleAgentEvent(event));
+
+    // Setup global keyboard shortcuts
+    this.setupGlobalShortcuts();
+
+    // Load initial data
+    this.loadInitialData();
+
+    // Set up shutdown hook
+    this.setupShutdownHook();
+  }
+
+  private setupTUIHooks(): void {
     // Wrap requestRender for performance metrics
     this.lastFpsUpdate = performance.now();
     this.originalRequestRender = this.tui.requestRender.bind(this.tui);
@@ -84,84 +132,92 @@ export class AgentTUI {
       this.frameCountSinceLastFps++;
       this.originalRequestRender!();
       this.lastRenderTime = performance.now() - start;
+      this.updateFps();
     };
-
-    // Initialize global keybindings
-    const kb = new KeybindingsManager(TUI_KEYBINDINGS);
-    setKeybindings(kb);
-    
-    // Load user keybindings from settings if present
-    if (settings.keybindings && typeof settings.keybindings === 'object') {
-      kb.setUserBindings(settings.keybindings as any);
-    }
-    // Default custom binding: allow Ctrl+Enter for newline
-    kb.setUserBindings({
-      'tui.input.newLine': ['shift+enter', 'ctrl+enter']
-    });
-
-    // Setup layout
-    this.setupLayout();
-
-    // Subscribe to agent events
-    this.agent.subscribe((event: any) => this.handleAgentEvent(event));
-
-    // Load initial data
-    this.updateAutocompleteCommands();
-    this.renderSessionMessages();
   }
 
-  private setupLayout(): void {
+  private updateFps(): void {
+    const now = performance.now();
+    const elapsed = now - this.lastFpsUpdate;
+    if (elapsed >= 1000) {
+      this.currentFps = Math.round((this.frameCountSinceLastFps * 1000) / elapsed);
+      this.frameCountSinceLastFps = 0;
+      this.lastFpsUpdate = now;
+      this.eventBus.emitSimple('tui.fps', { fps: this.currentFps, renderTime: this.lastRenderTime });
+    }
+  }
+
+  private setupComponents(): void {
     // Welcome message
-    this.welcome = new Text(
+    this.welcomeMessage = new Text(
       "🎮 Pi SDK Agent\n\nType your messages or use slash commands. Press Ctrl+P for command palette. Ctrl+C to exit.",
-      1,
-      1,
-      (s: string) => chalk.cyan(s)
+      1, 1,
+      (s: string) => this.themeManager.fg('accent', s)
     );
-    this.tui.addChild(this.welcome);
 
-    // Spacer
-    this.spacer = new Spacer();
-    this.tui.addChild(this.spacer);
-
-    // Message container (holds chat messages)
-    this.messageContainer = new Container();
+    // Message container
+    this.messageContainer = new MessageContainer();
     this.tui.addChild(this.messageContainer);
 
-    // Spacer between messages and editor
-    this.tui.addChild(this.spacer);
+    // Spacer
+    this.tui.addChild(new Spacer());
 
-    // Editor (CustomEditor from pi-coding-agent)
-    const autocompleteProvider = new CombinedAutocompleteProvider([], process.cwd());
-    this.editor = new CustomEditor(this.tui, getEditorTheme(), {
-      // Custom keybindings if needed
-    });
-    this.editor.setAutocompleteProvider(autocompleteProvider);
-    this.editor.onSubmit = (value: string) => this.handleSubmit(value);
+    // Editor (ChatEditor)
+    this.editor = new ChatEditor(this.tui);
     this.tui.addChild(this.editor);
 
-    // Footer component (status bar)
-    this.footer = new FooterComponent(
+    // Footer
+    this.footer = new StatusFooter(
       this.agent.getSession(),
       this.buildFooterData()
     );
     this.tui.addChild(this.footer);
 
+    // Loading indicator (hidden by default)
+    this.loadingIndicator = new LoadingIndicator(
+      this.tui,
+      "Thinking...",
+      (s) => this.themeManager.fg('accent', s),
+      (s) => this.themeManager.fg('muted', s),
+      this.themeManager.getThemeInstance()!
+    );
+
+    // Set focus to editor
     this.tui.setFocus(this.editor);
+  }
+
+  private setupGlobalShortcuts(): void {
+    // These will be handled by the ChatEditor's keybindings
+    // We can add more global shortcuts via the TUI if needed
+  }
+
+  private setupShutdownHook(): void {
+    process.on('SIGINT', async () => {
+      await this.stop();
+      process.exit(0);
+    });
+    process.on('SIGTERM', async () => {
+      await this.stop();
+      process.exit(0);
+    });
+  }
+
+  private loadInitialData(): void {
+    this.updateAutocompleteCommands();
+    this.renderSessionMessages();
   }
 
   private buildFooterData(): FooterData {
     const stats = this.agent.getStats();
     const model = this.agent.getModel();
     const settings = this.agent.getSettings();
-    
+
     return {
       model: model ? `${model.provider}/${model.id}` : 'none',
       tokens: stats.totalTokens,
       cost: stats.estimatedCost,
       messages: this.commandHandlers.sessionManager.getEntries().length,
       thinkingLevel: settings.thinkingLevel || 'off',
-      // Optional: add more fields as needed
     };
   }
 
@@ -171,13 +227,8 @@ export class AgentTUI {
       { value: "help", label: "help", description: "Show help" },
       { value: "new", label: "new", description: "Create fresh session" },
       { value: "resume", label: "resume", description: "Resume recent session" },
-      { value: "fork", label: "fork", description: "Branch from current" },
       { value: "sessions", label: "sessions", description: "List all sessions" },
       { value: "session", label: "session", description: "Show session tree" },
-      { value: "skills", label: "skills", description: "List loaded skills" },
-      { value: "extensions", label: "extensions", description: "List loaded extensions" },
-      { value: "commands", label: "commands", description: "List all slash commands" },
-      { value: "reload", label: "reload", description: "Reload resources" },
       { value: "models", label: "models", description: "Show current model" },
       { value: "cycle", label: "cycle", description: "Switch to next model" },
       { value: "thinking", label: "thinking", description: "Set thinking level" },
@@ -186,24 +237,7 @@ export class AgentTUI {
       { value: "tokens", label: "tokens", description: "Show token usage" },
       { value: "compact", label: "compact", description: "Compact context" },
       { value: "clear", label: "clear", description: "Clear screen" },
-      { value: "verbose", label: "verbose", description: "Toggle verbose mode" },
-      { value: "hello", label: "hello", description: "Test custom tool" },
-      { value: "datetime", label: "datetime", description: "Get current datetime" },
-      { value: "sysinfo", label: "sysinfo", description: "Show system info" },
-      { value: "ls", label: "ls", description: "List files" },
-      { value: "export", label: "export", description: "Export session" },
-      { value: "import", label: "import", description: "Import session" },
-      { value: "graph", label: "graph", description: "Show session graph" },
-      { value: "diff", label: "diff", description: "Diff branches" },
-      { value: "search", label: "search", description: "Search session" },
-      { value: "labels", label: "labels", description: "Manage labels" },
-      { value: "notes", label: "notes", description: "Manage notes" },
-      { value: "budget", label: "budget", description: "Budget settings" },
-      { value: "backup", label: "backup", description: "Backup data" },
-      { value: "restore", label: "restore", description: "Restore backup" },
-      { value: "logs", label: "logs", description: "View logs" },
-      { value: "settings", label: "settings", description: "Show settings" },
-      { value: "set", label: "set", description: "Update setting" },
+      { value: "settings", label: "settings", description: "Open settings" },
     ];
 
     prompts.prompts.forEach(p => {
@@ -214,9 +248,71 @@ export class AgentTUI {
       });
     });
 
-    this.editor.setAutocompleteProvider(
-      new CombinedAutocompleteProvider(builtinCommands, process.cwd())
-    );
+    this.editor.setAutocomplete(builtinCommands);
+  }
+
+  private renderSessionMessages(): void {
+    const entries = this.commandHandlers.sessionManager.getEntries();
+    const messages = entries.filter(e => e.type === 'message');
+
+    for (const entry of messages) {
+      const msg = entry as any;
+      const role = msg.message.role as "user" | "assistant";
+      const blocks = msg.message.content;
+      if (blocks && blocks.length > 0) {
+        this.eventBus.emitSimple('message.add', {
+          messageId: entry.id,
+          role,
+          content: blocks.map((b: any) => b.text || '').join('\n'),
+        });
+      }
+    }
+  }
+
+  private handleAgentEvent(event: any): void {
+    switch (event.type) {
+      case 'agent_start':
+        this.eventBus.emitSimple('agent.start', event);
+        this.updateFooter();
+        break;
+
+      case 'turn_end':
+        this.removeLoaderIfPresent();
+        this.updateFooter();
+        break;
+
+      case 'error':
+        this.eventBus.emitSimple('agent.error', { error: event });
+        this.removeLoaderIfPresent();
+        break;
+
+      case 'message_update':
+        if (event.message_update?.type === 'text_delta') {
+          this.eventBus.emitSimple('message.delta', {
+            messageId: event.message_update.messageId,
+            delta: event.message_update.delta,
+          });
+        }
+        break;
+
+      case 'tool_execution_start':
+        this.eventBus.emitSimple('tool.execution.start', event.tool_execution);
+        break;
+
+      case 'tool_execution_end':
+        this.eventBus.emitSimple('tool.execution.end', event.tool_execution);
+        break;
+
+      case 'tool_execution_error':
+        this.eventBus.emitSimple('tool.execution.error', event.tool_execution);
+        break;
+    }
+  }
+
+  private removeLoaderIfPresent(): void {
+    // LoadingIndicator is created on demand, we track it separately
+    // For now, we'll emit an event to hide any loading UI
+    this.eventBus.emitSimple('loading.stop');
   }
 
   private async handleSubmit(value: string): Promise<void> {
@@ -229,301 +325,118 @@ export class AgentTUI {
       return;
     }
 
-    // Handle slash commands directly
+    // Handle slash commands
     if (trimmed.startsWith("/")) {
-      let [cmd, ...args] = trimmed.slice(1).split(' ');
-      // Expand aliases if command not found
+      const [cmd, ...args] = trimmed.slice(1).split(' ');
       const aliasCmd = this.aliasManager.get(cmd);
       if (aliasCmd) {
-        [cmd, ...args] = aliasCmd;
-      }
-      const result = await commandRegistry.execute(cmd, this.commandHandlers, ...args);
-      if (cmd === "clear") {
-        this.clearScreen();
-      } else if (result) {
-        this.addMessage(result, "system");
+        const [aliasCmdName, ...aliasArgs] = aliasCmd;
+        await this.executeCommand(aliasCmdName, ...aliasArgs);
+      } else {
+        await this.executeCommand(cmd, ...args);
       }
       return;
     }
 
-    // Regular chat - add user message using pi-coding-agent component
-    this.addUserMessage(trimmed);
+    // Regular chat
+    this.messageContainer.clearAllMessages();
+    this.messageContainer.addChild(this.welcomeMessage!); // Remove this if you want to hide welcome on first input
 
-    // Send to agent
-    this.isResponding = true;
-    this.editor.disableSubmit = true;
+    const userMsgId = `user-${Date.now()}`;
+    this.eventBus.emitSimple('message.add', {
+      messageId: userMsgId,
+      role: 'user',
+      content: trimmed,
+    });
 
-    // Show loading indicator (using pi-tui Loader)
-    const loader = new CancellableLoader(
-      this.tui,
-      (s: string) => chalk.cyan(s),
-      (s: string) => chalk.dim(s),
-      "Thinking..."
-    );
-    loader.onAbort = () => {
-      this.isResponding = false;
-      this.editor.disableSubmit = false;
-    };
-    this.messageContainer.addChild(loader);
-    this.tui.requestRender();
+    // Show loading indicator
+    this.loadingIndicator.start();
 
     try {
       await this.agent.prompt(trimmed);
     } catch (error: any) {
-      this.addMessage(`❌ Error: ${error.message}`, "error");
-      this.isResponding = false;
-      this.editor.disableSubmit = false;
-      this.removeLoaderIfPresent();
+      this.eventBus.emitSimple('message.add', {
+        messageId: `error-${Date.now()}`,
+        role: 'error',
+        content: `❌ Error: ${error.message}`,
+      });
+    } finally {
+      this.loadingIndicator.stop();
     }
   }
 
-  private handleAgentEvent(event: any): void {
-    switch (event.type) {
-      case 'agent_start':
-        this.updateFooter();
-        break;
-      case 'turn_end':
-        this.removeLoaderIfPresent();
-        this.isResponding = false;
-        this.editor.disableSubmit = false;
-        this.renderLatestAssistantMessage();
-        this.updateFooter();
-        break;
-      case 'error':
-        this.addMessage(`❌ Agent error: ${event.message}`, "error");
-        this.isResponding = false;
-        this.editor.disableSubmit = false;
-        this.removeLoaderIfPresent();
-        this.updateFooter();
-        break;
-      case 'message_update':
-        if (event.message_update?.type === 'text_delta') {
-          this.updateAssistantMessageDelta(event.message_update.delta);
-        }
-        break;
-      case 'tool_execution_start':
-        this.showToolExecution(event.tool_execution);
-        break;
-      case 'tool_execution_end':
-        this.updateToolResult(event.tool_execution);
-        break;
+  private async executeCommand(cmd: string, ...args: string[]): Promise<void> {
+    const result = await commandRegistry.execute(cmd, this.commandHandlers, ...args);
+    if (result) {
+      this.eventBus.emitSimple('message.add', {
+        messageId: `system-${Date.now()}`,
+        role: 'system',
+        content: result,
+      });
+    }
+    if (cmd === "clear") {
+      this.messageContainer.clearAllMessages();
     }
   }
 
-  private removeLoaderIfPresent(): void {
-    const children = this.messageContainer.children;
-    for (let i = children.length - 1; i >= 0; i--) {
-      const child = children[i];
-      if (child instanceof Loader) {
-        this.messageContainer.removeChild(child);
-        break;
-      }
-    }
+  // Public API
+
+  /**
+   * Start the TUI (main loop)
+   */
+  async start(): Promise<void> {
+    await this.lifecycle.initialize();
+    this.tui.start();
   }
 
-  private renderSessionMessages(): void {
-    const entries = this.commandHandlers.sessionManager.getEntries();
-    // Only render last N messages to avoid memory issues
-    const messages = entries.filter(e => e.type === 'message');
-    
-    for (const entry of messages) {
-      const msg = entry as any;
-      const role = msg.message.role as "user" | "assistant";
-      const blocks = msg.message.content;
-      if (blocks && blocks.length > 0) {
-        this.addMessageBlocks(blocks, role);
-      }
-    }
-    this.tui.requestRender();
+  /**
+   * Stop the TUI gracefully
+   */
+  async stop(): Promise<void> {
+    await this.lifecycle.stop();
+    this.tui.stop();
   }
 
-  private renderLatestAssistantMessage(): void {
-    const entries = this.commandHandlers.sessionManager.getEntries();
-    for (let i = entries.length - 1; i >= 0; i--) {
-      const entry = entries[i];
-      if (entry.type === 'message') {
-        const msg = entry as any;
-        if (msg.message.role === 'assistant') {
-          if (entry.id === this.lastRenderedAssistantId) break;
-          const blocks = msg.message.content;
-          if (blocks && blocks.length > 0) {
-            // Remove previous assistant message if exists
-            if (this.currentAssistantMessage) {
-              this.messageContainer.removeChild(this.currentAssistantMessage);
-            }
-            // Create new assistant message component
-            this.currentAssistantMessage = new AssistantMessageComponent(
-              "", // empty initially
-              false, // collapsed
-              getMarkdownTheme()
-            );
-            this.messageContainer.addChild(this.currentAssistantMessage);
-            
-            // Update with content
-            const textBlock = blocks.find((b: any) => b.type === 'text');
-            if (textBlock) {
-              this.currentAssistantMessage.updateContent(textBlock.text);
-            }
-            this.lastRenderedAssistantId = entry.id;
-          }
-          break;
-        }
-      }
-    }
-    this.tui.requestRender();
+  /**
+   * Destroy the TUI completely
+   */
+  async destroy(): Promise<void> {
+    await this.lifecycle.destroy();
+    this.overlayManager.clear();
+    this.messageContainer.clearAllMessages();
   }
 
-  private updateAssistantMessageDelta(delta: string): void {
-    if (!this.currentAssistantMessage) {
-      // Create if doesn't exist
-      this.currentAssistantMessage = new AssistantMessageComponent(
-        "",
-        false,
-        getMarkdownTheme()
-      );
-      this.messageContainer.addChild(this.currentAssistantMessage);
-    }
-    
-    // Get current content and append delta
-    const current = this.currentAssistantMessage.getContent() || "";
-    this.currentAssistantMessage.updateContent(current + delta);
-    this.tui.requestRender();
+  /**
+   * Show settings overlay
+   */
+  async showSettingsOverlay(): Promise<void> {
+    // TODO: Use SettingsSelectorComponent when available
+    // For now, use a simple input overlay to demonstrate
+    await this.showInputOverlay("Settings not implemented yet");
   }
 
-  private addUserMessage(text: string): void {
-    const userMsg = new UserMessageComponent(text, getMarkdownTheme());
-    this.messageContainer.addChild(userMsg);
-    this.tui.requestRender();
-  }
-
-  private addMessage(text: string, role: "user" | "assistant" | "system" | "error"): void {
-    // For system/error messages, use simple text for now
-    const md = new Text(text, 1, 1, (s) => {
-      if (role === 'error') return chalk.red(s);
-      if (role === 'system') return chalk.yellow(s);
-      return chalk.white(s);
-    });
-    this.messageContainer.addChild(md);
-    this.tui.requestRender();
-  }
-
-  private addMessageBlocks(blocks: any[], role: "user" | "assistant"): void {
-    if (role === 'user') {
-      const textBlock = blocks.find((b: any) => b.type === 'text');
-      if (textBlock) {
-        this.addUserMessage(textBlock.text);
-      }
-      // Handle images in user messages if needed
-      const imageBlocks = blocks.filter((b: any) => b.type === 'image');
-      for (const imgBlock of imageBlocks) {
-        this.addImageBlock(imgBlock);
-      }
-    } else if (role === 'assistant') {
-      // Assistant messages with tool calls handled separately via tool execution events
-      const textBlock = blocks.find((b: any) => b.type === 'text');
-      if (textBlock && !this.currentAssistantMessage) {
-        // This will be handled by renderLatestAssistantMessage normally
-      }
-    }
-  }
-
-  private addImageBlock(block: any): void {
-    // Could enhance this to show images inline
-    // For now, just add placeholder
-    const placeholder = new Text(`🖼️ [Image]`, 1, 1, (s) => chalk.dim(s));
-    this.messageContainer.addChild(placeholder);
-    this.tui.requestRender();
-  }
-
-  private showToolExecution(toolCall: any): void {
-    const toolName = toolCall.toolName;
-    const toolCallId = toolCall.toolCallId;
-    const args = toolCall.input;
-    const toolDefinition = this.agent.getToolDefinition(toolName);
-    
-    const options: ToolExecutionOptions = {
-      showImages: true,
-      cwd: this.agent.getConfig().cwd,
-    };
-
-    this.currentToolComponent = new ToolExecutionComponent(
-      toolName,
-      toolCallId,
-      args,
-      options,
-      toolDefinition,
-      this.tui
-    );
-    
-    this.messageContainer.addChild(this.currentToolComponent);
-    this.tui.requestRender();
-  }
-
-  private updateToolResult(event: any): void {
-    if (this.currentToolComponent && event.tool_execution?.toolCallId === this.currentToolComponent.getToolCallId()) {
-      this.currentToolComponent.updateResult(event.tool_execution.output);
-      this.tui.requestRender();
-    }
-  }
-
-  private clearScreen(): void {
-    this.messageContainer.children = [];
-    this.currentAssistantMessage = null;
-    this.currentToolComponent = null;
-    this.lastRenderedAssistantId = null;
-    // Re-add welcome
-    this.messageContainer.addChild(this.welcome);
-    this.tui.requestRender();
-  }
-
-  public async showSettingsOverlay(): Promise<void> {
-    try {
-      // Use SettingsSelectorComponent if available
-      if (SettingsSelectorComponent) {
-        const settingsUI = new SettingsSelectorComponent(
-          this.tui,
-          this.agent.getSettingsManager(),
-          {
-            onThemeChange: async (theme) => {
-              this.currentTheme = theme;
-              await this.agent.updateSetting('theme', theme);
-              initTheme(theme);
-              this.tui.requestRender();
-            },
-            onModelChange: async (modelId) => {
-              const models = await this.agent.getModelRegistry().getAvailable();
-              const model = models.find(m => `${m.provider}/${m.id}` === modelId);
-              if (model) {
-                await this.agent.setModel(model);
-                this.updateFooter();
-              }
-            },
-          }
-        );
-        this.tui.showOverlay(settingsUI, {
-          width: 60,
-          anchor: 'center',
-          margin: 2,
-        });
-      } else {
-        // Fallback to custom settings overlay (existing code)
-        await this.showCustomSettingsOverlay();
-      }
-    } catch (error: any) {
-      this.addMessage(`❌ Settings error: ${error.message}`, 'error');
-    }
-  }
-
-  private async showCustomSettingsOverlay(): Promise<void> {
-    // Keep existing custom implementation as fallback
-    // ... (existing showSettingsOverlay code)
-  }
-
-  public async showCommandPalette(): Promise<void> {
+  /**
+   * Show command palette (list of commands)
+   */
+  async showCommandPalette(): Promise<void> {
     const prompts = this.commandHandlers.resourceLoader.getPrompts();
     const builtinCommands: SelectItem[] = [
       { value: "help", label: "help", description: "Show help" },
-      // ... (all commands as before)
+      { value: "new", label: "new", description: "Create fresh session" },
+      { value: "resume", label: "resume", description: "Resume recent session" },
+      { value: "sessions", label: "sessions", description: "List all sessions" },
+      { value: "session", label: "session", description: "Show session tree" },
+      { value: "models", label: "models", description: "Show current model" },
+      { value: "cycle", label: "cycle", description: "Switch to next model" },
+      { value: "thinking", label: "thinking", description: "Set thinking level" },
+      { value: "stats", label: "stats", description: "Show statistics" },
+      { value: "cost", label: "cost", description: "Show cost estimate" },
+      { value: "tokens", label: "tokens", description: "Show token usage" },
+      { value: "compact", label: "compact", description: "Compact context" },
+      { value: "clear", label: "clear", description: "Clear screen" },
+      { value: "settings", label: "settings", description: "Open settings" },
+      { value: "extensions", label: "extensions", description: "List loaded extensions" },
+      { value: "skills", label: "skills", description: "List loaded skills" },
     ];
 
     prompts.prompts.forEach(p => {
@@ -534,51 +447,54 @@ export class AgentTUI {
       });
     });
 
+    // Use TUI's SelectList directly (simple approach)
+    const { SelectList } = require("@mariozechner/pi-tui");
     const list = new SelectList(
       builtinCommands,
       15,
       {
-        selectedPrefix: (s: string) => chalk.yellow("> "),
-        selectedText: (s: string) => chalk.bold.white(s),
-        description: (s: string) => chalk.dim(s),
-        scrollInfo: (s: string) => chalk.dim(s),
-        noMatch: (s: string) => chalk.red(s),
+        selectedPrefix: (s: string) => this.themeManager.fg('accent', '> '),
+        selectedText: (s: string) => this.themeManager.fg('accent', s),
+        description: (s: string) => this.themeManager.fg('muted', s),
+        scrollInfo: (s: string) => this.themeManager.fg('muted', s),
+        noMatch: (s: string) => this.themeManager.fg('error', s),
       }
     );
 
     list.onSelect = async (item: SelectItem) => {
-      this.tui.hideOverlay();
+      this.overlayManager.hideTopmost();
       const [cmdName, ...args] = item.value.split(' ');
-      const result = await commandRegistry.execute(cmdName, this.commandHandlers, ...args);
-      if (result) {
-        this.addMessage(result, "system");
-      }
+      await this.executeCommand(cmdName, ...args);
     };
 
     list.onCancel = () => {
-      this.tui.hideOverlay();
+      this.overlayManager.hideTopmost();
       this.tui.setFocus(this.editor);
     };
 
-    this.tui.showOverlay(list, {
+    this.overlayManager.show(list, {
       width: 70,
       maxHeight: '60%',
       anchor: 'center',
       margin: 2,
-      visible: (w, h) => w >= 60,
     });
+    this.tui.setFocus(list);
   }
 
-  public showInputOverlay(question: string): Promise<string> {
+  /**
+   * Show a simple input overlay (for text input)
+   */
+  async showInputOverlay(question: string): Promise<string> {
     return new Promise((resolve) => {
+      const { Input, Container, Text } = require("@mariozechner/pi-tui");
       const input = new Input();
       input.setValue('');
       input.onSubmit = (value: string) => {
-        this.tui.hideOverlay();
+        this.overlayManager.hideTopmost();
         resolve(value);
       };
       input.onEscape = () => {
-        this.tui.hideOverlay();
+        this.overlayManager.hideTopmost();
         resolve('');
       };
 
@@ -586,33 +502,19 @@ export class AgentTUI {
       container.addChild(new Text(question, 0, 0));
       container.addChild(input);
 
-      this.tui.showOverlay(container, {
+      this.overlayManager.show(container, {
         width: 60,
         maxHeight: 5,
         anchor: 'center',
         margin: 2,
-        visible: (w, h) => w >= 40,
       });
       this.tui.setFocus(input);
     });
   }
 
-  public start(): void {
-    this.tui.onDebug = () => this.showDebugOverlay();
-    this.tui.start();
-  }
-
-  public stop(): void {
-    this.tui.stop();
-  }
-
-  private updateFooter(): void {
-    if (this.footer) {
-      this.footer.updateData(this.buildFooterData());
-      this.tui.requestRender();
-    }
-  }
-
+  /**
+   * Show debug overlay
+   */
   private showDebugOverlay(): void {
     const lines: string[] = [];
     const collect = (comp: any, depth: number = 0): void => {
@@ -632,18 +534,58 @@ export class AgentTUI {
     lines.push('');
     lines.push('Press any key to close');
 
-    const translatedTitle = t(this.locale, 'debugTitle', 'overlay');
-    const translatedClose = t(this.locale, 'debugClose', 'overlay');
-    lines[0] = translatedTitle;
-    lines[lines.length - 1] = translatedClose;
-    const debugText = new Text(lines.join('\n'), 1, 1, (s) => chalk.yellow(s));
-    this.tui.showOverlay(debugText, {
+    const debugText = new Text(lines.join('\n'), 1, 1, (s) => this.themeManager.fg('warning', s));
+    this.overlayManager.show(debugText, {
       width: 80,
       maxHeight: '80%',
       anchor: 'center',
       margin: 2,
       nonCapturing: true,
     });
-    setTimeout(() => this.tui.hideOverlay(), 5000);
+    setTimeout(() => this.overlayManager.hideTopmost(), 5000);
+  }
+
+  private updateFooter(): void {
+    this.footer.updateData(this.buildFooterData());
+  }
+
+  // Event Bus access (for advanced usage)
+  getEventBus(): EventBus {
+    return this.eventBus;
+  }
+
+  // Config access
+  getConfig(): ConfigManager {
+    return this.config;
+  }
+
+  // Theme access
+  getThemeManager(): ThemeManager {
+    return this.themeManager;
+  }
+
+  // Terminal helper
+  getTerminalHelper(): TerminalHelper {
+    return this.terminalHelper;
+  }
+
+  // TUI instance (advanced operations)
+  getTUI(): TUI {
+    return this.tui;
+  }
+
+  // Lifecycle state
+  getLifecycleState(): LifecycleState {
+    return this.lifecycle.getState();
+  }
+
+  // Add welcome message back (if cleared)
+  showWelcome(): void {
+    this.messageContainer.addChild(this.welcomeMessage!);
+  }
+
+  // Clear everything (except footer and editor)
+  clearMessages(): void {
+    this.messageContainer.clearAllMessages();
   }
 }
