@@ -1,6 +1,7 @@
 import { type ThinkingLevel } from "@mariozechner/pi-ai";
 import { SessionManager, DefaultResourceLoader } from "@mariozechner/pi-coding-agent";
 import { AgentCore } from "./core.js";
+import { AgentManager } from "./manager.js";
 import { AliasManager } from "./aliases.js";
 import { execSync, spawn } from "child_process";
 import * as path from "path";
@@ -12,6 +13,7 @@ export interface CommandHandlers {
   agent: AgentCore;
   sessionManager: SessionManager;
   resourceLoader: DefaultResourceLoader;
+  manager?: AgentManager;
 }
 
 export type CommandHandler = (handlers: CommandHandlers, ...args: string[]) => Promise<string>;
@@ -663,6 +665,16 @@ Start typing to chat with the agent!`;
       const config = handlers.agent.getConfig();
       const avgToolTime = stats.toolCalls > 0 ? (stats.toolExecutionTime / stats.toolCalls) : 0;
       return `📊 Session Statistics:\n\nDuration:    ${stats.sessionDuration.toFixed(1)}s\nTurns:       ${stats.turns}\nTool calls:  ${stats.toolCalls}\nTool time:   ${stats.toolExecutionTime.toFixed(0)}ms (avg: ${avgToolTime.toFixed(0)}ms)\nErrors:      ${stats.errors}\n\nTokens:\n  Prompt:    ${stats.promptTokens.toLocaleString()}\n  Completion: ${stats.completionTokens.toLocaleString()}\n  Total:      ${stats.totalTokens.toLocaleString()}\n\nEstimated cost: $${stats.estimatedCost.toFixed(4)}\nVerbose:      ${config.verbose ? 'ON' : 'OFF'}\nPersistence:  ${config.persisted ? 'Yes' : 'No'}`;
+    });
+
+    this.register("metrics", async () => {
+      try {
+        const { getMetricsString, initMetrics } = await import('../observability/metrics.js');
+        initMetrics();
+        return await getMetricsString();
+      } catch (error: any) {
+        return `❌ Metrics unavailable: ${error.message}`;
+      }
     });
 
     this.register("perf", async (handlers) => {
@@ -1575,6 +1587,52 @@ export default function(pi: ExtensionAPI) {
     });
 
     // ============================================================================
+    // Plugin Marketplace (Phase 10)
+    // ============================================================================
+
+    this.register("marketplace", async (handlers, ...args) => {
+      if (args.length === 0 || args[0] === 'help') {
+        return `📦 Plugin Marketplace\n\nCommands:` +
+          `\n  /marketplace search <query> - Search npm for qclaw extensions` +
+          `\n  /marketplace install <package> - Install extension from npm`;
+      }
+      const sub = args[0];
+      if (sub === 'search') {
+        const query = args.slice(1).join(' ');
+        if (!query) return '❌ Usage: /marketplace search <query>';
+        try {
+          const { execSync } = require('child_process');
+          const cmd = `npm search ${query} --json`;
+          const output = execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+          const results = JSON.parse(output || '[]');
+          if (results.length === 0) return `No packages found for: ${query}`;
+          const list = results.slice(0, 10).map((p: any) => 
+            `  ${p.name} (v${p.version})\n    ${p.description || ''}\n    keywords: ${p.keywords?.join(', ') || ''}\n`
+          ).join('\n');
+          return `🔍 Search results (${results.length} total):\n\n${list}${results.length > 10 ? '\n... and more' : ''}`;
+        } catch (error: any) {
+          return `❌ Search failed: ${error.message}`;
+        }
+      }
+      if (sub === 'install') {
+        const pkg = args[1];
+        if (!pkg) return '❌ Usage: /marketplace install <package>';
+        try {
+          const { spawnSync } = require('child_process');
+          const result = spawnSync('npm', ['install', pkg, '--global'], { stdio: 'inherit' });
+          if (result.status === 0) {
+            return `✅ Installed ${pkg}. Add to ~/.qclaw/extensions/ or symlink.`;
+          } else {
+            return `❌ Install failed with exit code ${result.status}`;
+          }
+        } catch (error: any) {
+          return `❌ Install error: ${error.message}`;
+        }
+      }
+      return '❌ Unknown command. Use /marketplace help';
+    });
+
+    // ============================================================================
     // Settings
     // ============================================================================
 
@@ -1608,6 +1666,72 @@ export default function(pi: ExtensionAPI) {
       const question = args.slice(1).join(' ') || "Describe this image in detail";
       await handlers.agent.prompt(`Use the analyze_image tool to analyze "${path}". Question: ${question}`);
       return "📷 Analyzing image...";
+    });
+
+    // ============================================================================
+    // Multi-Agent Collaboration (Phase 10)
+    // ============================================================================
+
+    this.register("agent-create", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "Usage: /agent-create <id> [config]\nCreates a new agent instance for collaboration.\nExample: /agent-create reviewer \"--thinking high\"";
+      }
+      const [agentId, ...configParts] = args;
+      if (handlers.manager) {
+        try {
+          await handlers.manager.createAgent(agentId, {
+            ...handlers.agent.getConfig(),
+            ...parseConfig(configParts.join(' '))
+          });
+          return `✅ Created agent '${agentId}'. Use /agent-switch ${agentId} to activate.`;
+        } catch (error: any) {
+          return `❌ Failed: ${error.message}`;
+        }
+      }
+      return "❌ Agent manager not available";
+    });
+    this.register("agent-switch", async (handlers, ...args) => {
+      if (args.length === 0) {
+        return "Usage: /agent-switch <id>\nSwitches active agent. Use /agents to list.";
+      }
+      const [agentId] = args;
+      if (handlers.manager) {
+        const ok = await handlers.manager.switchTo(agentId);
+        if (ok) {
+          return `🔀 Switched to agent '${agentId}'`;
+        } else {
+          return `❌ No such agent: ${agentId}`;
+        }
+      }
+      return "❌ Agent manager not available";
+    });
+    this.register("agents", async (handlers) => {
+      if (!handlers.manager) return "❌ Agent manager not available";
+      const list = handlers.manager.listAgents();
+      if (list.length === 0) {
+        return "No agents created. Use /agent-create <id>";
+      }
+      let out = `👥 Agents (${list.length}):\n\n`;
+      list.forEach(a => {
+        out += `  ${a.id} ${a.active ? '(active)' : ''}\n`;
+        out += `    Stats: ${a.stats.turns} turns, ${a.stats.totalTokens} tokens\n`;
+        out += `    Model: ${a.config.model || 'default'}\n\n`;
+      });
+      return out;
+    });
+    this.register("agent-collab", async (handlers, ...args) => {
+      if (args.length < 1) {
+        return "Usage: /agent-collab <prompt> [maxAgents]\nBroadcast prompt to all agents and summarize responses.";
+      }
+      const maxAgents = args[args.length - 1] === '1' || args[args.length - 1] === '2' || args[args.length - 1] === '3'
+        ? parseInt(args[args.length - 1])
+        : undefined;
+      const prompt = maxAgents ? args.slice(0, -1).join(' ') : args.join(' ');
+      if (handlers.manager) {
+        const summary = await handlers.manager.collaborate(prompt, maxAgents);
+        return summary;
+      }
+      return "❌ Agent manager not available";
     });
 
     this.register("logs", async (handlers, ...args) => {
@@ -1702,6 +1826,10 @@ export default function(pi: ExtensionAPI) {
     const handler = this.commands.get(name);
     if (!handler) {
       return `❌ Unknown command: /${name}. Type /help for available commands.`;
+    }
+    // Inject manager if not present
+    if (!handlers.manager && (agentManager as any)) {
+      handlers.manager = agentManager as any;
     }
     try {
       const result = await handler(handlers, ...args);
@@ -1840,7 +1968,32 @@ function computeDiff(file1: string, file2: string, lines1: string[], lines2: str
   return diffOutput || null;
 }
 
+/** Parse simple key=value config string into object */
+function parseConfig(str: string): any {
+  const result: any = {};
+  if (!str) return result;
+  const parts = str.split(' ');
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].startsWith('--')) {
+      const key = parts[i].slice(2);
+      let value: any = true;
+      if (i + 1 < parts.length && !parts[i + 1].startsWith('--')) {
+        value = parts[++i];
+        // Try parse boolean/number
+        if (value === 'true') value = true;
+        else if (value === 'false') value = false;
+        else if (!isNaN(Number(value))) value = Number(value);
+      }
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 // Template manager singleton for session templates
 const templateManager = new TemplateManager();
+
+// Agent manager singleton (for multi-agent mode)
+const agentManager = new AgentManager();
 
 export const commandRegistry = new CommandRegistry();
