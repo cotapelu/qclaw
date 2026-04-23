@@ -1,6 +1,5 @@
-import type { AgentCore } from "../agent/core.js";
-import { commandRegistry } from "../agent/commands.js";
-import type { CommandHandlers } from "../agent/commands.js";
+import { AgentFacade } from "../agent/facade.js";
+import { globalCommandRegistry } from "../agent/commands/registry.js";
 import { AliasManager } from "../agent/aliases.js";
 import { t, type Locale } from "../agent/i18n.js";
 import {

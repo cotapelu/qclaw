@@ -1,358 +1,81 @@
 #!/usr/bin/env node
 
-import { AgentCore } from "./agent/core.js";
-import { AgentConfig } from "./config.js";
-import { getCustomTools } from "./tools/index.js";
-import { runRpcServer } from "./rpc.js";
+import { parseArgs } from "node:util";
+import { runInteractiveMode, runPrintMode, runRpcMode, Mode } from "./modes/index.js";
+import { loadConfig } from "./config/loader.js";
 
-interface CliOptions {
-  mode?: "cli" | "print" | "rpc";
-  config?: string;
-  message?: string; // For print mode
-  output?: string; // For print mode: file to write output
-  format?: "json" | "markdown" | "text"; // Output format for print mode
-  metadata?: boolean; // Include token usage and cost metadata in output
-  timeout?: number; // Timeout in seconds for print mode
-  verbose?: boolean;
-  noSession?: boolean;
-  help?: boolean;
-  metrics?: boolean; // Start metrics server on port 9090
-  metricsPort?: number; // Custom metrics port
-}
-
-function parseArgs(): CliOptions {
-  const args = process.argv.slice(2);
-  const options: CliOptions = { mode: "cli" };
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === "--print" || arg === "-p") {
-      options.mode = "print";
-      if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
-        options.message = args[++i];
-      }
-    } else if (arg === "--output" || arg === "-o") {
-      if (i + 1 < args.length) options.output = args[++i];
-    } else if (arg === "--format" || arg === "-f") {
-      if (i + 1 < args.length) {
-        const fmt = args[++i];
-        if (fmt === "json" || fmt === "markdown" || fmt === "text") {
-          options.format = fmt;
-        } else {
-          console.error(`Invalid format: ${fmt}. Use json, markdown, or text.`);
-        }
-      }
-    } else if (arg === "--metadata") {
-      options.metadata = true;
-    } else if (arg === "--timeout" || arg === "-t") {
-      if (i + 1 < args.length) {
-        const t = Number(args[++i]);
-        if (!isNaN(t) && t > 0) {
-          options.timeout = t;
-        } else {
-          console.error('Invalid timeout value. Must be a positive number.');
-        }
-      }
-    } else if (arg === "--rpc") {
-      options.mode = "rpc";
-    } else if (arg === "--config" || arg === "-c") {
-      if (i + 1 < args.length) options.config = args[++i];
-    } else if (arg === "--verbose" || arg === "-v") {
-      options.verbose = true;
-    } else if (arg === "--no-session") {
-      options.noSession = true;
-    } else if (arg === "--metrics") {
-      options.metrics = true;
-      if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
-        options.metricsPort = parseInt(args[++i]);
-      }
-    } else if (arg === "--help" || arg === "-h") {
-      options.help = true;
-    } else if (!arg.startsWith("-")) {
-      if (!options.config) options.config = arg;
-    }
-  }
-
-  return options;
-}
-
-function printHelp(): void {
-  console.log(`
-Pi SDK Agent - AI coding assistant
-
-Usage:
-  npm start              # Interactive CLI (default)
-  npm start --print msg  # Print mode (single-shot)
-  npm start --rpc        # RPC mode (JSON-RPC server)
-  npm start --help       # Show this help
-
-Options:
-  -c, --config <file>    Path to config file (YAML/JSON)
-  -o, --output <file>    Write print mode output to file
-  -f, --format <fmt>     Output format: json, markdown, text (default: text)
-  --metadata             Include token usage and cost metadata (text/markdown)
-  -t, --timeout <sec>    Timeout for print mode in seconds
-  -v, --verbose          Enable verbose logging
-  --no-session           Disable session persistence
-  --metrics              Start Prometheus metrics server on port 9090
-  --metricsPort <port>   Set metrics server port (default: 9090)
-
-Examples:
-  npm start --print "Explain the code in main.ts"
-  npm start --print "Summarize" --output summary.txt --metadata
-  npm start --print "Review" --format json --timeout 30
-  npm start --config ./my-config.yaml
-
-Environment:
-  ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.
-  PI_AGENT_DIR           Agent directory (default: ~/.pi/agent)
-  PI_VERBOSE             Enable verbose logging
-
-See README.md for more.
-`);
-}
-
-async function loadConfigFile(path?: string): Promise<Partial<AgentConfig>> {
-  if (!path) return {};
-
-  try {
-    const fs = await import('fs');
-    const yaml = await import('yaml');
-    const content = fs.readFileSync(path, 'utf-8');
-    const ext = path.split('.').pop()?.toLowerCase();
-
-    if (ext === 'json') return JSON.parse(content);
-    if (ext === 'yaml' || ext === 'yml') return yaml.parse(content);
-    console.warn(`Unknown config extension: ${ext}`);
-    return {};
-  } catch (error: any) {
-    console.error(`Failed to load config ${path}: ${error.message}`);
-    return {};
-  }
-}
-
-async function main(): Promise<void> {
-  const options = parseArgs();
-
-  if (options.help) {
-    printHelp();
-    process.exit(0);
-    return;
-  }
-
-  // Load config
-  const fileConfig = await loadConfigFile(options.config);
-
-  // Determine agent directory
-  const piPkg = await import("@mariozechner/pi-coding-agent");
-  const defaultAgentDir = piPkg.getAgentDir();
-  const agentDir = process.env.PI_AGENT_DIR || fileConfig.agentDir || defaultAgentDir;
-
-  // Build agent config
-  const agentConfig: AgentConfig = {
-    cwd: process.cwd(),
-    agentDir,
-    customTools: getCustomTools(),
-    thinkingLevel: (fileConfig.thinkingLevel as any) || "off",
-    usePersistence: options.noSession ? false : true,
-    interactive: options.mode === "cli" || options.mode === "rpc",
-    verbose: options.verbose || false,
-    quiet: options.mode === "print",
-    configFile: options.config,
-  };
-
-  if (fileConfig.model) agentConfig.model = fileConfig.model;
-
-  // Create agent
-  const agent = new AgentCore(agentConfig);
-
-  // Signal handling with graceful shutdown
-  const shutdown = async (signal: string) => {
-    if (!agentConfig.quiet) console.log(`\nReceived ${signal}, shutting down gracefully...`);
-    const timeoutMs = 15000; // 15 seconds to cleanup
-    const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => reject(new Error('Shutdown timeout')), timeoutMs);
-    });
-    try {
-      await Promise.race([agent.dispose(), timeoutPromise]);
-      if (!agentConfig.quiet) console.log('✅ Shutdown complete');
-    } catch (error: any) {
-      console.error(`⚠️ Shutdown error: ${error.message}`);
-    } finally {
-      process.exit(0);
-    }
-  };
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  // Also handle SIGHUP (reload)
-  process.on('SIGHUP', () => {
-    if (!agentConfig.quiet) console.log('\nReceived SIGHUP, reloading...');
-    // Could trigger resource reload here
-    process.exit(0);
+async function main() {
+  const { values, positionals } = parseArgs({
+    options: {
+      mode: {
+        type: "string",
+        short: "m",
+        default: "interactive",
+      },
+      config: {
+        type: "string",
+        short: "c",
+      },
+      help: {
+        type: "boolean",
+        short: "h",
+      },
+    },
+    allowPositionals: true,
   });
 
-  // Initialize
-  if (agentConfig.verbose) console.time("init");
-  await agent.initialize();
-  if (agentConfig.verbose) console.timeEnd("init");
+  if (values.help) {
+    console.log(`
+Usage: qclaw [options] [message]
 
-  // Start metrics server if requested
-  if (options.metrics) {
-    const metricsPort = options.metricsPort || 9090;
-    try {
-      const { startMetricsServer } = await import('./observability/metrics-server.js');
-      startMetricsServer(metricsPort);
-    } catch (error: any) {
-      console.error(`⚠️ Failed to start metrics server: ${error.message}`);
-    }
+Modes:
+  interactive (default)  Start interactive TUI
+  print                 Print response to stdout, non-interactive
+  rpc                   Start RPC server (JSON-RPC over stdio)
+
+Options:
+  -m, --mode <mode>     Run mode (interactive, print, rpc)
+  -c, --config <path>   Path to config file (YAML or JSON)
+  -h, --help            Show this help message
+
+Examples:
+  qclaw                           # Start interactive TUI
+  qclaw -m print "Explain code"   # Print response
+  qclaw -c ~/.pi/my-config.yaml   # Use custom config
+    `);
+    process.exit(0);
   }
 
-  // For print mode, prepare output stream or buffer
-  let outputStream: any = null;
-  let outputBuffer = '';
-  const format = options.format || 'text';
-  const useBuffer = format !== 'text' || options.output; // buffer if json/markdown or output file
+  try {
+    const mode = values.mode as Mode;
+    const configPath = values.config;
 
-  if (options.mode === "print" && options.output && !useBuffer) {
-    const fs = await import('fs');
-    outputStream = fs.createWriteStream(options.output);
-  }
+    switch (mode) {
+      case Mode.INTERACTIVE:
+        await runInteractiveMode({ configPath });
+        break;
 
-  // For print mode, subscribe to output delta
-  if (options.mode === "print") {
-    const session = agent.getSession();
-    if (session) {
-      session.subscribe((event: any) => {
-        if (event.type === 'message_update' && event.assistantMessageEvent?.type === 'text_delta') {
-          const data = event.assistantMessageEvent.delta;
-          if (useBuffer) {
-            outputBuffer += data;
-          } else if (outputStream) {
-            outputStream.write(data);
-          } else {
-            process.stdout.write(data);
-          }
-        } else if (event.type === 'turn_end') {
-          const newline = '\n';
-          if (useBuffer) {
-            outputBuffer += newline;
-          } else if (outputStream) {
-            outputStream.write(newline);
-          } else {
-            console.log();
-          }
+      case Mode.PRINT:
+        const message = positionals[0] || "";
+        if (!message) {
+          console.error("Error: message required for print mode");
+          process.exit(1);
         }
-      });
-    }
-  }
+        await runPrintMode(message, { configPath });
+        break;
 
-  // Banner handled by AgentCLI
+      case Mode.RPC:
+        await runRpcMode({ configPath });
+        break;
 
-  // Run mode
-  switch (options.mode) {
-    case "cli": {
-      const tui = new (await import("./tui/agent-tui.js")).AgentTUI(agent, agentConfig.verbose);
-      await tui.start();
-      break;
-    }
-
-    case "print": {
-      try {
-        const message = options.message || options.config || "Hello";
-        if (agentConfig.verbose) console.log(`[PRINT] ${message}`);
-
-        // Apply timeout if specified
-        if (options.timeout) {
-          const timeoutMs = options.timeout * 1000;
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error(`Timeout after ${options.timeout}s`)), timeoutMs);
-          });
-          await Promise.race([agent.prompt(message), timeoutPromise]);
-        } else {
-          await agent.prompt(message);
-        }
-
-        // Capture stats before dispose
-        const stats = agent.getStats();
-        const model = agent.getModel();
-        const settings = agent.getSettings();
-
-        agent.dispose();
-
-        // If buffering, format and write output
-        if (useBuffer) {
-          let finalOutput = outputBuffer;
-          if (format === 'json') {
-            const jsonOutput = {
-              text: outputBuffer.trim(),
-              stats: {
-                tokens: stats.totalTokens,
-                promptTokens: stats.promptTokens,
-                completionTokens: stats.completionTokens,
-                cost: stats.estimatedCost,
-                duration: stats.sessionDuration,
-              },
-              model: model ? `${model.provider}/${model.id}` : null,
-              thinkingLevel: settings?.thinkingLevel || 'off',
-            };
-            finalOutput = JSON.stringify(jsonOutput, null, 2);
-          } else if (options.metadata) {
-            // Append metadata summary for text/markdown
-            const meta = `\n---\n` +
-              `📊 Tokens: ${stats.totalTokens.toLocaleString()} (prompt: ${stats.promptTokens.toLocaleString()}, completion: ${stats.completionTokens.toLocaleString()})\n` +
-              `💰 Cost: $${stats.estimatedCost.toFixed(6)}\n` +
-              `⏱️  Duration: ${stats.sessionDuration.toFixed(2)}s\n` +
-              `🤖 Model: ${model ? `${model.provider}/${model.id}` : 'N/A'}\n` +
-              `🧠 Thinking: ${settings?.thinkingLevel || 'off'}`;
-            finalOutput += meta;
-          }
-          // markdown format: leave as is (already markdown)
-          // text format: already plain
-
-          if (options.output) {
-            const fs = await import('fs');
-            fs.writeFileSync(options.output, finalOutput);
-          } else {
-            console.log(finalOutput);
-          }
-        } else if (outputStream) {
-          outputStream.end();
-        }
-
-        process.exit(0);
-      } catch (error: any) {
-        console.error('❌ Print mode error:', error.message || error);
-        agent.dispose();
+      default:
+        console.error(`Error: unknown mode "${mode}"`);
         process.exit(1);
-      }
-      break;
     }
-
-    case "rpc": {
-      if (agentConfig.verbose) console.log("[RPC] Starting JSON-RPC server over stdio");
-      try {
-        await runRpcServer({ agent });
-      } catch (error: any) {
-        console.error('RPC server error:', error.message);
-        process.exit(1);
-      }
-      break;
-    }
+  } catch (error: any) {
+    console.error("Fatal error:", error.message);
+    process.exit(1);
   }
 }
 
-// Error handling
-process.on('unhandledRejection', (reason: any) => {
-  console.error('Unhandled Rejection:', reason);
-});
-
-process.on('uncaughtException', (error: any) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
-});
-
 main();
-
-// Export sandbox utilities
-export * from './tools/sandbox.js';
-

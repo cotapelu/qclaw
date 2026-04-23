@@ -1,0 +1,33 @@
+{
+  "name": "@qclaw/tui",
+  "version": "0.1.0",
+  "description": "TUI module for qclaw coding agent",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@mariozechner/pi-tui": "^0.68.0",
+    "@mariozechner/pi-coding-agent": "^0.68.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-tui": "^0.68.0",
+    "@mariozechner/pi-coding-agent": "^0.68.0"
+  }
+}
