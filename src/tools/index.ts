@@ -2,6 +2,10 @@ import { defineTool, type ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { formatBytes, truncateOutput, shouldStreamResult, estimateResultSize } from "./streaming.js";
 import { getImageTools } from "./image.js";
+import { validatePath, validateFileSize, checkOutputSize } from "./sandbox.js";
+import * as fs from 'fs';
+import * as path from 'path';
+import { minimatch } from 'minimatch';
 
 /**
  * Custom tools for the agent
@@ -124,29 +128,31 @@ export const listFilesTool: ToolDefinition = defineTool({
     pattern: Type.Optional(Type.String({ description: "Glob pattern" })),
     limit: Type.Optional(Type.Number({ description: "Max files to return (0 = unlimited)", default: 500 })),
   }) as any,
-  execute: async (_, params: any) => {
+  execute: async (ctx: any, params: any) => {
     const { path: dirPath = ".", recursive = false, pattern, limit = 500 } = params;
     const fs = await import('fs');
     const pathModule = await import('path');
 
     const emptyResult = {
       content: [{ type: "text" as const, text: "(empty)" }],
-      details: { count: 0, returned: 0, files: [], totalSize: 0, estimatedBytes: 0, streamed: false }
+      details: { count: 0, returned: 0, files: [] as any[], totalSize: 0, estimatedBytes: 0, streamed: false }
     };
 
     try {
-      const fullPath = pathModule.resolve(process.cwd(), dirPath);
+      // Validate path to prevent traversal attacks
+      const validatedDirPath = validatePath(dirPath, process.cwd(), ctx?.settings);
+      const fullPath = pathModule.resolve(validatedDirPath);
       if (!fs.existsSync(fullPath)) {
         return {
-          content: [{ type: "text" as const, text: `❌ Not found: ${fullPath}` }],
-          details: { error: "not_found", count: 0, returned: 0, files: [], totalSize: 0, estimatedBytes: 0, streamed: false }
+          content: [{ type: "text" as const, text: `❌ Not found: ${dirPath}` }],
+          details: { error: "not_found", count: 0, returned: 0, files: [] as any[], totalSize: 0, estimatedBytes: 0, streamed: false }
         };
       }
       const stat = fs.statSync(fullPath);
       if (!stat.isDirectory()) {
         return {
-          content: [{ type: "text" as const, text: `❌ Not a directory: ${fullPath}` }],
-          details: { error: "not_dir", count: 0, returned: 0, files: [], totalSize: 0, estimatedBytes: 0, streamed: false }
+          content: [{ type: "text" as const, text: `❌ Not a directory: ${dirPath}` }],
+          details: { error: "not_dir", count: 0, returned: 0, files: [] as any[], totalSize: 0, estimatedBytes: 0, streamed: false }
         };
       }
 
@@ -165,77 +171,102 @@ export const listFilesTool: ToolDefinition = defineTool({
         return emptyResult;
       }
 
-      // Format file info
-      let files = entries.map((entry: string) => {
+      // Format file info with size validation
+      let files = [];
+      let totalSize = 0;
+      const maxFileSize = ctx?.settings?.toolPermissions?.maxFileSize || 10 * 1024 * 1024; // 10MB default
+      
+      for (const entry of entries) {
         try {
           const s = fs.statSync(entry);
-          return {
+          const size = s.size;
+          // Skip files exceeding max size
+          if (size > maxFileSize) {
+            continue; // Skip this file
+          }
+          const fileInfo = {
             path: pathModule.relative(process.cwd(), entry),
             type: s.isDirectory() ? 'dir' : 'file',
-            size: s.size
+            size
           };
+          files.push({ path: pathModule.relative(process.cwd(), entry), type: s.isDirectory() ? 'dir' : 'file', size } as any);
+          totalSize += size;
         } catch {
-          return { path: entry, type: 'unknown', size: 0 };
+          // Skip files we can't stat
         }
-      }).sort((a, b) => a.path.localeCompare(b.path));
-
-      // Check if we need streaming (large result)
+      }
+      files.sort((a, b) => a.path.localeCompare(b.path));
+      
+      // Build output and check size limits
       const fullOutput = files.map(f => `${f.type === 'dir' ? '📁' : '📄'} ${f.path}`).join('\n');
+      const outputSize = Buffer.byteLength(fullOutput, 'utf8');
       const estimatedSize = estimateResultSize(fullOutput);
       const needsStreaming = shouldStreamResult(fullOutput, 10000) || files.length > limit;
-
-      const totalSize = files.reduce((sum: number, f: any) => sum + f.size, 0);
-
-      if (needsStreaming) {
-        // Stream the output
+      const maxTotalOutput = ctx?.settings?.toolPermissions?.maxTotalOutput || 100 * 1024; // 100KB default
+      
+      // If output exceeds total size limit, force truncation
+      if (outputSize > maxTotalOutput) {
         const truncated = files.slice(0, limit);
         let output = truncated.map(f => `${f.type === 'dir' ? '📁' : '📄'} ${f.path}`).join('\n');
-
-        // Add streaming notice
-        if (files.length > limit) {
-          output += `\n\n[... ${files.length - limit} more items - total: ${files.length}, ${formatBytes(totalSize)}]`;
-        }
-
-        // Truncate if still too large for display
-        const finalText = truncateOutput(output, 200);
-
+        output = truncateOutput(output, 200) + `\n\n[... Output truncated: ${outputSize - maxTotalOutput} bytes over limit]`;
         return {
-          content: [{ type: "text" as const, text: finalText }],
+          content: [{ type: "text" as const, text: output }],
           details: {
             count: files.length,
             returned: truncated.length,
-            files: truncated.slice(0, 50),
+            files: truncated.slice(0, 50) as any[] ,
             totalSize,
-            estimatedBytes: estimatedSize,
+            estimatedBytes: outputSize,
             streamed: true,
+            truncated: true,
           },
         };
       }
 
-      // Standard output for small results
+      if (needsStreaming) {
+        const truncated = files.slice(0, limit);
+        let output = truncated.map(f => `${f.type === 'dir' ? '📁' : '📄'} ${f.path}`).join('\n');
+        if (files.length > limit) {
+          output += `\n\n[... ${files.length - limit} more items - total: ${files.length}, ${formatBytes(totalSize)}]`;
+        }
+        output = truncateOutput(output, 200);
+        return {
+          content: [{ type: "text" as const, text: output }],
+          details: {
+            count: files.length,
+            returned: truncated.length,
+            files: truncated.slice(0, 50) as any[],
+            totalSize,
+            estimatedBytes: estimatedSize,
+            streamed: true,
+            truncated: true,
+          },
+        };
+      }
+
+      // Small result - return full
       return {
-        content: [{ type: "text" as const, text: files.map(f => `${f.type === 'dir' ? '📁' : '📄'} ${f.path}`).join('\n') || '(empty)' }],
+        content: [{ type: "text" as const, text: fullOutput || '(empty)' }],
         details: {
           count: files.length,
-          files: files.slice(0, 100),
+          files: files.slice(0, 100) as any[],
           totalSize,
           returned: files.length,
           estimatedBytes: estimatedSize,
           streamed: false,
+          truncated: false,
         },
       };
     } catch (error: any) {
       return {
         content: [{ type: "text" as const, text: `❌ ${error.message}` }],
-        details: { error: error.message, count: 0, returned: 0, files: [], totalSize: 0, estimatedBytes: 0, streamed: false }
+        details: { error: error.message, count: 0, returned: 0, files: [] as any[], totalSize: 0, estimatedBytes: 0, streamed: false, truncated: false }
       };
     }
   },
 });
 
 function getAllFiles(dir: string, pattern?: string): string[] {
-  const fs = require('fs');
-  const path = require('path');
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
   for (const name of fs.readdirSync(dir)) {
@@ -246,8 +277,7 @@ function getAllFiles(dir: string, pattern?: string): string[] {
         results.push(...getAllFiles(full, pattern));
       } else {
         if (pattern) {
-          const mm = require('minimatch');
-          if (mm(name, pattern)) results.push(full);
+          if (minimatch(name, pattern)) results.push(full);
         } else {
           results.push(full);
         }

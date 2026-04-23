@@ -17,6 +17,8 @@ interface CliOptions {
   verbose?: boolean;
   noSession?: boolean;
   help?: boolean;
+  metrics?: boolean; // Start metrics server on port 9090
+  metricsPort?: number; // Custom metrics port
 }
 
 function parseArgs(): CliOptions {
@@ -60,6 +62,11 @@ function parseArgs(): CliOptions {
       options.verbose = true;
     } else if (arg === "--no-session") {
       options.noSession = true;
+    } else if (arg === "--metrics") {
+      options.metrics = true;
+      if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+        options.metricsPort = parseInt(args[++i]);
+      }
     } else if (arg === "--help" || arg === "-h") {
       options.help = true;
     } else if (!arg.startsWith("-")) {
@@ -88,6 +95,8 @@ Options:
   -t, --timeout <sec>    Timeout for print mode in seconds
   -v, --verbose          Enable verbose logging
   --no-session           Disable session persistence
+  --metrics              Start Prometheus metrics server on port 9090
+  --metricsPort <port>   Set metrics server port (default: 9090)
 
 Examples:
   npm start --print "Explain the code in main.ts"
@@ -187,6 +196,17 @@ async function main(): Promise<void> {
   if (agentConfig.verbose) console.time("init");
   await agent.initialize();
   if (agentConfig.verbose) console.timeEnd("init");
+
+  // Start metrics server if requested
+  if (options.metrics) {
+    const metricsPort = options.metricsPort || 9090;
+    try {
+      const { startMetricsServer } = await import('./observability/metrics-server.js');
+      startMetricsServer(metricsPort);
+    } catch (error: any) {
+      console.error(`⚠️ Failed to start metrics server: ${error.message}`);
+    }
+  }
 
   // For print mode, prepare output stream or buffer
   let outputStream: any = null;

@@ -1,4 +1,4 @@
-import { resolve, join, normalize, relative, isAbsolute, dirname, basename } from 'path';
+import { resolve, join, normalize, relative, isAbsolute } from 'path';
 
 export interface SandboxConfig {
   allowedPaths?: string[];
@@ -52,25 +52,14 @@ export function validatePath(
     resolvedPath = resolve(workingDir, inputPath);
   }
   
-  // If allowedPaths is set, check whitelist first (allows absolute paths regardless of cwd)
-  if (cfg.allowedPaths && cfg.allowedPaths.length > 0) {
-    const allowed = cfg.allowedPaths.some(allowedPath => {
-      const normalizedAllowed = normalize(allowedPath);
-      return resolvedPath === normalizedAllowed ||
-             resolvedPath.startsWith(normalizedAllowed + '/') ||
-             resolvedPath.startsWith(normalizedAllowed + '\\');
-    });
-    if (!allowed) {
-      throw new SecurityError(
-        `Path not in whitelist: ${inputPath}`,
-        'NOT_IN_WHITELIST'
-      );
-    }
-    // Passed whitelist, skip remaining checks
-    return resolvedPath;
+  const relativeToCwd = relative(workingDir, resolvedPath);
+  if (relativeToCwd.startsWith('..') || relativeToCwd.includes('../')) {
+    throw new SecurityError(
+      `Path traversal detected: ${inputPath}`,
+      'PATH_TRAVERSAL'
+    );
   }
   
-  // Check denied paths first (covers absolute paths outside cwd)
   if (cfg.deniedPaths) {
     for (const denied of cfg.deniedPaths) {
       const normalizedDenied = normalize(denied);
@@ -84,13 +73,19 @@ export function validatePath(
     }
   }
   
-  // No whitelist - must stay within workingDir
-  const relativeToCwd = relative(workingDir, resolvedPath);
-  if (relativeToCwd.startsWith('..') || relativeToCwd.includes('../')) {
-    throw new SecurityError(
-      `Path traversal detected: ${inputPath}`,
-      'PATH_TRAVERSAL'
-    );
+  if (cfg.allowedPaths && cfg.allowedPaths.length > 0) {
+    const allowed = cfg.allowedPaths.some(allowedPath => {
+      const normalizedAllowed = normalize(allowedPath);
+      return resolvedPath === normalizedAllowed ||
+             resolvedPath.startsWith(normalizedAllowed + '/') ||
+             resolvedPath.startsWith(normalizedAllowed + '\\');
+    });
+    if (!allowed) {
+      throw new SecurityError(
+        `Path not in whitelist: ${inputPath}`,
+        'NOT_IN_WHITELIST'
+      );
+    }
   }
   
   return resolvedPath;
@@ -198,8 +193,8 @@ export async function sandboxedWriteFile(
   const bytes = Buffer.byteLength(content, 'utf8');
   validateFileSize(bytes, config.maxFileSize);
   
-  const dir = dirname(validatedPath);
-  const base = basename(validatedPath);
+  const dir = require('path').dirname(validatedPath);
+  const base = require('path').basename(validatedPath);
   const sanitized = sanitizeFilename(base);
   const safePath = join(dir, sanitized);
   

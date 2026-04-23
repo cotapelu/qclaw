@@ -952,6 +952,12 @@ Would remove: ~${wouldRemove} entries`;
 
   /** Watch extension/skill/prompt directories for hot-reloading */
   private startResourceWatchers(): void {
+    // Cleanup any existing watchers to prevent duplicates
+    this.resourceWatchers.forEach(w => {
+      try { w.watcher.close(); } catch {}
+    });
+    this.resourceWatchers = [];
+
     const watchDirs = [
       join(this.agentDir, 'extensions'),
       join(this.agentDir, 'skills'),

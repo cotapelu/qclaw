@@ -3,17 +3,50 @@ import { SessionManager, DefaultResourceLoader } from "@mariozechner/pi-coding-a
 import { AgentCore } from "./core.js";
 import { AgentManager } from "./manager.js";
 import { AliasManager } from "./aliases.js";
-import { execSync, spawn } from "child_process";
+import { execSync, spawn, execFile } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import { homedir } from "os";
 import { TemplateManager, type SessionTemplate } from "../templates/index.js";
+import { RateLimiter, getRateLimit } from "../utils/rate-limiter.js";
+
+/**
+ * Safely read and parse JSON file with fallback to defaults
+ */
+function safeJsonRead<T>(filePath: string, defaults: T): T {
+  try {
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      return JSON.parse(content) as T;
+    }
+  } catch (error) {
+    // Silently return defaults on any error
+  }
+  return defaults;
+}
+
+/**
+ * Safely write JSON to file
+ */
+function safeJsonWrite(filePath: string, data: any): boolean {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export interface CommandHandlers {
   agent: AgentCore;
   sessionManager: SessionManager;
   resourceLoader: DefaultResourceLoader;
   manager?: AgentManager;
+  tui?: any;
 }
 
 export type CommandHandler = (handlers: CommandHandlers, ...args: string[]) => Promise<string>;
@@ -22,8 +55,10 @@ export class CommandRegistry {
   private commands: Map<string, CommandHandler> = new Map();
   private history: Array<{ command: string; args: string[]; timestamp: number }> = [];
   private readonly MAX_HISTORY = 1000;
+  private rateLimiter: RateLimiter;
 
   constructor() {
+    this.rateLimiter = new RateLimiter();
     this.registerBuiltins();
   }
 
@@ -522,11 +557,8 @@ Start typing to chat with the agent!`;
       if (!sessionDir) {
         return "❌ Session directory not available";
       }
-      const metaPath = path.join(sessionDir,  'metadata.json');
-      if (!fs.existsSync(metaPath)) {
-        return "No labels set. Use /labels set <comma-separated> to add.";
-      }
-      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      const metaPath = path.join(sessionDir, 'metadata.json');
+      const meta = safeJsonRead(metaPath, { labels: [], notes: [] });
       if (!meta.labels || meta.labels.length === 0) {
         return "No labels. Use /labels set <label1,label2> to add.";
       }
@@ -573,11 +605,8 @@ Start typing to chat with the agent!`;
       if (!sessionDir) {
         return "❌ Session directory not available";
       }
-      const metaPath = path.join(sessionDir,  'metadata.json');
-      if (!fs.existsSync(metaPath)) {
-        return "No notes. Use /notes add <text> to create.";
-      }
-      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      const metaPath = path.join(sessionDir, 'metadata.json');
+      const meta = safeJsonRead(metaPath, { labels: [], notes: [] });
       if (!meta.notes || meta.notes.length === 0) {
         return "No notes. Use /notes add <text> to create.";
       }
@@ -630,11 +659,8 @@ Start typing to chat with the agent!`;
       if (!sessionDir) {
         return "❌ Session directory not available";
       }
-      const metaPath = path.join(sessionDir,  'metadata.json');
-      if (!fs.existsSync(metaPath)) {
-        return "No metadata available.";
-      }
-      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      const metaPath = path.join(sessionDir, 'metadata.json');
+      const meta = safeJsonRead(metaPath, { labels: [], notes: [] });
       let output = `📋 Session Metadata\n\n`;
       output += `Labels: ${meta.labels?.join(', ') || 'None'}\n`;
       output += `Notes: ${meta.notes?.length || 0} entries\n`;
@@ -1401,7 +1427,6 @@ Last backup: ${stats.lastBackup || 'Never'}`;
       }
       if (sub === 'status') {
         try {
-          const { execSync } = require('child_process');
           const output = execSync('git status --short', { cwd: handlers.agent.getConfig().cwd, encoding: 'utf-8' });
           return `📊 Git Status:\n${output || '(clean)'}`;
         } catch (e: any) {
@@ -1498,13 +1523,26 @@ export default function(pi: ExtensionAPI) {
         fs.writeFileSync(path.join(srcDir, 'index.ts'), indexContent);
         // Create README
         fs.writeFileSync(path.join(extDir, 'README.md'), `# ${extName} Extension\n\nCustom extension for qclaw.\n\n## Development\n\n1. npm install\n2. npm run build\n3. Reload agent with /reload\n`);
-        // Install dependencies
-        try {
-          const { spawnSync } = require('child_process');
-          spawnSync('npm', ['install'], { cwd: extDir, stdio: 'ignore' });
-        } catch (e) {
-          // ignore
-        }
+        // Install dependencies (async with timeout)
+        (async () => {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const child = spawn('npm', ['install'], { cwd: extDir, stdio: 'ignore' });
+              const timeout = setTimeout(() => {
+                child.kill('SIGKILL');
+                reject(new Error('npm install timeout after 60s'));
+              }, 60000);
+              child.on('close', (code: number | null) => {
+                clearTimeout(timeout);
+                if (code === 0) resolve();
+                else reject(new Error(`npm install exited with code ${code}`));
+              });
+              child.on('error', reject);
+            });
+          } catch (e) {
+            // ignore failures - user can run npm install manually
+          }
+        })();
         return `✅ Extension boilerplate created at: ${extDir}\n\nNext steps:\n1. cd ${extDir}\n2. npm install\n3. Edit src/index.ts\n4. Run \`npm run build\`\n5. Use /reload in qclaw to load\n`;
       } catch (error: any) {
         return `❌ Failed to create extension: ${error.message}`;
@@ -1600,31 +1638,63 @@ export default function(pi: ExtensionAPI) {
       if (sub === 'search') {
         const query = args.slice(1).join(' ');
         if (!query) return '❌ Usage: /marketplace search <query>';
+        // Validate query to prevent injection (alphanumeric, spaces, dashes, dots only)
+        if (!/^[a-zA-Z0-9\s._-]+$/.test(query)) {
+          return '❌ Invalid query. Only alphanumeric, spaces, dashes, dots, and underscores allowed.';
+        }
+        if (query.length > 200) {
+          return '❌ Query too long (max 200 characters)';
+        }
         try {
-          const { execSync } = require('child_process');
-          const cmd = `npm search ${query} --json`;
-          const output = execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+          // Use execFile to avoid shell injection - npm is command, args are separate
+          const output = await new Promise<string>((resolve, reject) => {
+            const child = execFile('npm', ['search', query, '--json'], { encoding: 'utf-8' }, (err: any, stdout: string) => {
+              if (err) reject(err);
+              else resolve(stdout);
+            });
+            setTimeout(() => {
+              child.kill('SIGKILL');
+              reject(new Error('Timeout after 30 seconds'));
+            }, 30000);
+          });
+          // npm search may output warnings to stderr, ignore them
           const results = JSON.parse(output || '[]');
+          if (!Array.isArray(results)) return `❌ Unexpected response from npm search`;
           if (results.length === 0) return `No packages found for: ${query}`;
           const list = results.slice(0, 10).map((p: any) => 
             `  ${p.name} (v${p.version})\n    ${p.description || ''}\n    keywords: ${p.keywords?.join(', ') || ''}\n`
           ).join('\n');
           return `🔍 Search results (${results.length} total):\n\n${list}${results.length > 10 ? '\n... and more' : ''}`;
         } catch (error: any) {
+          if (error.killed) {
+            return `❌ Search timed out after 30 seconds`;
+          }
           return `❌ Search failed: ${error.message}`;
         }
       }
       if (sub === 'install') {
         const pkg = args[1];
         if (!pkg) return '❌ Usage: /marketplace install <package>';
+        // Validate package name (npm package naming convention)
+        if (!/^[a-z0-9][a-z0-9-_]*$/.test(pkg)) {
+          return '❌ Invalid package name. Use lowercase letters, numbers, dash, underscore.';
+        }
         try {
-          const { spawnSync } = require('child_process');
-          const result = spawnSync('npm', ['install', pkg, '--global'], { stdio: 'inherit' });
-          if (result.status === 0) {
-            return `✅ Installed ${pkg}. Add to ~/.qclaw/extensions/ or symlink.`;
-          } else {
-            return `❌ Install failed with exit code ${result.status}`;
-          }
+          const { spawn } = require('child_process');
+          await new Promise<void>((resolve, reject) => {
+            const child = spawn('npm', ['install', pkg, '--global'], { stdio: 'inherit' });
+            const timeout = setTimeout(() => {
+              child.kill('SIGKILL');
+              reject(new Error('Install timeout after 60 seconds'));
+            }, 60000);
+            child.on('close', (code: number | null) => {
+              clearTimeout(timeout);
+              if (code === 0) resolve();
+              else reject(new Error(`npm install exited with code ${code}`));
+            });
+            child.on('error', reject);
+          });
+          return `✅ Installed ${pkg}. Add to ~/.qclaw/extensions/ or symlink.`;
         } catch (error: any) {
           return `❌ Install error: ${error.message}`;
         }
@@ -1788,6 +1858,11 @@ export default function(pi: ExtensionAPI) {
 
     this.register("set", async (handlers, ...args) => {
       if (args.length < 2) {
+        // Open interactive settings overlay if available
+        if (handlers.tui?.showSettingsOverlay) {
+          await handlers.tui.showSettingsOverlay();
+          return ""; // No text output, overlay handles UI
+        }
         return `❌ Usage: /set <key> <value>\nExample: /set compaction.enabled false\nKeys: compaction.enabled, compaction.tokens, retry.enabled, retry.maxRetries, model, thinkingLevel`;
       }
       const key = args[0];
@@ -1804,6 +1879,18 @@ export default function(pi: ExtensionAPI) {
       } catch (error: any) {
         return `❌ Failed to update setting: ${error.message}`;
       }
+    });
+
+    this.register("quick", async (handlers, ...args) => {
+      const question = args.join(' ') || 'Enter your question:';
+      if (handlers.tui?.showInputOverlay) {
+        const answer = await handlers.tui.showInputOverlay(question);
+        if (answer) {
+          await handlers.agent.prompt(answer);
+        }
+        return '';
+      }
+      return 'Quick input not available in this mode';
     });
 
     this.register("reset-settings", async (handlers) => {
@@ -1826,6 +1913,13 @@ export default function(pi: ExtensionAPI) {
     const handler = this.commands.get(name);
     if (!handler) {
       return `❌ Unknown command: /${name}. Type /help for available commands.`;
+    }
+    // Rate limiting check
+    const limit = getRateLimit(name);
+    if (!this.rateLimiter.check(name, limit)) {
+      const resetMs = this.rateLimiter.resetIn(name);
+      const resetSec = Math.ceil(resetMs / 1000);
+      return `⏳ Rate limit exceeded for "/${name}". Limit: ${limit}/min. Try again in ${resetSec}s.`;
     }
     // Inject manager if not present
     if (!handlers.manager && (agentManager as any)) {
