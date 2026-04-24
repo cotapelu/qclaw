@@ -44,7 +44,7 @@ export {
   Input,
   Editor,
   // Terminal and capabilities
-  Terminal,
+  type Terminal,
   allocateImageId,
   calculateImageRows,
   deleteAllKittyImages,
@@ -91,7 +91,7 @@ export {
   type KeybindingConflict,
   type KeybindingDefinition,
   type KeybindingDefinitions,
-  Keybindings,
+  type Keybindings,
   type KeybindingsConfig,
   KeybindingsManager,
   setKeybindings,
@@ -185,15 +185,17 @@ export {
   truncateToVisualLines,
   // Others
   ArminComponent,
+  // Advanced
+  CustomEditor,
 } from "@mariozechner/pi-coding-agent";
 
 export type {
   VisualTruncateResult,
   // Types from components
-  type RenderDiffOptions,
-  type SettingsCallbacks,
-  type SettingsConfig,
-  type ToolExecutionOptions,
+  RenderDiffOptions,
+  SettingsCallbacks,
+  SettingsConfig,
+  ToolExecutionOptions,
 } from "@mariozechner/pi-coding-agent";
 
 // Theme utilities from pi-coding-agent (full)

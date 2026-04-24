@@ -240,6 +240,15 @@ export class ChatContainer extends Container implements Component {
 		return [...this.messages];
 	}
 
+	// Internal max height for scrollable behavior (rows)
+	private maxHeight?: number;
+
+	/** Set maximum visible height (rows) for the chat. */
+	setMaxHeight(height: number | undefined): void {
+		this.maxHeight = height;
+		this.invalidate();
+	}
+
 	/**
 	 * Get a tool execution component by its ID.
 	 */
@@ -270,6 +279,12 @@ export class ChatContainer extends Container implements Component {
 
 		if (spacing > 0 && lines.length > 0) {
 			lines.splice(lines.length - spacing, spacing);
+		}
+
+		// Apply maxHeight limit if set (keep most recent messages at bottom)
+		if (this.maxHeight !== undefined && lines.length > this.maxHeight) {
+			const excess = lines.length - this.maxHeight;
+			lines.splice(0, excess);
 		}
 
 		return lines;

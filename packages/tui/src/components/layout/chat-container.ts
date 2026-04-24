@@ -1,6 +1,7 @@
 import { Container } from "@mariozechner/pi-tui";
 import type { Component } from "@mariozechner/pi-tui";
 import type { ThemeManager } from "../../theme/theme-manager.js";
+import { ScrollableContainer } from "./scrollable-container.js";
 
 /**
  * Configuration props for ChatContainer
@@ -48,6 +49,7 @@ export class ChatContainer extends Container implements Component {
   private props: ChatContainerProps;
   private themeManager: ThemeManager;
   private messages: Component[] = [];
+  private maxHeight?: number;
 
   /**
    * Create a new ChatContainer.
@@ -133,6 +135,15 @@ export class ChatContainer extends Container implements Component {
   }
 
   /**
+   * Set maximum visible height (in rows) for the chat.
+   * Used for scrollable behavior.
+   */
+  setMaxHeight(height: number | undefined): void {
+    this.maxHeight = height;
+    this.invalidate();
+  }
+
+  /**
    * Render the chat container.
    *
    * Renders all child messages with configured spacing between them.
@@ -156,6 +167,12 @@ export class ChatContainer extends Container implements Component {
     // Remove trailing spacing for cleaner bottom edge
     if (spacing > 0 && lines.length > 0) {
       lines.splice(lines.length - spacing, spacing);
+    }
+
+    // Apply maxHeight limit if set (keep most recent messages at bottom)
+    if (this.maxHeight !== undefined && lines.length > this.maxHeight) {
+      const excess = lines.length - this.maxHeight;
+      lines.splice(0, excess);
     }
 
     return lines;

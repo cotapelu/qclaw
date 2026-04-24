@@ -2,6 +2,9 @@ import { Container } from "@mariozechner/pi-tui";
 import type { Component } from "@mariozechner/pi-tui";
 import { ThemeManager } from "../../theme/theme-manager.js";
 
+console.log("DynamicBorder: Container =", Container);
+console.log("DynamicBorder: Container.prototype =", Container.prototype);
+
 /**
  * Border style options
  */
@@ -110,6 +113,10 @@ export class DynamicBorder extends Container implements Component {
     return childLines;
   }
 }
+
+// Ensure proper prototype inheritance (workaround for environment issues)
+Object.setPrototypeOf(DynamicBorder.prototype, Container.prototype);
+console.log("Set prototype: DynamicBorder.prototype.__proto__ equals Container.prototype?", Object.getPrototypeOf(DynamicBorder.prototype) === Container.prototype);
 
 /**
  * Border wrapper for any component

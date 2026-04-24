@@ -9,9 +9,9 @@ import {
   ChatContainer,
   FooterComponent,
   ProgressBar,
-  DynamicBorder,
   UserMessageComponent,
 } from "../src/index.js";
+import { DynamicBorder } from "../src/components/layout/dynamic-border.js";
 
 console.log("🧪 Running integration test...\n");
 

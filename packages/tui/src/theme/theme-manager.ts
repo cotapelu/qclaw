@@ -1,4 +1,5 @@
-import { initTheme, getMarkdownTheme, getSelectListTheme, getSettingsListTheme, Theme } from "@mariozechner/pi-coding-agent";
+import { initTheme, getMarkdownTheme, getSelectListTheme, getSettingsListTheme } from "@mariozechner/pi-coding-agent";
+import chalk from "chalk";
 import type { MarkdownTheme, SelectListTheme, SettingsListTheme } from "@mariozechner/pi-tui";
 
 /**
@@ -165,15 +166,28 @@ export class ThemeManager {
 
   /**
    * Apply foreground color to text using the current theme.
-   * Uses pi-coding-agent's Theme singleton.
+   * Uses chalk color mapping as a fallback when pi-coding-agent theme is unavailable.
    */
   fg(role: ThemeRole, text: string): string {
-    try {
-      const theme = Theme.getInstance();
-      return theme?.fg(role, text) ?? text;
-    } catch (e) {
-      return text;
-    }
+    const colorMap: Record<ThemeRole, (t: string) => string> = {
+      accent: chalk.cyan,
+      border: chalk.gray,
+      muted: chalk.gray,
+      success: chalk.green,
+      warning: chalk.yellow,
+      error: chalk.red,
+      info: chalk.blue,
+      userMessage: chalk.white,
+      assistantMessage: chalk.white,
+      toolTitle: chalk.yellow,
+      toolOutput: chalk.white,
+      thinkingText: chalk.magenta,
+      dim: chalk.dim,
+      text: chalk.white,
+      foreground: chalk.white,
+    };
+    const fn = colorMap[role] || ((t) => t);
+    return fn(text);
   }
 
   /**
