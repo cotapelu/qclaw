@@ -1,4 +1,4 @@
-export { ChatContainer, createChatBorder, createSeparator } from "./chat-container.js";
+export { ChatContainer, createChatBorder, createSeparator } from "../chat/chat-container.js";
 export { FooterComponent, createSimpleFooter } from "./footer.js";
 export { DynamicBorder, createBorder } from "./dynamic-border.js";
 export { ScrollableContainer, createScrollableContainer } from "./scrollable-container.js";

@@ -4,18 +4,26 @@
  * QClaw - Professional AI Coding Assistant
  *
  * Main entry point for the TUI application.
- * Integrates @mariozechner/pi-agent with @mariozechner/pi-tui-professional.
+ * Integrates @piclaw/pi-agent with @piclaw/pi-tui.
  */
 
-import { TUI, ProcessTerminal, Container, Text, Editor, Key, matchesKey, CombinedAutocompleteProvider } from "@mariozechner/pi-tui";
 import {
+  TUI,
+  ProcessTerminal,
+  Container,
+  Text,
+  Editor,
+  Key,
+  matchesKey,
+  CombinedAutocompleteProvider,
+  SlashCommand,
   ThemeManager,
   ChatContainer,
   FooterComponent,
-} from "@mariozechner/pi-tui-professional";
-import { createAgent, createEventBus, type Agent } from "@mariozechner/pi-agent";
-import { ExtensionSelectorComponent } from "@mariozechner/pi-coding-agent";
-import type { SlashCommand } from "@mariozechner/pi-tui";
+  getMarkdownTheme,
+  UserMessageComponent,
+} from "@piclaw/pi-tui";
+import { createAgent, createEventBus, type Agent, ExtensionSelectorComponent } from "@piclaw/pi-agent";
 import { Command } from "commander";
 import chalk from "chalk";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, readdirSync, watch as fsWatch } from "node:fs";
@@ -172,8 +180,11 @@ class QClawApp {
 
   private buildLayout(): void {
     // Chat container
+    const cwd = this.options.cwd ? process.env.QCLAW_CWD || this.options.cwd : process.cwd();
     this.chat = new ChatContainer({
       themeManager: this.theme,
+      ui: this.tui,
+      cwd,
       maxMessages: 100,
       messageSpacing: 1,
     });
@@ -190,7 +201,7 @@ class QClawApp {
     // Setup autocomplete for slash commands and file paths
     try {
       this.editor.setAutocompleteProvider(
-        new CombinedAutocompleteProvider(SLASH_COMMANDS, process.cwd(), null)
+        new CombinedAutocompleteProvider([], cwd, null)
       );
     } catch (e) {
       if (this.cliOptions.debug) console.warn("Autocomplete setup failed:", e);
@@ -198,7 +209,7 @@ class QClawApp {
 
     // Footer
     this.footer = new FooterComponent(this.theme, {
-      cwd: process.cwd(),
+      cwd: cwd,
       model: this.options.model || "default",
     });
     this.tui.addChild(this.footer);
@@ -514,11 +525,9 @@ class QClawApp {
 
       if (!input) return;
 
-      // Add user message
-      const userMsg = new Container();
-      const text = new Text("👤 " + input, 1, 0);
-      userMsg.addChild(text);
-      this.chat.addMessage(userMsg);
+      // Add user message using UserMessageComponent
+      this.chat.addUserMessage(input);
+      this.tui.requestRender();
       this.tui.requestRender();
 
       try {

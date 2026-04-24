@@ -1,4 +1,4 @@
-import { initTheme, getMarkdownTheme, getSelectListTheme, getSettingsListTheme } from "@mariozechner/pi-coding-agent";
+import { initTheme, getMarkdownTheme, getSelectListTheme, getSettingsListTheme, Theme } from "@mariozechner/pi-coding-agent";
 import type { MarkdownTheme, SelectListTheme, SettingsListTheme } from "@mariozechner/pi-tui";
 
 /**
@@ -165,25 +165,15 @@ export class ThemeManager {
 
   /**
    * Apply foreground color to text using the current theme.
-   *
-   * **Note:** This is a convenience wrapper. For full theming, use
-   * pi-coding-agent's `theme.fg()` directly, which provides live updates
-   * when the theme changes. This method returns plain text if the theme
-   * system isn't initialized.
-   *
-   * @param role - Color role (see ThemeRole type)
-   * @param text - Text to color
-   * @returns Colored text string with ANSI escape codes
-   *
-   * @example
-   * ```typescript
-   * const colored = theme.fg("accent", "Important");
-   * console.log(colored); // "\x1b[31mImportant\x1b[39m" (example)
-   * ```
+   * Uses pi-coding-agent's Theme singleton.
    */
   fg(role: ThemeRole, text: string): string {
-    // Return plain text if theme not available
-    return text;
+    try {
+      const theme = Theme.getInstance();
+      return theme?.fg(role, text) ?? text;
+    } catch (e) {
+      return text;
+    }
   }
 
   /**
