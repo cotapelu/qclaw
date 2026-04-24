@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsx tests/sanity.test.ts && tsx tests/integration.test.ts",
+    "test": "tsx tests/sanity.test.ts && tsx tests/integration.test.ts && tsx tests/factory-extras.test.ts",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },

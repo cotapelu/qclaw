@@ -39,6 +39,37 @@ interface Config {
   sessionDir?: string;
 }
 
+interface AppStats {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  contextPercent: number;
+  model: string;
+  cwd: string;
+}
+
+// Simple config validation
+function validateConfig(raw: any): Config {
+  const valid: Config = {};
+  if (raw.theme === "dark" || raw.theme === "light" || raw.theme === "auto") {
+    valid.theme = raw.theme;
+  }
+  if (typeof raw.model === "string") {
+    valid.model = raw.model;
+  }
+  if (Array.isArray(raw.tools) && raw.tools.every((t: any) => typeof t === "string")) {
+    valid.tools = raw.tools;
+  }
+  if (typeof raw.sessionDir === "string") {
+    valid.sessionDir = raw.sessionDir;
+  }
+  // Also validate telemetry
+  if (typeof raw.telemetry === "boolean") {
+    // But Config doesn't include telemetry, so ignore
+  }
+  return valid;
+}
+
 const CONFIG_DIR = join(homedir(), ".qclaw");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 
@@ -46,10 +77,13 @@ function loadConfig(): Config {
   try {
     if (existsSync(CONFIG_PATH)) {
       const raw = readFileSync(CONFIG_PATH, "utf8");
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      const validated = validateConfig(parsed);
+      return validated as Config;
     }
   } catch (e) {
-    console.warn("Failed to read config:", e);
+    console.warn("Failed to read or validate config:", e);
+    logToFile("CONFIG_ERROR", e instanceof Error ? e.message : String(e));
   }
   return {};
 }
@@ -97,6 +131,14 @@ class QClawApp {
   private options: CliOptions & Config;
   private modelRegistry?: any;
   private configWatcher?: any;
+  private stats: AppStats = {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    contextPercent: 0,
+    model: "",
+    cwd: process.cwd(),
+  };
 
   constructor(options: CliOptions) {
     // Store CLI options for later re-merging when config file changes
@@ -204,11 +246,12 @@ class QClawApp {
       // Store model registry for model selector
       this.modelRegistry = (this.agent.session as any).modelRegistry;
 
-      // Set footer model from current session model
+      // Set footer model from current session model and stats
       const agentAny = this.agent as any;
       const model = agentAny.getCurrentModel?.();
       if (model) {
         this.footer.setModel(model.id);
+        this.stats.model = model.id;
       }
 
       if (this.options.debug) {
@@ -232,10 +275,15 @@ class QClawApp {
       this.tui.requestRender();
     });
     this.bus.on("tokens:update", (usage: any) => {
+      this.stats.totalTokens = usage.totalTokens || 0;
+      this.stats.inputTokens = usage.inputTokens || 0;
+      this.stats.outputTokens = usage.outputTokens || 0;
+      this.stats.contextPercent = usage.contextPercent || 0;
       this.footer.setTokenUsage(usage.totalTokens);
       this.tui.requestRender();
     });
     this.bus.on("model:change", (event: any) => {
+      this.stats.model = event.modelId;
       this.footer.setModel(event.modelId);
       this.tui.requestRender();
     });
@@ -274,7 +322,7 @@ class QClawApp {
       ["dark", "light", "auto"],
       async (selection: string) => {
         // Apply theme via ThemeManager (calls initTheme internally)
-        this.theme.setTheme(selection);
+        this.theme.setTheme(selection as "dark" | "light" | "auto");
         // Persist to config
         this.options.theme = selection as any;
         saveConfig(this.options);
@@ -405,6 +453,30 @@ class QClawApp {
     }
   }
 
+  private showStatisticsOverlay(): void {
+    const lines = [
+      `📊 Statistics`,
+      ``,
+      `Model: ${this.stats.model || "none"}`,
+      `CWD: ${this.stats.cwd}`,
+      `Token Usage: ${this.stats.totalTokens} total`,
+      `  Input:  ${this.stats.inputTokens}`,
+      `  Output: ${this.stats.outputTokens}`,
+      `  Context: ${this.stats.contextPercent}%`,
+    ];
+
+    const overlay = new Container();
+    for (const line of lines) {
+      overlay.addChild(new Text(line, 1, 0));
+    }
+
+    const handle = this.tui.showOverlay(overlay, { width: 40, anchor: "center" });
+    setTimeout(() => {
+      if (handle) handle.hide();
+      this.tui.requestRender();
+    }, 5000);
+  }
+
   private reportTelemetry(event: string, data: any): void {
     if (!this.options.telemetry) return;
     try {
@@ -428,6 +500,10 @@ class QClawApp {
     }
     if (matchesKey(data, Key.f4)) {
       this.showSessionList();
+      return;
+    }
+    if (matchesKey(data, "ctrl+s")) {
+      this.showStatisticsOverlay();
       return;
     }
 

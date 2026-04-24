@@ -87,6 +87,7 @@ Example: `"What files are in the current directory?"`
 | `Ctrl+D` | Duplicate current line |
 | `Ctrl+E` | Open multi-line editor |
 | `Ctrl+P` | Cycle through models (if multiple configured) |
+| `Ctrl+S` | Show statistics overlay |
 | `Ctrl+C` | Quit (graceful shutdown) |
 
 ## Settings
@@ -117,6 +118,17 @@ const agent = await createAgent({
   tools: ["read", "bash"], // only these tools
 });
 ```
+
+### Slash Commands
+
+The editor supports autocomplete for built-in slash commands. Type `/` to see available commands:
+
+- `/help` – Show help information
+- `/compact` – Manually trigger context compaction
+- `/clear` – Clear the chat history
+- `/exit` – Exit the application
+
+File paths are also autocompleted as you type.
 
 ### Themes
 

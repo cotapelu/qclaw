@@ -1,4 +1,4 @@
-import { ThemeManager } from "../theme/theme-manager";
+import { ThemeManager } from "../theme/theme-manager.js";
 import { truncateToWidth, wrapTextWithAnsi, CURSOR_MARKER } from "@mariozechner/pi-tui";
 
 /**

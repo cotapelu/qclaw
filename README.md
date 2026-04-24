@@ -7,11 +7,15 @@
 ## ✨ Features
 
 - **Modular Architecture**: Clean separation between agent logic (business layer) and UI (TUI) via event bus.
-- **Professional TUI**: Built on `@mariozechner/pi-tui-professional` with chat interface, footer status, and nice theming.
+- **Professional TUI**: Built on `@mariozechner/pi-tui-professional` with chat interface, footer status, theming.
 - **Rich Agent**: Full-featured agent from `@mariozechner/pi-agent` with tools, session management, compaction, extensions, skills.
-- **Settings UI**: Interactive theme and model selectors (press `F2` and `F3` in the app).
-- **Configuration**: Persistent settings stored in `~/.qclaw/config.json`.
-- **CLI Options**: Flexible command-line flags for model, tools, theme, working directory.
+- **Settings UI**: Interactive theme (F2), model (F3), and session (F4) selectors.
+- **Persistent Config**: Live-reloaded settings from `~/.qclaw/config.json` with file watcher.
+- **Error Logging**: All errors logged to `~/.qclaw/log.txt` for diagnostics.
+- **Telemetry**: Opt-in usage reporting (`--telemetry`) to help improve the product.
+- **Autocomplete**: Slash commands and file path completion in editor.
+- **Session Switching**: Fork and switch between different session files on the fly.
+- **CLI Flexibility**: Flags for `--cwd`, `--model`, `--tools`, `--session-dir`, `--theme`, `--debug`, `--telemetry`.
 
 ## 🚀 Quick Start
 
@@ -65,6 +69,7 @@ Options:
   -s, --session-dir <path> Session storage directory
       --theme <mode>      Theme: dark, light, auto (default: auto)
       --debug             Enable debug logging
+      --telemetry         Enable error telemetry (opt-in)
 ```
 
 ## 📦 Packages

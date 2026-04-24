@@ -14,7 +14,7 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "lint": "eslint src/**/*.ts --fix",
-    "test": "npm run test:agent && npm run test:tui && npx tsx tests/main.test.ts",
+    "test": "npm run test:agent && npm run test:tui && npx tsx tests/main.test.ts && npx tsx tests/session-switching.test.ts && npx tsx tests/config-validation.test.ts && npx tsx tests/e2e.test.ts",
     "test:agent": "cd packages/agent && npm test",
     "test:tui": "cd packages/tui && npm test",
     "coverage": "c8 --reporter=html --reporter=text npm test",

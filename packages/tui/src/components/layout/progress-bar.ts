@@ -1,6 +1,6 @@
 import { Text, Container } from "@mariozechner/pi-tui";
 import type { Component } from "@mariozechner/pi-tui";
-import type { ThemeManager } from "../../theme/theme-manager";
+import type { ThemeManager } from "../../theme/theme-manager.js";
 
 /**
  * ProgressBar component - displays a progress bar with percentage
