@@ -1,6 +1,6 @@
 {
-  "name": "pi-sdk-agent",
-  "version": "1.0.0",
+  "name": "piclaw-sdk",
+  "version": "0.0.1",
   "private": true,
   "workspaces": ["packages/*"],
   "description": "Custom AI agent using pi SDK",
@@ -29,8 +29,8 @@
     "@mariozechner/pi-coding-agent": "^0.68.0",
     "@mariozechner/pi-tui": "^0.68.0",
     "@mariozechner/pi-agent-core": "^0.68.0",
-    "@mariozechner/pi-agent": "workspace:*",
-    "@mariozechner/pi-tui-professional": "workspace:*",
+    "@piclaw/pi-agent": "workspace:*",
+    "@piclaw/pi-tui": "workspace:*",
     "@sinclair/typebox": "^0.32.0",
     "commander": "^12.0.0",
     "prom-client": "^14.2.0"

@@ -1,6 +1,6 @@
 {
-  "name": "@mariozechner/pi-tui-professional",
-  "version": "1.0.0",
+  "name": "@piclaw/pi-tui",
+  "version": "0.0.1",
   "description": "Professional TUI components for building terminal-based AI coding assistants. Built on @mariozechner/pi-tui and @mariozechner/pi-coding-agent.",
   "type": "module",
   "main": "dist/index.js",

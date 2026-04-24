@@ -1,6 +1,6 @@
 {
-  "name": "@mariozechner/pi-agent",
-  "version": "1.0.0",
+  "name": "@piclaw/pi-agent",
+  "version": "0.0.1",
   "description": "Professional AI agent library built on pi-agent-core and pi-coding-agent. Provides high-level abstractions for building coding assistants with event-driven architecture.",
   "type": "module",
   "main": "dist/index.js",
