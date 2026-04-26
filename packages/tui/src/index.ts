@@ -136,12 +136,16 @@ export {
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
+  // Helpers (selected)
+  isFocusable,
+  CURSOR_MARKER,
 } from "@mariozechner/pi-tui";
 export type {
   Component,
   Focusable,
   EditorOptions,
   EditorTheme,
+  ImageTheme,
 } from "@mariozechner/pi-tui";
 
 // UI components from pi-coding-agent (full set)
@@ -198,7 +202,7 @@ export type {
   ToolExecutionOptions,
 } from "@mariozechner/pi-coding-agent";
 
-// Theme utilities from pi-coding-agent (full)
+// Theme utilities from pi-coding-agent
 export {
   initTheme,
   getMarkdownTheme,
