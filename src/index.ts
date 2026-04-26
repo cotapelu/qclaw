@@ -30,21 +30,25 @@ import {
   SkillInvocationMessageComponent,
   CustomMessageComponent,
   SettingsSelectorComponent,
+  ModelSelectorComponent,
   type SettingsCallbacks,
   type SettingsConfig,
   KeybindingsManager,
   TUI_KEYBINDINGS,
+  DynamicBorder,
+  type Component,
 } from "@piclaw/pi-tui";
-import { initTheme, copyToClipboard, FooterComponent as PiFooterComponent, CustomEditor } from "@mariozechner/pi-coding-agent";
+import { initTheme, copyToClipboard, FooterComponent as PiFooterComponent, CustomEditor, ThinkingSelectorComponent, LoginDialogComponent, OAuthSelectorComponent } from "@mariozechner/pi-coding-agent";
 import { createAgent, createEventBus, type Agent, ExtensionSelectorComponent } from "@piclaw/pi-agent";
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, readdirSync, watch as fsWatch } from "node:fs";
-import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, readdirSync, watch as fsWatch, statSync, unlinkSync } from "node:fs";
+import { execSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { modelsAreEqual } from "@mariozechner/pi-ai";
 
 interface CliOptions {
   cwd?: string;
@@ -70,6 +74,7 @@ interface AppStats {
   contextPercent: number;
   model: string;
   cwd: string;
+  startupTime?: number;
 }
 
 // Simple config validation
@@ -136,12 +141,42 @@ function logToFile(level: string, msg: string): void {
   }
 }
 
-const SLASH_COMMANDS: SlashCommand[] = [
+export const SLASH_COMMANDS: SlashCommand[] = [
   { name: "help", description: "Show help information" },
   { name: "clear", description: "Clear chat history" },
   { name: "compact", description: "Compact session context" },
   { name: "exit", description: "Exit the application" },
+  { name: "save", description: "Save conversation to file" },
+  { name: "export", description: "Export conversation (JSON)" },
+  { name: "edit", description: "Open file in external editor" },
 ];
+
+class AutoIndentEditor extends CustomEditor {
+  private myKeybindings: any;
+
+  constructor(tui: TUI, theme: any, keybindings: any, options?: any) {
+    super(tui, theme, keybindings, options);
+    this.myKeybindings = keybindings;
+  }
+
+  handleInput(data: string): void {
+    if (this.myKeybindings.matches(data, "tui.input.newLine")) {
+      try {
+        const cursor = this.getCursor();
+        const lineIdx = cursor.line;
+        const fullText = this.getText();
+        const lines = fullText.split("\n");
+        const currentLine = lines[lineIdx] || "";
+        const indent = currentLine.match(/^\\s*/)?.[0] || "";
+        this.insertTextAtCursor("\n" + indent);
+      } catch (e) {
+        super.handleInput(data);
+      }
+      return;
+    }
+    super.handleInput(data);
+  }
+}
 
 class QClawApp {
   private tui: TUI;
@@ -149,10 +184,13 @@ class QClawApp {
   private bus = createEventBus();
   private agent!: Agent;
   private chat: ChatContainer;
-  private editor: Editor;
+  private editor: any;
+  private defaultBorderColor!: (text: string) => string;
   private widgetContainerAbove: Container;
   private widgetContainerBelow: Container;
   private footer: any;
+  private layoutComponents: Component[] = [];
+  private fullscreenActive = false;
   private cliOptions!: CliOptions;
   private options: CliOptions & Config;
   private modelRegistry?: any;
@@ -176,6 +214,9 @@ class QClawApp {
   private hideThinkingBlock = false; // could be from settings
   private keybindings!: any;
   private footerProvider: any;
+  private retryInterval?: any;
+  private retryEndTime?: number;
+  private footerRenderTimeout?: any;
 
   constructor(options: CliOptions) {
     // Store CLI options for later re-merging when config file changes
@@ -235,9 +276,12 @@ class QClawApp {
       borderColor: (text: string) => this.theme.fg("border", text),
       selectList: this.theme.getSelectListTheme(),
     };
-    this.editor = new CustomEditor(this.tui, editorTheme, this.keybindings, {});
+    this.defaultBorderColor = editorTheme.borderColor;
+    this.editor = new AutoIndentEditor(this.tui, editorTheme, this.keybindings, {});
     // Handle editor submit
     this.editor.onSubmit = (text: string) => this.handleEditorSubmit(text);
+    // Track editor changes for mode status
+    this.editor.onChange = () => this.updateModeStatus();
     // Autocomplete with slash commands and file paths
     try {
       this.editor.setAutocompleteProvider(
@@ -278,6 +322,42 @@ class QClawApp {
     }
   }
 
+  // MARK: - Extension widget API
+
+  /**
+   * Add a widget component to the specified container ("above" or "below" editor).
+   * Extensions use this to display status, progress, or custom UI.
+   */
+  addWidget(component: Component, position: "above" | "below" = "below"): void {
+    if (position === "above") {
+      this.widgetContainerAbove.addChild(component);
+    } else {
+      this.widgetContainerBelow.addChild(component);
+    }
+    this.tui.requestRender();
+  }
+
+  /**
+   * Remove a widget component from the specified container.
+   */
+  removeWidget(component: Component, position: "above" | "below" = "below"): void {
+    const container = position === "above" ? this.widgetContainerAbove : this.widgetContainerBelow;
+    container.removeChild(component);
+    this.tui.requestRender();
+  }
+
+  /** For extensions: set a status indicator in the footer. */
+  setExtensionStatus(extensionId: string, status: string): void {
+    this.footerProvider._status.set(extensionId, status);
+    this.tui.requestRender();
+  }
+
+  /** Clear an extension's status. */
+  clearExtensionStatus(extensionId: string): void {
+    this.footerProvider._status.delete(extensionId);
+    this.tui.requestRender();
+  }
+
   private async initAgent(): Promise<void> {
     if (this.options.debug) {
       console.log(chalk.dim("🔧 Initializing agent..."));
@@ -316,7 +396,16 @@ class QClawApp {
         onBranchChange: () => () => {},
       };
       this.footer = new PiFooterComponent(this.agent.session, this.footerProvider);
+      const keyHintParts = [
+        'F2:theme', 'F3:model', 'F4:session', 'F7:login', 'F8:del-session', 'F9:model-thinking',
+        'Ctrl+S:stats', 'Ctrl+E:tools', 'Ctrl+T:thinking', 'Ctrl+Shift+C:copy'
+      ];
+      this.footerProvider._status.set('keys', keyHintParts.join(' '));
       this.tui.addChild(this.footer);
+      // Capture normal layout components for fullscreen toggle
+      this.layoutComponents = [this.chat, this.widgetContainerAbove, this.editor, this.widgetContainerBelow, this.footer];
+      // Listen for terminal resize to adjust chat height
+      process.stdout.on('resize', this.handleResize);
 
       // Set initial model in stats
       const agentAny = this.agent as any;
@@ -355,6 +444,13 @@ class QClawApp {
     // Handle agent session events (simplified)
     switch (event.type) {
       case "agent_start":
+        // Clear any retry countdown
+        if (this.retryInterval) {
+          clearInterval(this.retryInterval);
+          this.retryInterval = undefined;
+          this.retryEndTime = undefined;
+          this.setFooterStatus(undefined);
+        }
         this.setFooterStatus("Thinking...");
         break;
       case "message_start":
@@ -446,6 +542,13 @@ class QClawApp {
         }
         const compStart = this.pendingTools.get(event.toolCallId);
         if (compStart) compStart.markExecutionStarted();
+        // Update tools status in footer
+        if (this.pendingTools.size > 0) {
+          this.footerProvider._status.set('tools', `${this.pendingTools.size} active tool${this.pendingTools.size===1?'':'s'}`);
+        } else {
+          this.footerProvider._status.delete('tools');
+        }
+        this.tui.requestRender();
         break;
       case "tool_execution_update":
         const compUpdate = this.pendingTools.get(event.toolCallId);
@@ -459,15 +562,49 @@ class QClawApp {
           compEnd.updateResult({ ...event.result, isError: event.isError });
           this.pendingTools.delete(event.toolCallId);
         }
+        // Update tools status in footer
+        if (this.pendingTools.size > 0) {
+          this.footerProvider._status.set('tools', `${this.pendingTools.size} active tool${this.pendingTools.size===1?'':'s'}`);
+        } else {
+          this.footerProvider._status.delete('tools');
+        }
+        this.tui.requestRender();
         break;
       case "agent_end":
         this.setFooterStatus(undefined);
         break;
-      case "agent_error":
-        console.error(chalk.red("Agent error:"), event.error);
-        this.setFooterStatus("Error");
-        setTimeout(() => this.setFooterStatus(undefined), 3000);
+      case "agent_error": {
+        const err = event.error as any;
+        if (err.fallbackModel) {
+          this.setFooterStatus(`Falling back to ${err.fallbackModel}`);
+          setTimeout(() => this.setFooterStatus(undefined), 5000);
+        } else if (err.retryAfter != null) {
+          const seconds = Math.ceil(Number(err.retryAfter));
+          const end = Date.now() + seconds * 1000;
+          this.retryEndTime = end;
+          const update = () => {
+            const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+            if (left > 0) {
+              this.setFooterStatus(`Retrying in ${left}s...`);
+            } else {
+              clearInterval(this.retryInterval);
+              this.retryInterval = undefined;
+            }
+          };
+          update();
+          this.retryInterval = setInterval(update, 1000);
+        } else if (err.statusCode === 401 || err.code === 'unauthorized' || err.authRequired) {
+          // Trigger login flow after a brief delay
+          setTimeout(async () => {
+            await this.showOAuthFlow();
+          }, 1000);
+        } else {
+          console.error(chalk.red("Agent error:"), err);
+          this.setFooterStatus("Error");
+          setTimeout(() => this.setFooterStatus(undefined), 3000);
+        }
         break;
+      }
     }
     this.tui.requestRender();
   }
@@ -495,56 +632,6 @@ class QClawApp {
     const handle = this.tui.showOverlay(selector, { width: 40, anchor: "center" });
     handle.focus();
     this.tui.requestRender();
-  }
-
-  private async showModelSelector(): Promise<void> {
-    if (!this.modelRegistry) {
-      console.error(chalk.yellow("Model registry not available yet"));
-      return;
-    }
-
-    try {
-      // Get available models from registry
-      const models = await this.modelRegistry.listModels();
-      const items = models.map((m: any) => m.id);
-      const currentModel = (this.agent as any).getCurrentModel?.()?.id;
-
-      if (items.length === 0) {
-        console.error(chalk.yellow("No models available"));
-        return;
-      }
-
-      const selector = new ExtensionSelectorComponent(
-        "Select Model",
-        items,
-        async (selection: string) => {
-          const selected = models.find((m: any) => m.id === selection);
-          if (selected) {
-            try {
-              await this.agent.session.setModel(selected);
-              this.stats.model = selection;
-              // Persist to config
-              this.options.model = selection;
-              saveConfig(this.options);
-            } catch (e: any) {
-              console.error(chalk.red("Failed to set model:"), e.message);
-            }
-          }
-          handle.hide();
-          this.tui.requestRender();
-        },
-        () => {
-          handle.hide();
-        },
-        { tui: this.tui }
-      );
-
-      const handle = this.tui.showOverlay(selector, { width: 60, anchor: "center" });
-      handle.focus();
-      this.tui.requestRender();
-    } catch (error: any) {
-      console.error(chalk.red("Failed to list models:"), error.message);
-    }
   }
 
   private async switchToSession(sessionFile: string): Promise<void> {
@@ -587,7 +674,23 @@ class QClawApp {
     const dir = this.options.sessionDir || "./.qclaw/sessions";
     try {
       const files = existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith(".jsonl")) : [];
-      const items = files.length ? files : ["(no sessions)"];
+      const fileMap = new Map<string, string>();
+      const items: string[] = [];
+      for (const f of files) {
+        try {
+          const fullPath = join(dir, f);
+          const stat = statSync(fullPath);
+          const date = new Date(stat.mtime);
+          const dateStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString().slice(0, 5)}`;
+          const display = `${f} (${dateStr})`;
+          fileMap.set(display, f);
+          items.push(display);
+        } catch {
+          fileMap.set(f, f);
+          items.push(f);
+        }
+      }
+      if (items.length === 0) items.push("(no sessions)");
       const selector = new ExtensionSelectorComponent(
         "Sessions (Enter=fork)",
         items,
@@ -596,7 +699,8 @@ class QClawApp {
             handle.hide();
             return;
           }
-          await this.switchToSession(selection);
+          const actualFile = fileMap.get(selection) || selection;
+          await this.switchToSession(actualFile);
           handle.hide();
         },
         () => {
@@ -609,6 +713,61 @@ class QClawApp {
       this.tui.requestRender();
     } catch (e: any) {
       console.error(chalk.red("Failed to list sessions:"), e.message);
+    }
+  }
+
+  private async deleteSession(): Promise<void> {
+    const dir = this.options.sessionDir || "./.qclaw/sessions";
+    try {
+      const files = existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith(".jsonl")) : [];
+      if (files.length === 0) {
+        await this.showMessageDialog("No sessions to delete.", "Info");
+        return;
+      }
+      const fileMap = new Map<string, string>();
+      const items: string[] = [];
+      for (const f of files) {
+        try {
+          const fullPath = join(dir, f);
+          const stat = statSync(fullPath);
+          const date = new Date(stat.mtime);
+          const dateStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString().slice(0,5)}`;
+          const display = `${f} (${dateStr})`;
+          fileMap.set(display, f);
+          items.push(display);
+        } catch {
+          fileMap.set(f, f);
+          items.push(f);
+        }
+      }
+      const selector = new ExtensionSelectorComponent(
+        "Delete session (Enter=delete)",
+        items,
+        async (selection) => {
+          handle.hide();
+          const actualFile = fileMap.get(selection) || selection;
+          const confirmed = await this.showConfirmDialog(`Delete session '${actualFile}'? This cannot be undone.`, "Confirm Delete");
+          if (confirmed) {
+            try {
+              const fullPath = join(dir, actualFile);
+              unlinkSync(fullPath);
+              this.setFooterStatus(`Deleted ${actualFile}`);
+              setTimeout(() => this.setFooterStatus(undefined), 2000);
+            } catch (err: any) {
+              this.showErrorDialog(`Failed to delete: ${err.message}`);
+            }
+          }
+        },
+        () => {
+          handle.hide();
+        },
+        { tui: this.tui }
+      );
+      const handle = this.tui.showOverlay(selector, { width: 50, anchor: "center" });
+      handle.focus();
+      this.tui.requestRender();
+    } catch (e: any) {
+      console.error(chalk.red("Failed to list sessions for delete:"), e.message);
     }
   }
 
@@ -772,12 +931,223 @@ class QClawApp {
     this.tui.requestRender();
   }
 
+  private showThinkingSelector(): void {
+    const session = this.agent.session as any;
+    const currentLevel = session.thinkingLevel || "medium";
+    const selector = new ThinkingSelectorComponent(
+      currentLevel,
+      ["off","minimal","low","medium","high","xhigh"] as any,
+      (level) => {
+        session.setThinkingLevel(level);
+        this.setFooterStatus(`Thinking: ${level}`);
+        setTimeout(() => this.setFooterStatus(undefined), 2000);
+        handle?.hide();
+        this.tui.requestRender();
+      },
+      () => {
+        handle?.hide();
+        this.tui.requestRender();
+      }
+    );
+    const handle = this.tui.showOverlay(selector, { width: 50, anchor: "center" });
+    this.tui.requestRender();
+  }
+
+  private async showModelSelector(): Promise<void> {
+    const session = this.agent.session as any;
+    const model = session.state?.model;
+    const settingsManager = session.settingsManager;
+    const modelRegistry = this.modelRegistry;
+    const scopedModels = session.scopedModels || [];
+
+    const selector = new ModelSelectorComponent(
+      this.tui,
+      model,
+      settingsManager,
+      modelRegistry,
+      scopedModels,
+      async (selectedModel: any) => {
+        try {
+          await session.setModel(selectedModel);
+          this.stats.model = selectedModel.id;
+          this.setFooterStatus(`Model: ${selectedModel.id}`);
+          setTimeout(() => this.setFooterStatus(undefined), 2000);
+          handle?.hide();
+          this.tui.requestRender();
+        } catch (e: any) {
+          this.setFooterStatus(`Error: ${e.message}`);
+          setTimeout(() => this.setFooterStatus(undefined), 3000);
+        }
+      },
+      () => {
+        handle?.hide();
+        this.tui.requestRender();
+      },
+      ""
+    );
+    const handle = this.tui.showOverlay(selector, { width: 60, anchor: "center" });
+    this.tui.requestRender();
+  }
+
+  private async showOAuthFlow(): Promise<void> {
+    const session = this.agent.session as any;
+    const authStorage = session.modelRegistry.authStorage;
+    const selector = new OAuthSelectorComponent(
+      "login",
+      authStorage,
+      async (providerId: string) => {
+        handle.hide();
+        await this.performLogin(providerId);
+      },
+      () => {
+        handle.hide();
+      }
+    );
+    const handle = this.tui.showOverlay(selector, { width: 50, anchor: "center" });
+    this.tui.requestRender();
+  }
+
+  private async performLogin(providerId: string): Promise<void> {
+    const session = this.agent.session as any;
+    const authStorage = session.modelRegistry.authStorage;
+    const providerInfo = authStorage.getOAuthProviders().find((p: any) => p.id === providerId);
+    const providerName = providerInfo?.name || providerId;
+    const usesCallbackServer = providerInfo?.usesCallbackServer ?? false;
+
+    const dialog = new LoginDialogComponent(this.tui, providerId, (success: boolean, message?: string) => {
+      // Completion handled by the promise
+    });
+
+    const handle = this.tui.showOverlay(dialog, { width: 70, anchor: "center" });
+    this.tui.requestRender();
+
+    let manualCodeResolve: ((code: string) => void) | undefined;
+    let manualCodeReject: ((err: Error) => void) | undefined;
+    const manualCodePromise = new Promise<string>((resolve, reject) => {
+      manualCodeResolve = resolve;
+      manualCodeReject = reject;
+    });
+
+    try {
+      await authStorage.login(providerId, {
+        onAuth: (info: { url: string; instructions?: string }) => {
+          dialog.showAuth(info.url, info.instructions);
+          if (usesCallbackServer) {
+            dialog.showManualInput("Paste redirect URL below, or complete login in browser:")
+              .then((value: string) => {
+                if (value && manualCodeResolve) {
+                  manualCodeResolve(value);
+                  manualCodeResolve = undefined;
+                }
+              })
+              .catch(() => {
+                if (manualCodeReject) {
+                  manualCodeReject(new Error("Login cancelled"));
+                  manualCodeReject = undefined;
+                }
+              });
+          } else if (providerId === "github-copilot") {
+            dialog.showWaiting("Waiting for browser authentication...");
+          }
+        },
+        onPrompt: async (prompt: { message: string; placeholder?: string }) => {
+          return dialog.showManualInput(prompt.message);
+        },
+        onProgress: (message: string) => {
+          dialog.showProgress(message);
+        },
+        onManualCodeInput: () => manualCodePromise,
+      });
+
+      if (typeof session.modelRegistry.refresh === "function") {
+        await session.modelRegistry.refresh();
+      }
+      this.setFooterStatus(`Logged in to ${providerName}`);
+      setTimeout(() => this.setFooterStatus(undefined), 2000);
+    } catch (error: any) {
+      this.showErrorDialog(`Login failed: ${error.message}`);
+    } finally {
+      handle.hide();
+      this.tui.requestRender();
+    }
+  }
+
+  private async setModelThinkingLevel(): Promise<void> {
+    const session = this.agent.session as any;
+    const currentModel = session.model;
+    if (!currentModel) {
+      this.setFooterStatus("No model selected");
+      setTimeout(() => this.setFooterStatus(undefined), 2000);
+      return;
+    }
+    const scopedModels = session.scopedModels || [];
+    const existing = scopedModels.find((sm: any) => modelsAreEqual(sm.model, currentModel));
+    const globalLevel = session.thinkingLevel || "medium";
+    const currentLevel = existing?.thinkingLevel || globalLevel;
+
+    const selector = new ThinkingSelectorComponent(
+      currentLevel,
+      ["off", "minimal", "low", "medium", "high", "xhigh"] as any,
+      async (level) => {
+        handle?.hide();
+        // Update scopedModels
+        let newScoped = Array.from(scopedModels);
+        if (level === globalLevel) {
+          // Remove override
+          newScoped = newScoped.filter((sm: any) => !modelsAreEqual(sm.model, currentModel));
+        } else {
+          // Add or update
+          const idx = newScoped.findIndex((sm: any) => modelsAreEqual(sm.model, currentModel));
+          if (idx >= 0) {
+            newScoped[idx] = { model: currentModel, thinkingLevel: level };
+          } else {
+            newScoped.push({ model: currentModel, thinkingLevel: level });
+          }
+        }
+        session.setScopedModels(newScoped);
+        this.setFooterStatus(`Model ${currentModel.id}: ${level}`);
+        setTimeout(() => this.setFooterStatus(undefined), 2000);
+        this.tui.requestRender();
+      },
+      () => {
+        handle?.hide();
+        this.tui.requestRender();
+      }
+    );
+    const handle = this.tui.showOverlay(selector, { width: 50, anchor: "center" });
+    this.tui.requestRender();
+  }
+
+  private showSessionInfoOverlay(): void {
+    const session = this.agent.session as any;
+    const model = session.model?.id || "none";
+    const cwd = session.sessionManager?.getCwd?.() || process.cwd();
+    const sessionFile = session.sessionManager?.sessionFile || "no session";
+    const lines = [
+      `Session Info`,
+      ``,
+      `Model: ${model}`,
+      `CWD: ${cwd}`,
+      `Session: ${sessionFile}`,
+    ];
+    const overlay = new Container();
+    for (const line of lines) {
+      overlay.addChild(new Text(line, 1, 0));
+    }
+    const handle = this.tui.showOverlay(overlay, { width: 50, anchor: "center" });
+    setTimeout(() => {
+      handle?.hide();
+      this.tui.requestRender();
+    }, 5000);
+  }
+
   private showStatisticsOverlay(): void {
     const lines = [
       `📊 Statistics`,
       ``,
       `Model: ${this.stats.model || "none"}`,
       `CWD: ${this.stats.cwd}`,
+      ...(this.stats.startupTime !== undefined ? [`Startup: ${this.stats.startupTime!.toFixed(1)}ms`] : []),
       `Token Usage: ${this.stats.totalTokens} total`,
       `  Input:  ${this.stats.inputTokens}`,
       `  Output: ${this.stats.outputTokens}`,
@@ -794,6 +1164,79 @@ class QClawApp {
       if (handle) handle.hide();
       this.tui.requestRender();
     }, 5000);
+  }
+
+  private showConfirmDialog(message: string, title: string = "Confirm"): Promise<boolean> {
+    return new Promise((resolve) => {
+      let resolved = false;
+      const container = new Container();
+      container.addChild(new Text(this.theme.fg("accent", title), 0, 0));
+      container.addChild(new Text("", 0, 0));
+      container.addChild(new Text(message, 0, 0));
+      container.addChild(new Text("", 0, 0));
+      container.addChild(new Text(this.theme.fg("muted", "Y/N or Enter/Esc"), 0, 0));
+
+      const handle = this.tui.showOverlay(container, { width: 50, anchor: "center" });
+      handle.focus();
+
+      const handler = (data: string) => {
+        if (resolved) return;
+        if (matchesKey(data, "enter") || data === "y" || data === "Y") {
+          resolved = true;
+          resolve(true);
+          handle.hide();
+        } else if (matchesKey(data, "escape") || data === "n" || data === "N") {
+          resolved = true;
+          resolve(false);
+          handle.hide();
+        }
+      };
+      (container as any).handleInput = handler;
+    });
+  }
+
+  private showMessageDialog(message: string, title: string = "Message"): Promise<void> {
+    return new Promise((resolve) => {
+      const container = new Container();
+      container.addChild(new Text(this.theme.fg("accent", title), 0, 0));
+      container.addChild(new Text("", 0, 0));
+      container.addChild(new Text(message, 0, 0));
+      container.addChild(new Text("", 0, 0));
+      container.addChild(new Text(this.theme.fg("muted", "Press Enter"), 0, 0));
+
+      const handle = this.tui.showOverlay(container, { width: 50, anchor: "center" });
+      handle.focus();
+
+      const handler = (data: string) => {
+        if (matchesKey(data, "enter")) {
+          resolve();
+          handle.hide();
+        }
+      };
+      (container as any).handleInput = handler;
+    });
+  }
+
+  private showErrorDialog(message: string): Promise<void> {
+    return new Promise((resolve) => {
+      const container = new Container();
+      container.addChild(new Text(this.theme.fg("error", "Error"), 0, 0));
+      container.addChild(new Text("", 0, 0));
+      container.addChild(new Text(message, 0, 0));
+      container.addChild(new Text("", 0, 0));
+      container.addChild(new Text(this.theme.fg("muted", "Press Enter"), 0, 0));
+
+      const handle = this.tui.showOverlay(container, { width: 50, anchor: "center" });
+      handle.focus();
+
+      const handler = (data: string) => {
+        if (matchesKey(data, "enter")) {
+          resolve();
+          handle.hide();
+        }
+      };
+      (container as any).handleInput = handler;
+    });
   }
 
   private reportTelemetry(event: string, data: any): void {
@@ -844,6 +1287,71 @@ class QClawApp {
 
     // Add to editor history
     this.editor.addToHistory(trimmed);
+
+    // Built‑in slash commands
+    if (trimmed === "/clear") {
+      this.chat.clearMessages();
+      this.setFooterStatus("Chat cleared");
+      setTimeout(() => this.setFooterStatus(undefined), 2000);
+      this.tui.requestRender();
+      return;
+    }
+    if (trimmed === "/help") {
+      const help = new Container();
+      const lines = [
+        "Slash commands:",
+        "  /clear   Clear chat",
+        "  /exit    Exit application",
+        "  /save    Save conversation",
+        "  /export  Export conversation (JSON)",
+        "  /help    Show this help",
+      ];
+      for (let i = 0; i < lines.length; i++) {
+        help.addChild(new Text(lines[i], 1, 0));
+      }
+      const handle = this.tui.showOverlay(help, { width: 40, anchor: "center" });
+      setTimeout(() => { handle.hide(); this.tui.requestRender(); }, 5000);
+      return;
+    }
+    if (trimmed === "/save" || trimmed === "/export") {
+      const session = this.agent.session as any;
+      const msgs = session?.state?.messages || [];
+      const dir = this.options.sessionDir || "./.qclaw/sessions";
+      const filename = join(dir, `export-${Date.now()}.json`);
+      try {
+        writeFileSync(filename, JSON.stringify(msgs, null, 2));
+        this.setFooterStatus(`Exported ${msgs.length} messages`);
+      } catch (e: any) {
+        this.setFooterStatus(`Export failed: ${e.message}`);
+      }
+      setTimeout(() => this.setFooterStatus(undefined), 3000);
+      this.tui.requestRender();
+      return;
+    }
+    if (trimmed === "/exit" || trimmed === "/quit") {
+      await this.shutdown();
+      process.exit(0);
+      return;
+    }
+    if (trimmed.startsWith("/edit ")) {
+      const file = trimmed.slice(6).trim();
+      if (!file) {
+        this.setFooterStatus("Usage: /edit <file>");
+        setTimeout(() => this.setFooterStatus(undefined), 2000);
+        this.tui.requestRender();
+        return;
+      }
+      const editor = process.env.EDITOR || process.env.VISUAL || "vim";
+      try {
+        spawn(editor, [file], { detached: true, stdio: "ignore" }).unref();
+        this.setFooterStatus(`Opened ${file}`);
+      } catch (e: any) {
+        this.setFooterStatus(`Failed: ${e.message}`);
+      }
+      setTimeout(() => this.setFooterStatus(undefined), 2000);
+      this.tui.requestRender();
+      return;
+    }
 
     // Support for ! prefix for bash mode (task-43)
     if (trimmed.startsWith('!')) {
@@ -901,6 +1409,10 @@ class QClawApp {
       this.showSettingsSelector();
       return;
     }
+    if (matchesKey(data, Key.f6)) {
+      this.showThinkingSelector();
+      return;
+    }
     if (matchesKey(data, "ctrl+s")) {
       this.showStatisticsOverlay();
       return;
@@ -911,6 +1423,16 @@ class QClawApp {
         toolComp.setExpanded(this.toolOutputExpanded);
       }
       this.tui.requestRender();
+      return;
+    }
+    // Cycle model forward (Ctrl+P)
+    if (matchesKey(data, "ctrl+p")) {
+      this.cycleModel("forward");
+      return;
+    }
+    // Cycle model backward (Ctrl+Shift+P)
+    if (matchesKey(data, "ctrl+shift+p")) {
+      this.cycleModel("backward");
       return;
     }
     // Global copy last code block (Ctrl+Shift+C)
@@ -938,6 +1460,11 @@ class QClawApp {
       }
       return;
     }
+    // Toggle fullscreen chat (F11)
+    if (matchesKey(data, "f11")) {
+      this.toggleFullscreen();
+      return;
+    }
     // Toggle thinking block visibility (Ctrl+T)
     if (matchesKey(data, "ctrl+t")) {
       const newVal = !this.hideThinkingBlock;
@@ -949,6 +1476,48 @@ class QClawApp {
         }
       }
       this.tui.requestRender();
+      return;
+    }
+    // Cycle thinking level (Shift+Tab)
+    if (matchesKey(data, "shift+tab")) {
+      const session = this.agent.session as any;
+      const levels = ["off","minimal","low","medium","high","xhigh"];
+      const current = session.thinkingLevel as string;
+      const idx = levels.indexOf(current);
+      const next = levels[(idx + 1) % levels.length];
+      session.setThinkingLevel(next);
+      this.setFooterStatus(`Thinking: ${next}`);
+      setTimeout(() => this.setFooterStatus(undefined), 2000);
+      return;
+    }
+    // Show session info (Ctrl+I)
+    if (matchesKey(data, "ctrl+i")) {
+      this.showSessionInfoOverlay();
+      return;
+    }
+    // OAuth login (F7)
+    if (matchesKey(data, Key.f7)) {
+      await this.showOAuthFlow();
+      return;
+    }
+    // Per-model thinking level (F9)
+    if (matchesKey(data, Key.f9)) {
+      await this.setModelThinkingLevel();
+      return;
+    }
+    // Session deletion (F8)
+    if (matchesKey(data, Key.f8)) {
+      this.deleteSession();
+      return;
+    }
+    // Abort agent generation (Ctrl+C)
+    if (matchesKey(data, "ctrl+c")) {
+      const agentAny = this.agent as any;
+      if (agentAny.abort) {
+        agentAny.abort();
+        this.setFooterStatus("Aborted");
+        setTimeout(() => this.setFooterStatus(undefined), 2000);
+      }
       return;
     }
     // Let editor handle other keys (Enter, arrows, etc.)
@@ -986,8 +1555,32 @@ class QClawApp {
       } else {
         this.footerProvider._status.set('qclaw', text);
       }
-      this.tui.requestRender();
+      // Debounce render to avoid excessive updates
+      if (this.footerRenderTimeout) clearTimeout(this.footerRenderTimeout);
+      this.footerRenderTimeout = setTimeout(() => {
+        this.tui.requestRender();
+        this.footerRenderTimeout = undefined;
+      }, 50);
     }
+  }
+
+  private cycleModel(direction: "forward" | "backward"): void {
+    const session = this.agent.session as any;
+    session.cycleModel(direction)
+      .then((result: any) => {
+        if (result) {
+          this.stats.model = result.model.id;
+          this.setFooterStatus(`Model: ${result.model.id}`);
+          setTimeout(() => this.setFooterStatus(undefined), 2000);
+        }
+        this.tui.requestRender();
+      })
+      .catch((err: any) => {
+        console.error(chalk.red("Model cycle error:"), err);
+        this.setFooterStatus("Model switch failed");
+        setTimeout(() => this.setFooterStatus(undefined), 2000);
+        this.tui.requestRender();
+      });
   }
 
   private updateFooterImagesStatus(): void {
@@ -997,14 +1590,75 @@ class QClawApp {
     this.tui.requestRender();
   }
 
+  private updateModeStatus(): void {
+    if (!this.editor) return;
+    const text = this.editor.getText();
+    const trimmed = text.trimStart();
+    if (trimmed.startsWith('!')) {
+      this.footerProvider._status.set('mode', 'bash');
+      // Change editor border color to indicate bash mode
+      (this.editor as any).borderColor = (s: string) => this.theme.fg('error', s);
+    } else {
+      this.footerProvider._status.delete('mode');
+      // Restore default border color
+      (this.editor as any).borderColor = this.defaultBorderColor;
+    }
+    this.tui.requestRender();
+  }
+
   private updateSessionIdStatus(): void {
     const id = randomBytes(4).toString('hex');
     this.footerProvider._status.set('session', `session: ${id}`);
     this.tui.requestRender();
   }
 
+  private toggleFullscreen(): void {
+    if (!this.fullscreenActive) {
+      // Enter fullscreen: keep only chat
+      this.layoutComponents.forEach(comp => {
+        if (comp !== this.chat) {
+          this.tui.removeChild(comp);
+        }
+      });
+      // Make chat fill the terminal
+      this.chat.setMaxHeight(undefined);
+      this.fullscreenActive = true;
+    } else {
+      // Exit fullscreen: restore all components in order
+      this.tui.removeChild(this.chat);
+      for (const comp of this.layoutComponents) {
+        this.tui.addChild(comp);
+      }
+      // Restore chat maxHeight based on terminal rows
+      const rows = this.tui.terminal.rows;
+      if (rows > 10) {
+        this.chat.setMaxHeight(rows - 5);
+      } else {
+        this.chat.setMaxHeight(undefined);
+      }
+      this.fullscreenActive = false;
+    }
+    this.tui.requestRender();
+  }
+
+  private handleResize = (): void => {
+    const rows = this.tui.terminal.rows;
+    if (rows > 10) {
+      this.chat.setMaxHeight(rows - 5);
+    } else {
+      this.chat.setMaxHeight(undefined);
+    }
+    this.tui.requestRender();
+  };
+
   async run(): Promise<void> {
+    const startHr = process.hrtime.bigint();
     await this.initAgent();
+    const elapsedMs = Number(process.hrtime.bigint() - startHr) / 1e6;
+    this.stats.startupTime = elapsedMs;
+    if (this.options.debug) {
+      console.log(chalk.dim(`Startup time: ${elapsedMs.toFixed(1)}ms`));
+    }
     this.tui.start();
   }
 
