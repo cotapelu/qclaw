@@ -22,8 +22,13 @@ export interface PiclawConfig {
 	verbose?: boolean;
 }
 
-const CONFIG_DIR = join(homedir(), ".piclaw");
-const CONFIG_PATH = join(CONFIG_DIR, "config.json");
+function getConfigDir(): string {
+  return join(homedir(), ".piclaw");
+}
+
+function getConfigFilePath(): string {
+  return join(getConfigDir(), "config.json");
+}
 
 const DEFAULT_CONFIG: PiclawConfig = {
 	model: undefined,
@@ -38,16 +43,19 @@ const DEFAULT_CONFIG: PiclawConfig = {
  * Returns merged config: defaults < file < CLI overrides
  */
 export function loadConfig(cliOverrides?: Partial<PiclawConfig>): PiclawConfig {
+	const configDir = getConfigDir();
+	const configPath = getConfigFilePath();
+
 	// Ensure config directory exists
-	if (!existsSync(CONFIG_DIR)) {
-		mkdirSync(CONFIG_DIR, { recursive: true });
+	if (!existsSync(configDir)) {
+		mkdirSync(configDir, { recursive: true });
 	}
 
 	// Load file config if exists
 	let fileConfig: PiclawConfig = { ...DEFAULT_CONFIG };
-	if (existsSync(CONFIG_PATH)) {
+	if (existsSync(configPath)) {
 		try {
-			const content = readFileSync(CONFIG_PATH, "utf-8");
+			const content = readFileSync(configPath, "utf-8");
 			fileConfig = JSON.parse(content);
 			// Validate and sanitize
 			if (fileConfig.thinking && !["off", "minimal", "low", "medium", "high", "xhigh"].includes(fileConfig.thinking)) {
@@ -68,16 +76,19 @@ export function loadConfig(cliOverrides?: Partial<PiclawConfig>): PiclawConfig {
  * Save configuration to disk.
  */
 export function saveConfig(config: PiclawConfig): void {
-	if (!existsSync(CONFIG_DIR)) {
-		mkdirSync(CONFIG_DIR, { recursive: true });
+	const configDir = getConfigDir();
+	const configPath = getConfigFilePath();
+
+	if (!existsSync(configDir)) {
+		mkdirSync(configDir, { recursive: true });
 	}
 	const content = JSON.stringify(config, null, 2);
-	writeFileSync(CONFIG_PATH, content, "utf-8");
+	writeFileSync(configPath, content, "utf-8");
 }
 
 /**
  * Get the config file path (for display/debugging)
  */
 export function getConfigPath(): string {
-	return CONFIG_PATH;
+	return getConfigFilePath();
 }
