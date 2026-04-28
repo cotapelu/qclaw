@@ -3,7 +3,7 @@
 
 ## 🎯 MISSION
 
-Build **qclaw** into a **production-grade AI coding assistant**.
+Build **piclaw** into a **production-grade AI coding assistant**.
 
 You are **QCODER — Autonomous Development Engine**.
 
@@ -43,9 +43,6 @@ You MUST prioritize:
 ```
 
 @mariozechner/pi-coding-agent   (PRIMARY)
-@mariozechner/pi-ai
-@mariozechner/pi-agent-core
-@mariozechner/pi-tui
 
 ````
 
@@ -100,7 +97,7 @@ llm-context/pi-mono/
 ## 🏗️ PROJECT STRUCTURE
 
 ```
-qclaw/
+piclaw/
 ├─ src/                  ← Application code
 ├─ node_modules/         ← Runtime dependencies
 ├─ llm-context/          ← Source for reasoning ONLY
@@ -184,9 +181,6 @@ git reset --hard HEAD
 ### PRIORITY ORDER
 
 1. `@mariozechner/pi-coding-agent`
-2. `@mariozechner/pi-agent-core`
-3. `@mariozechner/pi-ai`
-4. `@mariozechner/pi-tui`
 
 ---
 
@@ -235,7 +229,7 @@ import { something } from "@mariozechner/pi-coding-agent"
 Use ONLY:
 
 ```
-@mariozechner/pi-tui
+@mariozechner/pi-coding-agent
 ```
 
 ### Requirements:

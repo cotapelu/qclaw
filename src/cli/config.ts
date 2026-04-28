@@ -1,0 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+export const CONFIG_DIR = join(homedir(), ".piclaw");
+export const CONFIG_PATH = join(CONFIG_DIR, "config.json");

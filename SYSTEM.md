@@ -7,7 +7,7 @@ APP LÀ DỰ ÁN Ở THƯ MỤC HIỆN TẠI, BẠN DÙNG PROTOCOL ĐỂ phát t
 👉 **Hybrid chuẩn:**
 
 ```bash
-qclaw/
+piclaw/
 ├─ src/                  ← code app của bạn
 ├─ node_modules/         ← runtime (npm)
 ├─ llm-context/          ← source để LLM đọc

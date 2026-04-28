@@ -534,7 +534,7 @@ Feature: pi-coding-agent provides it
 
 ---
 
-## Architecture of qclaw
+## Architecture of piclaw
 
 Your `src/agent/core.ts` is an `AgentCore` wrapper that adds:
 - File logging (FileLogger)
@@ -596,4 +596,4 @@ Only declare what you directly import. `pi-coding-agent` brings `pi-agent-core` 
 - **Use `pi-tui` components** to build interactive UI
 - **Only use `pi-agent-core` directly** if you need full control (rare)
 
-Your `qclaw` should be ~500 lines, not 1700. The current `AgentCore` is doing too much - offload to pi-coding-agent's built-ins.
+Your `piclaw` should be ~500 lines, not 1700. The current `AgentCore` is doing too much - offload to pi-coding-agent's built-ins.

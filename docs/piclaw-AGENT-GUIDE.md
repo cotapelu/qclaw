@@ -313,12 +313,12 @@ Configure via `toolPermissions` in settings.
 **File Reference**: `llm-context/pi-mono/packages/coding-agent/src/observability/`
 
 Prometheus metrics (if enabled):
-- `qclaw_requests_total`
-- `qclaw_errors_total`
-- `qclaw_tool_calls_total`
-- `qclaw_session_duration_seconds`
-- `qclaw_tokens_total`
-- `qclaw_model_requests_total`
+- `piclaw_requests_total`
+- `piclaw_errors_total`
+- `piclaw_tool_calls_total`
+- `piclaw_session_duration_seconds`
+- `piclaw_tokens_total`
+- `piclaw_model_requests_total`
 
 Start server: `--metrics` flag (port 9090 default).
 
@@ -478,7 +478,7 @@ Extend via:
 
 ## Conclusion
 
-Your `qclaw` project already follows this pattern correctly. The only improvement: **shrink `src/agent/core.ts`** — move non-orchestration logic (logger, circuit breaker, watchers, metrics) to separate modules. The orchestration itself (`AgentCore`) should be ~200 lines that just wires pi-coding-agent components together.
+Your `piclaw` project already follows this pattern correctly. The only improvement: **shrink `src/agent/core.ts`** — move non-orchestration logic (logger, circuit breaker, watchers, metrics) to separate modules. The orchestration itself (`AgentCore`) should be ~200 lines that just wires pi-coding-agent components together.
 
 **Read these pi source files to master**:
 1. `pi-coding-agent/src/core/sdk.ts` — factory pattern
