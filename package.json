@@ -7,17 +7,13 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "qclaw": "dist/index.js"
+    "piclaw": "dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "lint": "eslint src/**/*.ts --fix",
-    "test": "npm run test:agent && npm run test:tui && npx tsx tests/main.test.ts && npx tsx tests/session-switching.test.ts && npx tsx tests/config-validation.test.ts && npx tsx tests/e2e.test.ts && npx tsx tests/slash-commands.test.ts",
-    "test:agent": "cd packages/agent && npm test",
-    "test:tui": "cd packages/tui && npm test",
-    "coverage": "c8 --reporter=html --reporter=text npm test",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck",
     "prepare": "npm run build",
@@ -25,15 +21,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "^0.68.0",
-    "@mariozechner/pi-coding-agent": "^0.68.0",
-    "@mariozechner/pi-tui": "^0.68.0",
-    "@mariozechner/pi-agent-core": "^0.68.0",
-    "@piclaw/pi-agent": "workspace:*",
-    "@piclaw/pi-tui": "workspace:*",
-    "@sinclair/typebox": "^0.32.0",
-    "commander": "^12.0.0",
-    "prom-client": "^14.2.0"
+    "@mariozechner/pi-coding-agent": "^0.70.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
