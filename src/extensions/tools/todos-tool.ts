@@ -18,12 +18,13 @@ export function registerTodosTool(api: ExtensionAPI): void {
   const tool: any = {
     name: "todos",
     label: "Todos",
-    description: "Manage a todo list. Provide new items to add, or call without items to list current todos.",
-    promptSnippet: "Use `todos` to keep track of tasks and check progress.",
+    description: "Manage a todo list. Omit items to list todos, provide items array to add new tasks.",
+    promptSnippet: "Manage a todo list (add/list tasks)",
     promptGuidelines: [
-      "Call todos with items to add new tasks.",
-      "Call todos without items to see the current list.",
-      "Mark tasks as done by noting progress in your response; todos are simple items without state."
+      "Add: todos({ items: [\"Task 1\", \"Task 2\"] })",
+      "List: todos() → returns numbered list (1. Task 1, 2. Task 2)",
+      "Mark tasks as done in your response; todos are simple items without a 'done' flag.",
+      "Use todos to track multi-step work and show progress."
     ],
     parameters: {
       type: "object",
