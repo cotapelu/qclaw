@@ -7,7 +7,7 @@
 
 import type {
   ExtensionAPI,
-  ExtensionCommandContext,
+  ProviderConfig,
 } from "@mariozechner/pi-coding-agent";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -27,70 +27,45 @@ function loadConfig(): Record<string, unknown> {
 }
 
 export default function (api: ExtensionAPI) {
-  // /config - show piclaw configuration
-  api.registerCommand("config", {
-    description: "Show Piclaw configuration",
-    handler: async (args, ctx) => {
-      const config = loadConfig();
-      const message = `Piclaw config:\n\`\`\`json\n${JSON.stringify(config, null, 2)}\n\`\`\`\n\nEdit: ${CONFIG_PATH}`;
-      if (ctx.ui) {
-        ctx.ui.notify(message, "info");
-      } else {
-        api.sendMessage({
-          customType: "piclaw-config",
-          content: message,
-          display: true,
-          details: config,
-        });
-      }
-    },
-  });
+  // ============================================================================
+  // CUSTOM PROVIDER REGISTRATION
+  // Add providers here to make them available in /login → "Use an API key"
+  // ============================================================================
 
-  // /tools - show allowed tools
-  api.registerCommand("tools", {
-    description: "Show allowed tools for this session",
-    handler: async (args, ctx) => {
-      const tools = api.getActiveTools();
-      const message = `Active tools (${tools.length}): ${tools.join(", ")}`;
-      if (ctx.ui) {
-        ctx.ui.notify(message, "info");
-      } else {
-        api.sendMessage({
-          customType: "piclaw-tools",
-          content: message,
-          display: true,
-          details: { tools },
-        });
-      }
-    },
-  });
-
-  // /piclaw-status - show piclaw and session status
-  api.registerCommand("piclaw-status", {
-    description: "Show Piclaw status and current settings",
-    handler: async (args, ctx) => {
-      const config = loadConfig();
-      const model = ctx.model;
-      const thinking = api.getThinkingLevel();
-      const activeTools = api.getActiveTools();
-      const content = [
-        `## Piclaw Status`,
-        `- **Model**: ${model?.id ?? "none"}`,
-        `- **Thinking**: ${thinking}`,
-        `- **Active tools**: ${activeTools.join(", ")}`,
-        `- **Config file**: ${CONFIG_PATH}`,
-        `\`\`\`json\n${JSON.stringify(config, null, 2)}\n\`\`\``,
-      ].join("\n");
-
-      if (ctx.ui) {
-        ctx.ui.notify(content, "info");
-      }
-      api.sendMessage({
-        customType: "piclaw-status",
-        content,
-        display: true,
-        details: { config, model, thinking, activeTools },
-      });
-    },
-  });
+  // Kilo Gateway (OpenAI-compatible)
+  // Set KILO_API_KEY environment variable, or enter via /login
+  api.registerProvider("kilo", {
+    baseUrl: "https://api.kilo.ai/v1",
+    apiKey: "KILO_API_KEY",
+    api: "openai-completions",
+    models: [
+      {
+        id: "qwen/qwen3.5-397b-a17b",
+        name: "Qwen3.5 397B (Kilo)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: { input: 0.39, output: 2.34, cacheRead: 0.1, cacheWrite: 0 },
+        contextWindow: 262144,
+        maxTokens: 65536,
+      },
+      {
+        id: "stepfun/step-3.5-flash",
+        name: "Step 3.5 Flash (Kilo)",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0.1, output: 0.3, cacheRead: 0.02, cacheWrite: 0 },
+        contextWindow: 256000,
+        maxTokens: 256000,
+      },
+      {
+        id: "x-ai/grok-4",
+        name: "Grok 4 (Kilo)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: { input: 3, output: 15, cacheRead: 0.75, cacheWrite: 0 },
+        contextWindow: 256000,
+        maxTokens: 51200,
+      },
+    ],
+  } as ProviderConfig);
 }

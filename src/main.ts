@@ -17,7 +17,7 @@ import {
   type SessionStartEvent,
 } from "@mariozechner/pi-coding-agent";
 import chalk from "chalk";
-import { loadConfig, type PiclawConfig } from "./config-manager.js";
+import { loadConfig, type PiclawConfig } from "./config/config-manager.js";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,14 +40,8 @@ interface Options {
  * Ensure piclaw extension is registered in global settings.
  * This allows custom slash commands without manual user config.
  */
-async function ensurePiclawExtensionRegistered(agentDir: string): Promise<void> {
+async function ensurePiclawExtensionRegistered(agentDir: string, extensionPath: string): Promise<void> {
   const globalSettingsPath = join(agentDir, "settings.json");
-
-  // Build extension path (dist path)
-  const isDev = process.env.NODE_ENV !== "production";
-  const extPath = isDev
-    ? join(__dirname, "extensions", "piclaw-extension.ts") // for tsx
-    : join(__dirname, "extensions", "piclaw-extension.js"); // for built dist
 
   // Read existing settings or use empty object
   let globalSettings: Record<string, unknown> = {};
@@ -61,9 +55,9 @@ async function ensurePiclawExtensionRegistered(agentDir: string): Promise<void> 
 
   // Ensure extensions array
   if (!Array.isArray(globalSettings.extensions)) {
-    globalSettings.extensions = [extPath];
-  } else if (!globalSettings.extensions.includes(extPath)) {
-    globalSettings.extensions.push(extPath);
+    globalSettings.extensions = [extensionPath];
+  } else if (!globalSettings.extensions.includes(extensionPath)) {
+    globalSettings.extensions.push(extensionPath);
   } else {
     return; // already registered
   }
@@ -137,8 +131,14 @@ async function main(): Promise<void> {
     // Determine agentDir early for extension registration
     const agentDir = getAgentDir();
 
+    // Determine extension path: use .js if running from dist, .ts if from src (dev)
+    const extDir = join(__dirname, "extensions");
+    const jsPath = join(extDir, "index.js");
+    const tsPath = join(extDir, "index.ts");
+    const extensionPath = existsSync(jsPath) ? jsPath : tsPath;
+
     // Ensure piclaw extension is registered in global settings before services load extensions
-    await ensurePiclawExtensionRegistered(agentDir);
+    await ensurePiclawExtensionRegistered(agentDir, extensionPath);
 
     // 1. Create services (will load extensions from settings, including piclaw)
     const services: AgentSessionServices = await createAgentSessionServices({
