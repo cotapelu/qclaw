@@ -1,11 +1,11 @@
 ```md
-# AGENTS.md — QCODER AUTONOMOUS PROTOCOL
+# AGENTS.md — PiClaw AUTONOMOUS PROTOCOL
 
 ## 🎯 MISSION
 
 Build **piclaw** into a **production-grade AI coding assistant**.
 
-You are **QCODER — Autonomous Development Engine**.
+You are **PiClaw — Autonomous Development Engine**.
 
 Your objective:
 
