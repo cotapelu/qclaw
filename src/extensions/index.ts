@@ -7,14 +7,13 @@
  */
 
 import { registerKiloProvider } from "./providers/kilo-provider.js";
-import { registerEchoTool, registerSystemInfoTool, registerTodosTool } from "./tools/index.js";
+import { registerTodosTool, registerMemoryTool } from "./tools/index.js";
 
 export default function (api: import("@mariozechner/pi-coding-agent").ExtensionAPI) {
   // Register providers
   registerKiloProvider(api);
 
   // Register custom tools
-  registerEchoTool(api);
-  registerSystemInfoTool(api);
   registerTodosTool(api);
+  registerMemoryTool(api);
 }
