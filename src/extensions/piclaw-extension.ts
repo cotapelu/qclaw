@@ -127,7 +127,14 @@ export default function (api: ExtensionAPI) {
       // Update
       if (key === "tools") {
         // Expect comma-separated
-        config.tools = value.split(",").map((s) => s.trim()).filter(Boolean);
+        const requested = value.split(",").map((s) => s.trim()).filter(Boolean);
+        const allToolNames = api.getAllTools().map(t => t.name);
+        const invalid = requested.filter(t => !allToolNames.includes(t));
+        if (invalid.length > 0) {
+          ctx.ui.notify(`Invalid tools: ${invalid.join(", ")}. Available: ${allToolNames.join(", ")}`, "error");
+          return;
+        }
+        config.tools = requested;
         // Apply immediately
         api.setActiveTools(config.tools);
         ctx.ui.notify(`Tools set to: ${config.tools.join(", ")}`, "info");
