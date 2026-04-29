@@ -18,7 +18,7 @@ import {
 import { getAgentDir, VERSION } from "./config.js";
 import chalk from "chalk";
 import { loadConfig, saveConfig, type PiclawConfig } from "./config/config-manager.js";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -42,6 +42,12 @@ interface Options {
  */
 async function ensurePiclawExtensionRegistered(agentDir: string, extensionPath: string): Promise<void> {
   const globalSettingsPath = join(agentDir, "settings.json");
+
+  // Ensure the agent directory exists
+  const agentDirPath = dirname(globalSettingsPath);
+  if (!existsSync(agentDirPath)) {
+    mkdirSync(agentDirPath, { recursive: true });
+  }
 
   // Read existing settings or use empty object
   let globalSettings: Record<string, unknown> = {};
