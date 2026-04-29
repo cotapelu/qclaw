@@ -11,12 +11,11 @@ import {
   SessionManager,
   AgentSessionRuntime,
   InteractiveMode,
-  getAgentDir,
-  VERSION,
   type CreateAgentSessionRuntimeResult,
   type AgentSessionServices,
   type SessionStartEvent,
 } from "@mariozechner/pi-coding-agent";
+import { getAgentDir, VERSION } from "./config.js";
 import chalk from "chalk";
 import { loadConfig, saveConfig, type PiclawConfig } from "./config/config-manager.js";
 import { existsSync, readFileSync, writeFileSync } from "fs";
