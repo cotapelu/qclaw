@@ -234,18 +234,6 @@ describe('todos tool', () => {
     });
   });
 
-  // ============================================================================
-  // Command & Event Registration Tests
-  // ============================================================================
-
-  it('should register /todos command with handler', () => {
-    registerTodosTool(mockApi);
-    expect(mockApi.registerCommand).toHaveBeenCalledWith('todos', {
-      description: 'Interactive todo list viewer (filter, sort, toggle)',
-      handler: expect.any(Function),
-    });
-  });
-
   it('should register session event listeners for state reconstruction', () => {
     registerTodosTool(mockApi);
     expect(mockApi.on).toHaveBeenCalledWith('session_start', expect.any(Function));

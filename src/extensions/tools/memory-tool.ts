@@ -243,5 +243,4 @@ export function registerMemoryTool(api: ExtensionAPI): void {
   };
 
   api.registerTool(tool);
-
-
+}

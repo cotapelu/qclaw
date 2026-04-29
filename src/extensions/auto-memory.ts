@@ -30,5 +30,4 @@ Memory Tool Usage:
       systemPrompt: enhancedPrompt,
     };
   });
-
-
+}

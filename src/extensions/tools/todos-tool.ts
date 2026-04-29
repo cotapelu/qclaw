@@ -468,5 +468,4 @@ export function registerTodosTool(api: ExtensionAPI): void {
   };
 
   api.registerTool(tool);
-
-
+}

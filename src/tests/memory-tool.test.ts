@@ -151,14 +151,6 @@ describe('memory tool', () => {
     expect((result.details as any).memories[0].tags).toContain('work');
   });
 
-  it('should register /memory command', () => {
-    registerMemoryTool(mockApi);
-    expect(mockApi.registerCommand).toHaveBeenCalledWith('memory', {
-      description: 'Interactive memory viewer',
-      handler: expect.any(Function),
-    });
-  });
-
   it('should register session event listeners', () => {
     registerMemoryTool(mockApi);
     expect(mockApi.on).toHaveBeenCalledWith('session_start', expect.any(Function));
