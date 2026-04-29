@@ -122,14 +122,14 @@ On startup, Piclaw:
 
 ## Extension Architecture
 
-Piclaw's custom extension is automatically registered by writing its path to the global settings file (`~/.pi/agent/settings.json`). This happens on every startup (if not already present).
+Piclaw's custom extension is automatically registered by writing its path to the global settings file (`~/.piclaw/agent/settings.json`). This happens on every startup (if not already present).
 
 To create your own extension, place a `.ts` or `.js` file in:
 - Global: `~/.pi/agent/extensions/`
 - Project: `<project>/.pi/extensions/`
 
-See examples in `llm-context/pi-mono/packages/coding-agent/examples/extensions/`.
+See examples in `llm-context/packages/coding-agent/examples/extensions/`.
 
 ## License
 
-MIT
+APACHE

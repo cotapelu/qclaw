@@ -72,7 +72,7 @@ import { x } from "@mariozechner/pi-coding-agent"
 #### Reasoning (LLM understanding)
 
 ```
-llm-context/pi-mono/
+llm-context/
 ```
 
 ✔ Full source code
@@ -101,7 +101,6 @@ piclaw/
 ├─ src/                  ← Application code
 ├─ node_modules/         ← Runtime dependencies
 ├─ llm-context/          ← Source for reasoning ONLY
-│  └─ pi-mono/
 └─ package.json
 ```
 
@@ -189,7 +188,7 @@ git reset --hard HEAD
 ### Step 1 — Locate
 
 ```
-llm-context/pi-mono/packages/<package>/
+llm-context/packages/<package>/
 ```
 
 ---
