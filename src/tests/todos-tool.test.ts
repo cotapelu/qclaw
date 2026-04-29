@@ -9,6 +9,7 @@ const createMockApi = () => ({
   appendEntry: vi.fn(),
   on: vi.fn(),
   registerCommand: vi.fn(),
+  registerMessageRenderer: vi.fn(),
 });
 
 // Mock Context

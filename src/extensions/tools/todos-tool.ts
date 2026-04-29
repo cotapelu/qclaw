@@ -487,4 +487,54 @@ export function registerTodosTool(api: ExtensionAPI): void {
   };
 
   api.registerTool(tool);
+
+  // After any CRUD operation on todos, show updated todo list
+  api.on("tool_execution_end", async (event, ctx) => {
+    if (event.toolName === "todos") {
+      const result = event.result as any;
+      const details = result?.details as TodoDetails | undefined;
+      if (details && ["add", "toggle", "delete", "clear"].includes(details.action)) {
+        // Build todo list summary
+        const { action, todos: todoList, stats } = details;
+        const pending = stats?.pending ?? todoList.filter(t => !t.done).length;
+        const total = stats?.total ?? todoList.length;
+        
+        // Build message with todo details
+        let msg = `[System: Todo ${action}] Updated: ${pending}/${total} pending\n`;
+        const maxShow = 20;
+        const show = todoList.slice(-maxShow);
+        for (const t of show) {
+          const check = t.done ? "✓" : "○";
+          const prio = t.priority ? `[${t.priority[0].toUpperCase()}]` : "";
+          const due = t.due ? `📅${t.due}` : "";
+          msg += `${check} #${t.id} ${prio} ${due} ${t.text}\n`;
+        }
+        if (todoList.length > maxShow) {
+          msg += `...and ${todoList.length - maxShow} more.\n`;
+        }
+        
+        // Show user notification
+        if (ctx.ui) {
+          ctx.ui.notify(`Todo ${action}: ${pending}/${total} remaining`, "info");
+        }
+
+        // Send message to trigger LLM with full todo list
+        try {
+          api.sendMessage({
+            customType: "todo_auto_suggestion",
+            content: msg,
+            display: true,
+          }, { triggerTurn: true });
+        } catch (err) {
+          // Ignore if turn already in progress
+        }
+      }
+    }
+  });
+
+  // Render the auto-suggestion message with an icon
+  api.registerMessageRenderer("todo_auto_suggestion", (msg, _opts, theme) => {
+    const content = (msg.content as string) || "";
+    return new Text(theme.fg("accent", `💡 ${content}`), 0, 0);
+  });
 }
