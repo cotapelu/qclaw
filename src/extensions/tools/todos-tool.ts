@@ -3,10 +3,11 @@
 /**
  * Todos Tool - Stateful Todo List Management
  *
- * Features: Full CRUD, state reconstruction, custom rendering, interactive /todos
+ * Features: Full CRUD, state reconstruction, custom rendering
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { Type, StringEnum } from "@mariozechner/pi-ai";
 import { matchesKey, Text, truncateToWidth } from "@mariozechner/pi-tui";
 
 // ============================================================================
@@ -38,8 +39,16 @@ export interface TodoDetails {
   targetId?: number;
 }
 
+const TodoParams = Type.Object({
+  action: StringEnum(["list", "add", "toggle", "clear", "delete"] as const),
+  items: Type.Optional(Type.Array(Type.String(), { description: "Todo texts (for add)" })),
+  id: Type.Optional(Type.Number({ description: "Todo ID (for toggle/delete)" })),
+  priority: Type.Optional(StringEnum(["low", "medium", "high", "critical"] as const)),
+  due: Type.Optional(Type.String({ description: "Due date in ISO format (YYYY-MM-DD)" })),
+});
+
 // ============================================================================
-// Custom UI Component for /todos command
+// Custom UI Component for Todo display
 // ============================================================================
 
 class TodoListComponent {
@@ -65,13 +74,11 @@ class TodoListComponent {
       return;
     }
     if (matchesKey(data, "ctrl+a")) {
-      // Clear all filters
       this.filter = {};
       this.invalidate();
       return;
     }
     if (matchesKey(data, "ctrl+d")) {
-      // Toggle done filter
       if (this.filter.done === true) {
         this.filter.done = undefined;
       } else {
@@ -81,7 +88,6 @@ class TodoListComponent {
       return;
     }
     if (matchesKey(data, "ctrl+p")) {
-      // Toggle pending filter
       if (this.filter.done === false) {
         this.filter.done = undefined;
       } else {
@@ -91,7 +97,6 @@ class TodoListComponent {
       return;
     }
     if (matchesKey(data, "ctrl+shift+p")) {
-      // Cycle priority filter
       const priorities: Priority[] = ["low", "medium", "high", "critical"];
       const current = this.filter.priority;
       if (current === undefined) {
@@ -104,7 +109,6 @@ class TodoListComponent {
       return;
     }
     if (matchesKey(data, "ctrl+s")) {
-      // Cycle sort
       const sorts: Array<"id" | "priority" | "due"> = ["id", "priority", "due"];
       const idx = sorts.indexOf(this.sortBy);
       this.sortBy = idx < sorts.length - 1 ? sorts[idx + 1] : sorts[0];
@@ -116,23 +120,19 @@ class TodoListComponent {
   private getFilteredAndSorted(): Todo[] {
     let result = this.todos;
 
-    // Apply search query
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase();
       result = result.filter(t => t.text.toLowerCase().includes(q));
     }
 
-    // Apply done/pending filter
     if (this.filter.done !== undefined) {
       result = result.filter(t => t.done === this.filter.done);
     }
 
-    // Apply priority filter
     if (this.filter.priority) {
       result = result.filter(t => t.priority === this.filter.priority);
     }
 
-    // Apply sort
     const sorted = [...result].sort((a, b) => {
       switch (this.sortBy) {
         case "priority": {
@@ -177,15 +177,12 @@ class TodoListComponent {
     if (total === 0) {
       lines.push(truncateToWidth(`  ${th.fg("dim", "No todos yet. Ask the agent to add some!")}`, width));
     } else {
-      // Statistics
       lines.push(truncateToWidth(`  ${th.fg("muted", `${total} total, ${done} ✓, ${pending} pending`)}`, width));
 
-      // Search query
       if (this.searchQuery) {
         lines.push(truncateToWidth(`  Search: ${th.fg("accent", this.searchQuery)}`, width));
       }
 
-      // Filter status
       const filterParts: string[] = [];
       if (this.filter.done === true) filterParts.push(th.fg("success", "Done"));
       if (this.filter.done === false) filterParts.push(th.fg("warning", "Pending"));
@@ -194,7 +191,6 @@ class TodoListComponent {
         lines.push(truncateToWidth(`  Filter: ${filterParts.join(", ")}`, width));
       }
 
-      // Sort status
       lines.push(truncateToWidth(`  Sort: ${this.sortBy} (Ctrl+S to cycle)`, width));
       lines.push("");
 
@@ -238,6 +234,10 @@ class TodoListComponent {
   }
 }
 
+// ============================================================================
+// Tool Registration
+// ============================================================================
+
 export function registerTodosTool(api: ExtensionAPI): void {
   let todos: Todo[] = [];
   let nextId = 1;
@@ -271,7 +271,7 @@ export function registerTodosTool(api: ExtensionAPI): void {
       "Use todos to track multi-step work and show progress.",
       "Extended: toggle (id), delete (id), clear, priority (low/medium/high/critical), due (ISO date)",
     ],
-    parameters: {},
+    parameters: TodoParams,
 
     async execute(_toolCallId, params: any, _signal, _onUpdate, _ctx) {
       const action = params.action as "list" | "add" | "toggle" | "clear" | "delete";
@@ -295,13 +295,33 @@ export function registerTodosTool(api: ExtensionAPI): void {
           if (todos.length === 0) {
             return { content: [{ type: "text", text: "No todos yet." }], details, isError: false };
           }
-          const lines = todos.map(t => {
-            const status = t.done ? "✓" : "○";
-            const prio = t.priority ? `[${t.priority[0].toUpperCase()}]` : "";
-            const due = t.due ? `📅${new Date(t.due).toLocaleDateString()}` : "";
-            return `[${status}] #${t.id}: ${t.text} ${prio} ${due}`.trim();
-          });
-          return { content: [{ type: "text", text: lines.join("\n") }], details, isError: false };
+          // Build multiline output
+          const th = {
+            fg: (color: string, text: string) => text,
+            bold: (text: string) => text,
+            dim: (text: string) => text,
+            muted: (text: string) => text,
+            accent: (text: string) => text,
+            success: (text: string) => text,
+            warning: (text: string) => text,
+            error: (text: string) => text,
+          };
+          let out = "✓ " + ` ${todos.length} todos (${stats?.done || 0} done)`;
+          out += "\n";
+          const maxShow = 100;
+          const show = todos.slice(0, maxShow);
+          for (const t of show) {
+            const check = t.done ? "✓" : "○";
+            const id = `#${t.id}`;
+            const priorityText = t.priority ? `[${t.priority[0].toUpperCase()}]` : "";
+            const dueText = t.due ? `📅${new Date(t.due).toLocaleDateString()}` : "";
+            const text = t.text;
+            out += `${check} ${id} ${priorityText} ${dueText} ${text}\n`;
+          }
+          if (todos.length > maxShow) {
+            out += `...and ${todos.length - maxShow} more.\n`;
+          }
+          return { content: [{ type: "text", text: out.trim() }], details, isError: false };
         }
 
         case "add": {
@@ -415,18 +435,17 @@ export function registerTodosTool(api: ExtensionAPI): void {
             return new Text(th.fg("dim", "No todos"), 0, 0);
           }
           let out = th.fg("success", "✓") + th.fg("muted", ` ${todosList.length} todos (${stats?.done || 0} done)`);
-          if (options.expanded) {
-            out += "\n";
-            const show = todosList.slice(0, 10);
-            for (const t of show) {
-              const check = t.done ? th.fg("success", "✓") : th.fg("dim", "○");
-              const prio = t.priority ? th.fg(t.priority === 'critical' ? "error" : t.priority === 'high' ? "warning" : "muted", `[${t.priority[0].toUpperCase()}]`) : "";
-              const due = t.due ? th.fg("accent", `📅${new Date(t.due).toLocaleDateString()}`) : "";
-              out += `\n${check} ${th.fg("accent", `#${t.id}`)} ${prio} ${due} ${th.fg(t.done ? "dim" : "text", t.text)}`;
-            }
-            if (todosList.length > 10) {
-              out += `\n${th.fg("dim", `...and ${todosList.length - 10} more`)}`;
-            }
+          out += "\n";
+          const maxShow = 100;
+          const show = todosList.slice(0, maxShow);
+          for (const t of show) {
+            const check = t.done ? th.fg("success", "✓") : th.fg("dim", "○");
+            const prio = t.priority ? th.fg(t.priority === 'critical' ? "error" : t.priority === 'high' ? "warning" : "muted", `[${t.priority[0].toUpperCase()}]`) : "";
+            const due = t.due ? th.fg("accent", `📅${new Date(t.due).toLocaleDateString()}`) : "";
+            out += `\n${check} ${th.fg("accent", `#${t.id}`)} ${prio} ${due} ${th.fg(t.done ? "dim" : "text", t.text)}`;
+          }
+          if (todosList.length > maxShow) {
+            out += `\n${th.fg("dim", `...and ${todosList.length - maxShow} more.`)}`;
           }
           return new Text(out, 0, 0);
         }
