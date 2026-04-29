@@ -12,12 +12,13 @@ import {
   AgentSessionRuntime,
   InteractiveMode,
   getAgentDir,
+  VERSION,
   type CreateAgentSessionRuntimeResult,
   type AgentSessionServices,
   type SessionStartEvent,
 } from "@mariozechner/pi-coding-agent";
 import chalk from "chalk";
-import { loadConfig, type PiclawConfig } from "./config/config-manager.js";
+import { loadConfig, saveConfig, type PiclawConfig } from "./config/config-manager.js";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,8 +71,7 @@ async function ensurePiclawExtensionRegistered(agentDir: string, extensionPath: 
   }
 }
 
-function parseOptions(): { opts: Options; cliOverrides: PiclawConfig } {
-  const args = process.argv.slice(2);
+function parseOptions(args: string[]): { opts: Options; cliOverrides: PiclawConfig } {
   const opts: Options = {};
   const cliOverrides: PiclawConfig = {};
 
@@ -117,15 +117,66 @@ Options:
   return { opts, cliOverrides };
 }
 
-async function main(): Promise<void> {
-  const { opts, cliOverrides } = parseOptions();
+/**
+ * Validate required API keys for configured providers.
+ * Checks environment variables and warns user if missing.
+ */
+function validateApiKeys(config: PiclawConfig): void {
+  const warnings: string[] = [];
+
+  // Check model provider API keys if model is specified
+  if (config.model) {
+    const [provider] = config.model.split(":");
+    switch (provider) {
+      case "kilo":
+        if (!process.env.KILO_API_KEY) {
+          warnings.push(
+            "KILO_API_KEY environment variable is not set. " +
+            "Set it with: export KILO_API_KEY=your_api_key"
+          );
+        }
+        break;
+      case "anthropic":
+        if (!process.env.ANTHROPIC_API_KEY) {
+          warnings.push(
+            "ANTHROPIC_API_KEY environment variable is not set. " +
+            "Set it with: export ANTHROPIC_API_KEY=your_api_key"
+          );
+        }
+        break;
+      case "openai":
+        if (!process.env.OPENAI_API_KEY) {
+          warnings.push(
+            "OPENAI_API_KEY environment variable is not set. " +
+            "Set it with: export OPENAI_API_KEY=your_api_key"
+          );
+        }
+        break;
+    }
+  }
+
+  // Display warnings
+  if (warnings.length > 0) {
+    console.log(chalk.yellow("\n⚠️  API Key Warnings:"));
+    for (const warning of warnings) {
+      console.log(chalk.yellow(`  - ${warning}`));
+    }
+    console.log();
+  }
+}
+
+async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+  const { opts, cliOverrides } = parseOptions(args);
   const cwd = opts.cwd ?? process.cwd();
 
   // Load persistent config and merge with CLI overrides
   const config: PiclawConfig = loadConfig(cliOverrides);
   opts.config = config;
 
-  console.log(chalk.dim("Initializing PiClaw..."));
+  // Validate API keys for configured providers
+  validateApiKeys(config);
+
+  console.log(chalk.dim(`PiClaw v${VERSION} - Initializing...`));
 
   try {
     // Determine agentDir early for extension registration
@@ -223,8 +274,29 @@ async function main(): Promise<void> {
 
     await interactive.run();
   } catch (error: any) {
-    console.error(chalk.red("Failed to start:"), error.message);
-    if (config.verbose) console.error(error);
+    console.error(chalk.red("\n❌ Failed to start PiClaw:"));
+    
+    // Provide helpful error messages based on error type
+    if (error.message?.includes("ENOENT")) {
+      console.error(chalk.yellow("  → A required file or directory was not found."));
+    } else if (error.message?.includes("EACCES") || error.message?.includes("permission")) {
+      console.error(chalk.yellow("  → Permission denied. Check file permissions."));
+    } else if (error.message?.includes("API key") || error.message?.includes("api key")) {
+      console.error(chalk.yellow("  → Missing or invalid API key. Check environment variables."));
+    } else if (error.message?.includes("network") || error.message?.includes("ECONNREFUSED")) {
+      console.error(chalk.yellow("  → Network error. Check your internet connection."));
+    } else if (error.message?.includes("timeout")) {
+      console.error(chalk.yellow("  → Request timed out. Try again later."));
+    }
+    
+    console.error(chalk.dim(`\n  Error: ${error.message}`));
+    
+    if (config.verbose) {
+      console.error(error);
+    } else {
+      console.error(chalk.dim("\n  Run with --verbose for more details."));
+    }
+    
     process.exit(1);
   }
 }
@@ -233,3 +305,6 @@ main().catch((err) => {
   console.error(chalk.red("Fatal error:"), err);
   process.exit(1);
 });
+
+// Export for programmatic usage (e.g., from cli.ts or tests)
+export { main };

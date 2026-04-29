@@ -29,7 +29,7 @@ export function registerEchoTool(api: ExtensionAPI): void {
       },
       required: ["message"],
     },
-    execute: async (toolCallId, params, signal, onUpdate, ctx) => {
+    execute: async (toolCallId: string, params: any, signal: AbortSignal | undefined, onUpdate: any, ctx: any) => {
       const message = (params as any).message;
       return {
         content: [{ type: "text", text: `Echo: ${message}` }],

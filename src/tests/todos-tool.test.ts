@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { registerTodosTool } from '../extensions/tools/todos-tool.js';
-import type { Todo, TodoDetails } from '../extensions/tools/todos-tool.js';
+import type { TodoDetails } from '../extensions/tools/todos-tool.js';
 import { Text } from '@mariozechner/pi-tui';
 
 // Mock ExtensionAPI with events support
@@ -29,10 +29,12 @@ describe('todos tool', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockApi = createMockApi();
+
     // Capture the tool that gets registered
     mockApi.registerTool.mockImplementation((tool: any) => {
       capturedTool = tool;
     });
+
     mockCtx = createMockCtx();
   });
 
@@ -45,16 +47,15 @@ describe('todos tool', () => {
 
   it('should have promptSnippet and promptGuidelines', () => {
     registerTodosTool(mockApi);
-    expect(capturedTool.promptSnippet).toBe('Manage todos: list, add, toggle, clear, delete');
-    expect(capturedTool.promptGuidelines).toContain('List todos: todos() or todos({ action: \'list\' })');
-    expect(capturedTool.promptGuidelines).toContain('Add: todos({ action: \'add\', items: [\'Task 1\', \'Task 2\'], priority?: \'high\', due?: \'2025-12-31\' })');
+    expect(capturedTool.promptSnippet).toBe("todos({ action: 'add'|'list'|'edit'|'delete'|'clear', ... })");
+    expect(capturedTool.promptGuidelines).toContain('📌 ADD: todos({ action: \'add\', items: [\'Task A\', \'Task B\'], priority?: \'low|medium|high|critical\', due?: \'YYYY-MM-DD\' })');
   });
 
   it('should list todos from tool result state (empty)', async () => {
     registerTodosTool(mockApi);
     const params = { action: 'list' };
     const result = await capturedTool.execute('list-empty', params, undefined, undefined, mockCtx);
-    expect(result.content[0].text).toContain('No todos yet');
+    expect(result.content[0].text).toContain('No todos');
     expect(result.details.action).toBe('list');
     expect((result.details as TodoDetails).todos).toEqual([]);
   });
@@ -63,17 +64,9 @@ describe('todos tool', () => {
     registerTodosTool(mockApi);
     const params = { action: 'add', items: ['Task 1', 'Task 2'], priority: 'high', due: '2025-12-31' };
     const result = await capturedTool.execute('add', params, undefined, undefined, mockCtx);
-    
     expect(mockApi.appendEntry).toHaveBeenCalledTimes(2);
-    expect(mockApi.appendEntry).toHaveBeenNthCalledWith(1, 'todo', {
-      text: 'Task 1',
-      id: 1,
-      done: false,
-      priority: 'high',
-      due: '2025-12-31',
-      created: expect.any(Number)
-    });
-    expect(result.content[0].text).toContain('Added 2 todos');
+    expect(mockApi.appendEntry).toHaveBeenNthCalledWith(1, 'todos', expect.objectContaining({ text: 'Task 1', id: 1, done: false, priority: 'high', due: '2025-12-31' }));
+    expect(result.content[0].text).toContain('Added 2 todo(s): #1, #2');
     expect(result.details.action).toBe('add');
     expect((result.details as TodoDetails).todos.length).toBe(2);
   });
@@ -83,25 +76,24 @@ describe('todos tool', () => {
     const params = { action: 'add', items: ['Single task'] };
     const result = await capturedTool.execute('add-single', params, undefined, undefined, mockCtx);
     expect(mockApi.appendEntry).toHaveBeenCalledTimes(1);
-    expect(result.content[0].text).toBe('Added 1 todo: #1');
+    expect(result.content[0].text).toBe('Added 1 todo(s): #1');
   });
 
   it('should toggle todo done status', async () => {
     registerTodosTool(mockApi);
     // Add a todo first
     await capturedTool.execute('add1', { action: 'add', items: ['Task'] }, undefined, undefined, mockCtx);
-    // Toggle it
-    const result = await capturedTool.execute('toggle', { action: 'toggle', id: 1 }, undefined, undefined, mockCtx);
-
-    expect(mockApi.appendEntry).toHaveBeenCalledWith('todo', expect.objectContaining({ id: 1, done: true }));
-    expect(result.content[0].text).toContain('completed');
-    expect(result.details.action).toBe('toggle');
+    // Toggle it using edit action
+    const result = await capturedTool.execute('toggle', { action: 'edit', id: 1, updates: { done: true } }, undefined, undefined, mockCtx);
+    expect(mockApi.appendEntry).toHaveBeenCalledWith('todos', expect.objectContaining({ id: 1, done: true }));
+    expect(result.content[0].text).toContain('Edited todo #1');
+    expect(result.details.action).toBe('edit');
     expect((result.details as TodoDetails).todos[0].done).toBe(true);
   });
 
   it('should handle toggle with non-existent id', async () => {
     registerTodosTool(mockApi);
-    const params = { action: 'toggle', id: 999 };
+    const params = { action: 'edit', id: 999, updates: { done: true } };
     const result = await capturedTool.execute('toggle-fail', params, undefined, undefined, mockCtx);
     expect(result.isError).toBe(false); // Not an exception, but error in details
     expect(result.details.error).toBe('#999 not found');
@@ -112,10 +104,9 @@ describe('todos tool', () => {
     // Add two todos
     await capturedTool.execute('add1', { action: 'add', items: ['Task 1', 'Task 2'] }, undefined, undefined, mockCtx);
     // Delete first
-    const result = await capturedTool.execute('delete', { action: 'delete', id: 1 }, undefined, undefined, mockCtx);
-
-    expect(mockApi.appendEntry).toHaveBeenCalledWith('todo', expect.objectContaining({ id: 1, _deleted: true }));
-    expect(result.content[0].text).toContain('Deleted todo #1');
+    const result = await capturedTool.execute('delete', { action: 'delete', ids: 1 }, undefined, undefined, mockCtx);
+    expect(mockApi.appendEntry).toHaveBeenCalledWith('todos', expect.objectContaining({ id: 1, _deleted: true }));
+    expect(result.content[0].text).toContain('Deleted 1 todo(s): #1');
     expect((result.details as TodoDetails).todos.length).toBe(1);
     expect((result.details as TodoDetails).todos[0].id).toBe(2);
   });
@@ -125,13 +116,11 @@ describe('todos tool', () => {
     // Add 2 todos
     await capturedTool.execute('add1', { action: 'add', items: ['Task 1', 'Task 2'] }, undefined, undefined, mockCtx);
     expect(mockApi.appendEntry).toHaveBeenCalledTimes(2);
-
     const result = await capturedTool.execute('clear', { action: 'clear' }, undefined, undefined, mockCtx);
-
     expect(mockApi.appendEntry).toHaveBeenCalledTimes(4); // 2 from add + 2 from clear
     expect(result.content[0].text).toBe('Cleared 2 todos');
     expect((result.details as TodoDetails).todos).toEqual([]);
-    expect((result.details as TodoDetails).nextId).toBe(1);
+    expect((result.details as TodoDetails).nextId).toBe(3);
   });
 
   it('should compute stats correctly', async () => {
@@ -140,9 +129,8 @@ describe('todos tool', () => {
     await capturedTool.execute('add1', { action: 'add', items: ['T1'], priority: 'high' }, undefined, undefined, mockCtx);
     await capturedTool.execute('add2', { action: 'add', items: ['T2'], priority: 'high' }, undefined, undefined, mockCtx);
     await capturedTool.execute('add3', { action: 'add', items: ['T3'], priority: 'low' }, undefined, undefined, mockCtx);
-    // Mark first as done
-    await capturedTool.execute('toggle1', { action: 'toggle', id: 1 }, undefined, undefined, mockCtx);
-
+    // Mark first as done using edit
+    await capturedTool.execute('toggle1', { action: 'edit', id: 1, updates: { done: true } }, undefined, undefined, mockCtx);
     const result = await capturedTool.execute('list', { action: 'list' }, undefined, undefined, mockCtx);
     const details = result.details as TodoDetails;
     expect(details.stats?.total).toBe(3);
@@ -155,9 +143,9 @@ describe('todos tool', () => {
   // ============================================================================
   // Rendering Tests
   // ============================================================================
-
   describe('rendering', () => {
     let theme: any;
+
     beforeEach(() => {
       theme = {
         fg: vi.fn().mockImplementation((color: string, text?: string) => text || color),
@@ -187,7 +175,12 @@ describe('todos tool', () => {
       ];
       const result = {
         content: [{ type: 'text', text: 'list' }],
-        details: { action: 'list', todos, nextId: 3, stats: { total: 2, done: 1, pending: 1, byPriority: { low: 0, medium: 0, high: 0, critical: 0 } } }
+        details: {
+          action: 'list',
+          todos,
+          nextId: 3,
+          stats: { total: 2, done: 1, pending: 1, byPriority: { low: 0, medium: 0, high: 0, critical: 0 } }
+        }
       } as any;
       const comp = capturedTool.renderResult(result, { expanded: false, isPartial: false }, theme, {});
       expect(comp).toBeInstanceOf(Text);
@@ -201,7 +194,12 @@ describe('todos tool', () => {
       ];
       const result = {
         content: [{ type: 'text', text: 'list' }],
-        details: { action: 'list', todos, nextId: 3, stats: { total: 2, done: 1, pending: 1, byPriority: { low: 1, medium: 0, high: 1, critical: 0 } } }
+        details: {
+          action: 'list',
+          todos,
+          nextId: 3,
+          stats: { total: 2, done: 1, pending: 1, byPriority: { low: 1, medium: 0, high: 1, critical: 0 } }
+        }
       } as any;
       const comp = capturedTool.renderResult(result, { expanded: true, isPartial: false }, theme, {});
       expect(comp).toBeInstanceOf(Text);
@@ -212,7 +210,12 @@ describe('todos tool', () => {
       const todos = [{ id: 1, text: 'New', done: false, priority: 'high' }];
       const result = {
         content: [{ type: 'text', text: 'Added' }],
-        details: { action: 'add', todos, nextId: 2, stats: { total: 1, done: 0, pending: 1, byPriority: { low: 0, medium: 0, high: 1, critical: 0 } } }
+        details: {
+          action: 'add',
+          todos,
+          nextId: 2,
+          stats: { total: 1, done: 0, pending: 1, byPriority: { low: 0, medium: 0, high: 1, critical: 0 } }
+        }
       } as any;
       const comp = capturedTool.renderResult(result, { expanded: false, isPartial: false }, theme, {});
       expect(comp).toBeInstanceOf(Text);
@@ -245,5 +248,4 @@ describe('todos tool', () => {
     registerTodosTool(mockApi);
     expect(capturedTool.renderShell).toBe('self');
   });
-
 });

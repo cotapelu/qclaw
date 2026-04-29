@@ -645,7 +645,7 @@ export function registerTodosTool(api: ExtensionAPI): void {
       ids: Type.Optional(Type.Union([Type.Number(), Type.Array(Type.Number())])),
     }),
 
-    async execute(_toolCallId, params: any, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId: string, params: any, _signal: AbortSignal | undefined, _onUpdate: any, ctx: any) {
       const action = params.action as "list" | "add" | "edit" | "delete" | "clear";
 
       const makeDetails = (action: string, todos?: Todo[], targetId?: number, affectedIds?: number[], error?: string): TodoDetails => {

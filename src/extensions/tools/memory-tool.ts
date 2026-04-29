@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
+import { Type, StringEnum } from "@mariozechner/pi-ai";
 import { matchesKey, Text } from "@mariozechner/pi-tui";
 
 export interface Memory {
@@ -112,7 +113,7 @@ export function registerMemoryTool(api: ExtensionAPI): void {
     ],
     parameters: {},
 
-    async execute(_toolCallId, params: any, _signal, _onUpdate, _ctx) {
+    async execute(_toolCallId: string, params: any, _signal: AbortSignal | undefined, _onUpdate: any, _ctx: any) {
       const action = params.action as string;
 
       switch (action) {

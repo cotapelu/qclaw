@@ -24,7 +24,7 @@ Memory Tool Usage:
 `.trim();
 
     // Append to the current system prompt
-    const enhancedPrompt = event.systemPrompt + "\n\n" + memoryGuidelines;
+    const enhancedPrompt = `${event.systemPrompt  }\n\n${  memoryGuidelines}`;
 
     return {
       systemPrompt: enhancedPrompt,

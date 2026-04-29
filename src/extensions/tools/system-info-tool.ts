@@ -24,7 +24,7 @@ export function registerSystemInfoTool(api: ExtensionAPI): void {
       type: "object",
       properties: {},
     },
-    execute: async (toolCallId, params, signal, onUpdate, ctx) => {
+    execute: async (toolCallId: string, params: any, signal: AbortSignal | undefined, onUpdate: any, ctx: any) => {
       const cpuInfo = cpus();
       const result = {
         platform: platform(),
