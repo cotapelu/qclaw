@@ -131,11 +131,11 @@ async function main(): Promise<void> {
     // Determine agentDir early for extension registration
     const agentDir = getAgentDir();
 
-    // Determine extension path: use .js if running from dist, .ts if from src (dev)
-    const extDir = join(__dirname, "extensions");
-    const jsPath = join(extDir, "index.js");
-    const tsPath = join(extDir, "index.ts");
-    const extensionPath = existsSync(jsPath) ? jsPath : tsPath;
+    // Determine extension path: use .ts for dev (src), .js for production (dist)
+    const isDev = !existsSync(join(__dirname, "extensions", "index.js"));
+    const extensionPath = isDev
+      ? join(__dirname, "extensions", "index.ts")
+      : join(__dirname, "extensions", "index.js");
 
     // Ensure piclaw extension is registered in global settings before services load extensions
     await ensurePiclawExtensionRegistered(agentDir, extensionPath);
