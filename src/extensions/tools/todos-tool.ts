@@ -469,17 +469,4 @@ export function registerTodosTool(api: ExtensionAPI): void {
 
   api.registerTool(tool);
 
-  api.registerCommand("todos", {
-    description: "Interactive todo list viewer (filter, sort, toggle)",
-    handler: async (args: string, ctx: ExtensionContext) => {
-      if (!ctx.hasUI) {
-        ctx.ui.notify("/todos requires interactive mode", "error");
-        return;
-      }
-      const searchQuery = args.trim() || undefined;
-      await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
-        return new TodoListComponent(todos, theme, () => done(), searchQuery);
-      });
-    }
-  });
-}
+

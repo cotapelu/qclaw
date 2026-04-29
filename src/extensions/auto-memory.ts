@@ -31,20 +31,4 @@ Memory Tool Usage:
     };
   });
 
-  // Optional: Add a command to manually trigger memory search with a query
-  pi.registerCommand("mem", {
-    description: "Quick memory search: /mem <query>",
-    getArgumentCompletions: (prefix) => {
-      // Simple completion for recent queries? Not implemented.
-      return null;
-    },
-    handler: async (args, ctx) => {
-      if (!args.trim()) {
-        ctx.ui.notify("Usage: /mem <query>", "warning");
-        return;
-      }
-      // Queue a memory search tool call
-      pi.sendUserMessage(`memory({ action: 'search', query: '${args.trim()}' })`, { deliverAs: "steer" });
-    },
-  });
-}
+

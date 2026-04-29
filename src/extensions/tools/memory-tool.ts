@@ -244,16 +244,4 @@ export function registerMemoryTool(api: ExtensionAPI): void {
 
   api.registerTool(tool);
 
-  api.registerCommand("memory", {
-    description: "Interactive memory viewer",
-    handler: async (_args: string, ctx: ExtensionContext) => {
-      if (!ctx.hasUI) {
-        ctx.ui.notify("/memory requires interactive mode", "error");
-        return;
-      }
-      await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
-        return new MemoryListComponent(memories, theme, () => done());
-      });
-    }
-  });
-}
+
