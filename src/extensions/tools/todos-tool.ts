@@ -48,13 +48,15 @@ class TodoListComponent {
   private onClose: () => void;
   private filter: { done?: boolean; priority?: Priority } = {};
   private sortBy: "id" | "priority" | "due" = "id";
+  private searchQuery: string = "";
   private cachedWidth?: number;
   private cachedLines?: string[];
 
-  constructor(todos: Todo[], theme: any, onClose: () => void) {
+  constructor(todos: Todo[], theme: any, onClose: () => void, searchQuery?: string) {
     this.todos = todos;
     this.theme = theme;
     this.onClose = onClose;
+    this.searchQuery = searchQuery || "";
   }
 
   handleInput(data: string): void {
@@ -114,6 +116,12 @@ class TodoListComponent {
   private getFilteredAndSorted(): Todo[] {
     let result = this.todos;
 
+    // Apply search query
+    if (this.searchQuery) {
+      const q = this.searchQuery.toLowerCase();
+      result = result.filter(t => t.text.toLowerCase().includes(q));
+    }
+
     // Apply done/pending filter
     if (this.filter.done !== undefined) {
       result = result.filter(t => t.done === this.filter.done);
@@ -171,6 +179,11 @@ class TodoListComponent {
     } else {
       // Statistics
       lines.push(truncateToWidth(`  ${th.fg("muted", `${total} total, ${done} ✓, ${pending} pending`)}`, width));
+
+      // Search query
+      if (this.searchQuery) {
+        lines.push(truncateToWidth(`  Search: ${th.fg("accent", this.searchQuery)}`, width));
+      }
 
       // Filter status
       const filterParts: string[] = [];
@@ -458,13 +471,14 @@ export function registerTodosTool(api: ExtensionAPI): void {
 
   api.registerCommand("todos", {
     description: "Interactive todo list viewer (filter, sort, toggle)",
-    handler: async (_args: string, ctx: ExtensionContext) => {
+    handler: async (args: string, ctx: ExtensionContext) => {
       if (!ctx.hasUI) {
         ctx.ui.notify("/todos requires interactive mode", "error");
         return;
       }
+      const searchQuery = args.trim() || undefined;
       await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
-        return new TodoListComponent(todos, theme, () => done());
+        return new TodoListComponent(todos, theme, () => done(), searchQuery);
       });
     }
   });
