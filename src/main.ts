@@ -197,6 +197,7 @@ async function main(args: string[] = process.argv.slice(2)): Promise<void> {
     // 1. Create services (will load extensions from settings, including piclaw)
     const services: AgentSessionServices = await createAgentSessionServices({
       cwd,
+      agentDir, // Use piclaw's agentDir to keep consistent with our config
     });
 
     // 2. Create session manager
@@ -310,11 +311,6 @@ async function main(args: string[] = process.argv.slice(2)): Promise<void> {
     process.exit(1);
   }
 }
-
-main().catch((err) => {
-  console.error(chalk.red("Fatal error:"), err);
-  process.exit(1);
-});
 
 // Export for programmatic usage (e.g., from cli.ts or tests)
 export { main };
