@@ -7,6 +7,7 @@ import * as subTools from "./sub-tools/index.js";
 // ============================================================================
 
 const subToolNames = [
+  "get_schema",
   "bash", "ls", "find", "grep", "read",
   "git", "docker", "k8s", "ssh", "http",
   "aws", "terraform", "db", "kafka", "redis",
@@ -27,6 +28,9 @@ type SubToolName = typeof subToolNames[number];
 // ============================================================================
 
 const schemaMap: Record<string, any> = {
+  get_schema: Type.Object({
+    name: Type.String({ description: "Name of the subtool to get schema for (e.g., 'bash', 'ls', 'git')" }),
+  }),
   bash: subTools.bashSchema,
   ls: subTools.lsSchema,
   find: subTools.findSchema,
@@ -81,10 +85,67 @@ const schemaMap: Record<string, any> = {
 };
 
 // ============================================================================
+// Execute function: get_schema
+// ============================================================================
+
+async function executeGetSchema(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { name } = args as { name: string };
+  if (!name || !subToolNames.includes(name as any)) {
+    return {
+      content: [{ type: "text", text: `Unknown subtool: ${name}. Available: ${subToolNames.join(", ")}` }],
+      details: undefined,
+      isError: true,
+    } as const;
+  }
+  const schema = schemaMap[name];
+  if (!schema) {
+    return {
+      content: [{ type: "text", text: `Schema not found for subtool: ${name}` }],
+      details: undefined,
+      isError: true,
+    } as const;
+  }
+
+  // Generate human-readable description
+  let output = `Schema for subtool "${name}":\n\n`;
+
+  // Extract properties from TypeBox schema
+  const schemaAny = schema as any;
+  if (schemaAny.properties) {
+    output += "Properties:\n";
+    for (const [key, propSchema] of Object.entries(schemaAny.properties)) {
+      const prop = propSchema as any;
+      const isOptional = schemaAny.optionalProperties?.includes(key);
+      const type = prop.type || "any";
+      output += `- ${key}${isOptional ? "?" : ""}: ${prop.description || type}\n`;
+    }
+  }
+
+  if (schemaAny.required && Array.isArray(schemaAny.required) && schemaAny.required.length > 0) {
+    output += `\nRequired fields: ${schemaAny.required.join(", ")}\n`;
+  }
+
+  output += "\nExample invocation (JSON):\n";
+  output += `{\n  "subtool": "${name}",\n  "args": {\n    // fill with fields from above\n  }\n}\n`;
+
+  return {
+    content: [{ type: "text", text: output }],
+    details: undefined,
+    isError: false,
+  } as const;
+}
+
+// ============================================================================
 // Execute function map
 // ============================================================================
 
 const execMap: Record<string, (...args: any[]) => any> = {
+  get_schema: executeGetSchema,
   bash: subTools.executeBash,
   ls: subTools.executeLs,
   find: subTools.executeFind,
@@ -157,58 +218,18 @@ export function createSubLoaderToolDefinition(cwd: string) {
     )
   );
 
-  const description = `Unified tool for system operations. Select subtool and provide corresponding args.
-- bash: execute shell command
-- ls: list directory
-- find: find files by glob
-- grep: search file contents
-- read: read file
-- git: git commands
-- docker: docker CLI
-- k8s: kubectl
-- ssh: remote SSH execution
-- http: HTTP request (uses curl)
-- aws: AWS CLI
-- terraform: Terraform commands
-- db: SQL query (mysql, postgres, sqlite)
-- kafka: Kafka CLI
-- redis: redis-cli
-- make: make
-- npm: npm/yarn/pnpm
-- systemctl: systemd service control
-- journalctl: view system logs
-- ps: list processes
-- kill: terminate process
-- crontab: manage cron jobs
-- apt: Debian/Ubuntu package manager
-- yum: RHEL/CentOS package manager
-- df: disk space usage
-- du: directory sizes
-- ping: test connectivity
-- traceroute: trace network path
-- nslookup: DNS lookup
-- dig: advanced DNS query
-- wget: download files
-- tail: monitor log files
-- jq: JSON processor
-- yq: YAML processor
-- xmllint: XML validate/format
-- scp: secure copy
-- rsync: file synchronization
-- ffmpeg: multimedia conversion
-- update: system/package updates
-- backup: create compressed backups
-- password: generate secure passwords
-- weather: get weather info
-- time: date/time operations
-- ufw: firewall management
-- at: one-time scheduled tasks
-- quota: disk quota
-- iso: ISO image operations
-- free: memory usage
-- iostat: I/O statistics
-- netstat: network connections
-- ss: socket statistics`;
+  const description = `Universal system operations tool using TWO-STEP pattern:
+
+STEP 1: Get argument schema for a specific subtool
+  { "subtool": "get_schema", "args": { "name": "<subtool_name>" } }
+-> Returns: human-readable description of required and optional arguments.
+
+STEP 2: Execute the operation with validated arguments
+  { "subtool": "<subtool_name>", "args": { ... } }
+
+Available subtools: bash, ls, find, grep, read, git, docker, k8s, ssh, http, aws, terraform, db, kafka, redis, make, npm, systemctl, journalctl, ps, kill, crontab, apt, yum, df, du, ping, traceroute, nslookup, dig, wget, tail, jq, yq, xmllint, scp, rsync, ffmpeg, update, backup, password, weather, time, ufw, at, quota, iso, free, iostat, netstat, ss.
+
+Always call get_schema first to understand arguments, then invoke the actual subtool.`;
 
   // Render functions
   const renderCall = (args: any, theme: any, _context: any) => {
