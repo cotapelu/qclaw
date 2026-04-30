@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * PiClaw - CLI Entry Point
+ * Piclaw - CLI Entry Point
  * Using InteractiveMode from @mariozechner/pi-coding-agent
  */
 
@@ -38,7 +38,7 @@ async function main(args: string[] = process.argv.slice(2)): Promise<void> {
   // Validate API keys for configured providers
   validateApiKeys(config);
 
-  console.log(`PiClaw v${VERSION} - Initializing...`);
+  console.log(`Piclaw v${VERSION} - Initializing...`);
 
   try {
     // Determine agentDir early for extension registration
@@ -141,7 +141,7 @@ async function main(args: string[] = process.argv.slice(2)): Promise<void> {
 
     await interactive.run();
   } catch (error: any) {
-    console.error("\n❌ Failed to start PiClaw:");
+    console.error("\n❌ Failed to start Piclaw:");
 
     // Provide helpful error messages based on error type
     if (error.message?.includes("ENOENT")) {

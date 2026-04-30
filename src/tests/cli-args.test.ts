@@ -106,7 +106,7 @@ describe('parseOptions', () => {
       // Capture console.log to verify help text
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       expect(() => parseOptions(['--help'])).toThrow('process.exit(0)');
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('PiClaw CLI'));
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Piclaw CLI'));
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('--cwd'));
       logSpy.mockRestore();
     });

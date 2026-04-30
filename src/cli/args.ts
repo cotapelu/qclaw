@@ -68,7 +68,7 @@ export function parseOptions(args: string[]): { opts: Options; cliOverrides: Pic
  */
 function printHelp(): void {
   console.log(`
-PiClaw CLI - AI Coding Assistant
+Piclaw CLI - AI Coding Assistant
 
 Options:
   --cwd <path>       Working directory (default: process.cwd())

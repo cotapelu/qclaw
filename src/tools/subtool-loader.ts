@@ -213,23 +213,18 @@ export function createSubLoaderToolDefinition(cwd: string) {
     subToolNames.map((tool) =>
       Type.Object({
         subtool: Type.Literal(tool),
-        args: schemaMap[tool],
+        args: Type.Union([schemaMap[tool], Type.String()]),
       })
     )
   );
 
-  const description = `Universal system operations tool using TWO-STEP pattern:
+  const description = `Unified tool for system operations.
 
-STEP 1: Get argument schema for a specific subtool
-  { "subtool": "get_schema", "args": { "name": "<subtool_name>" } }
--> Returns: human-readable description of required and optional arguments.
-
-STEP 2: Execute the operation with validated arguments
-  { "subtool": "<subtool_name>", "args": { ... } }
+Use the "get_schema" subtool to see argument details for any subtool, then invoke that subtool with proper args.
 
 Available subtools: bash, ls, find, grep, read, git, docker, k8s, ssh, http, aws, terraform, db, kafka, redis, make, npm, systemctl, journalctl, ps, kill, crontab, apt, yum, df, du, ping, traceroute, nslookup, dig, wget, tail, jq, yq, xmllint, scp, rsync, ffmpeg, update, backup, password, weather, time, ufw, at, quota, iso, free, iostat, netstat, ss.
 
-Always call get_schema first to understand arguments, then invoke the actual subtool.`;
+Example: {"subtool":"bash","args":{"command":"echo hello"}}`;
 
   // Render functions
   const renderCall = (args: any, theme: any, _context: any) => {
@@ -269,6 +264,19 @@ Always call get_schema first to understand arguments, then invoke the actual sub
     parameters: schema,
     async execute(toolCallId: string, params: any, signal?: AbortSignal, onUpdate?: any, ctx?: any) {
       const { subtool, args } = params as { subtool: SubToolName; args: any };
+      // Parse args if it's a JSON string (LLM often sends stringified args)
+      let parsedArgs: any = args;
+      if (typeof args === 'string') {
+        try {
+          parsedArgs = JSON.parse(args);
+        } catch (e) {
+          return {
+            content: [{ type: "text", text: `Invalid JSON in args: ${args}` }],
+            details: undefined,
+            isError: true,
+          } as const;
+        }
+      }
       try {
         const execFn = execMap[subtool];
         if (!execFn) {
@@ -279,7 +287,7 @@ Always call get_schema first to understand arguments, then invoke the actual sub
           } as const;
         }
         const effectiveCwd = ctx?.cwd || cwd;
-        return await execFn(args, effectiveCwd, signal, ctx);
+        return await execFn(parsedArgs, effectiveCwd, signal, ctx);
       } catch (error: any) {
         return {
           content: [{ type: "text", text: `Error: ${error.message}` }],

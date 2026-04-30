@@ -3,7 +3,7 @@
 /**
  * Piclaw Extensions - Main Entry Point
  *
- * This file registers all custom extensions for PiClaw.
+ * This file registers all custom extensions for Piclaw.
  */
 
 import { registerKiloProvider } from "./providers/kilo-provider.js";
