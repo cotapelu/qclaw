@@ -1,6 +1,12 @@
 import { Type } from "typebox";
 import { Text } from "@mariozechner/pi-tui";
-import * as subTools from "./sub-tools/index.js";
+import {
+  createBashToolDefinition,
+  createLsToolDefinition,
+  createFindToolDefinition,
+  createGrepToolDefinition,
+  createReadToolDefinition,
+} from "@mariozechner/pi-coding-agent";
 
 // ============================================================================
 // SubTool list & type
@@ -24,65 +30,53 @@ const subToolNames = [
 type SubToolName = typeof subToolNames[number];
 
 // ============================================================================
-// Schema map
+// Caches
 // ============================================================================
 
-const schemaMap: Record<string, any> = {
-  get_schema: Type.Object({
-    name: Type.String({ description: "Name of the subtool to get schema for (e.g., 'bash', 'ls', 'git')" }),
-  }),
-  bash: subTools.bashSchema,
-  ls: subTools.lsSchema,
-  find: subTools.findSchema,
-  grep: subTools.grepSchema,
-  read: subTools.readSchema,
-  git: subTools.gitSchema,
-  docker: subTools.dockerSchema,
-  k8s: subTools.k8sSchema,
-  ssh: subTools.sshSchema,
-  http: subTools.httpSchema,
-  aws: subTools.awsSchema,
-  terraform: subTools.terraformSchema,
-  db: subTools.dbSchema,
-  kafka: subTools.kafkaSchema,
-  redis: subTools.redisSchema,
-  make: subTools.makeSchema,
-  npm: subTools.npmSchema,
-  systemctl: subTools.systemctlSchema,
-  journalctl: subTools.journalctlSchema,
-  ps: subTools.psSchema,
-  kill: subTools.killSchema,
-  crontab: subTools.crontabSchema,
-  apt: subTools.aptSchema,
-  yum: subTools.yumSchema,
-  df: subTools.dfSchema,
-  du: subTools.duSchema,
-  ping: subTools.pingSchema,
-  traceroute: subTools.tracerouteSchema,
-  nslookup: subTools.nslookupSchema,
-  dig: subTools.digSchema,
-  wget: subTools.wgetSchema,
-  tail: subTools.tailSchema,
-  jq: subTools.jqSchema,
-  yq: subTools.yqSchema,
-  xmllint: subTools.xmllintSchema,
-  scp: subTools.scpSchema,
-  rsync: subTools.rsyncSchema,
-  ffmpeg: subTools.ffmpegSchema,
-  update: subTools.updateSchema,
-  backup: subTools.backupSchema,
-  password: subTools.passwordSchema,
-  weather: subTools.weatherSchema,
-  time: subTools.timeSchema,
-  ufw: subTools.ufwSchema,
-  at: subTools.atSchema,
-  quota: subTools.quotaSchema,
-  iso: subTools.isoSchema,
-  free: subTools.freeSchema,
-  iostat: subTools.iostatSchema,
-  netstat: subTools.netstatSchema,
-  ss: subTools.ssSchema,
-};
+const toolCache = new Map<string, Record<string, any>>();
+const schemaCache = new Map<string, Record<string, any>>();
+
+// ============================================================================
+// Get tool map (cached)
+// ============================================================================
+
+function getToolMap(cwd: string): Record<string, any> {
+  if (toolCache.has(cwd)) return toolCache.get(cwd)!;
+
+  const tools: Record<string, any> = {
+    bash: createBashToolDefinition(cwd),
+    ls: createLsToolDefinition(cwd),
+    find: createFindToolDefinition(cwd),
+    grep: createGrepToolDefinition(cwd),
+    read: createReadToolDefinition(cwd),
+    // Additional tools can be added here as definitions become available
+  };
+
+  toolCache.set(cwd, tools);
+  return tools;
+}
+
+// ============================================================================
+// Get schema map (cached)
+// ============================================================================
+
+function getSchemaMap(cwd: string): Record<string, any> {
+  if (schemaCache.has(cwd)) return schemaCache.get(cwd)!;
+
+  const tools = getToolMap(cwd);
+  const schemas: Record<string, any> = {
+    get_schema: Type.Object({
+      name: Type.String({ description: "Name of the subtool to get schema for (e.g., 'bash', 'ls', 'git')" }),
+    }),
+  };
+
+  for (const [name, tool] of Object.entries(tools)) {
+    schemas[name] = tool.parameters;
+  }
+
+  schemaCache.set(cwd, schemas);
+  return schemas;
+}
 
 // ============================================================================
 // Execute function: get_schema
@@ -95,6 +89,8 @@ async function executeGetSchema(
   ctx?: any,
 ) {
   const { name } = args as { name: string };
+  const effectiveCwd = ctx?.cwd || cwd;
+
   if (!name || !subToolNames.includes(name as any)) {
     return {
       content: [{ type: "text", text: `Unknown subtool: ${name}. Available: ${subToolNames.join(", ")}` }],
@@ -102,7 +98,8 @@ async function executeGetSchema(
       isError: true,
     } as const;
   }
-  const schema = schemaMap[name];
+
+  const schema = getSchemaMap(effectiveCwd)[name];
   if (!schema) {
     return {
       content: [{ type: "text", text: `Schema not found for subtool: ${name}` }],
@@ -141,65 +138,6 @@ async function executeGetSchema(
 }
 
 // ============================================================================
-// Execute function map
-// ============================================================================
-
-const execMap: Record<string, (...args: any[]) => any> = {
-  get_schema: executeGetSchema,
-  bash: subTools.executeBash,
-  ls: subTools.executeLs,
-  find: subTools.executeFind,
-  grep: subTools.executeGrep,
-  read: subTools.executeRead,
-  git: subTools.executeGit,
-  docker: subTools.executeDocker,
-  k8s: subTools.executeK8s,
-  ssh: subTools.executeSsh,
-  http: subTools.executeHttp,
-  aws: subTools.executeAws,
-  terraform: subTools.executeTerraform,
-  db: subTools.executeDb,
-  kafka: subTools.executeKafka,
-  redis: subTools.executeRedis,
-  make: subTools.executeMake,
-  npm: subTools.executeNpm,
-  systemctl: subTools.executeSystemctl,
-  journalctl: subTools.executeJournalctl,
-  ps: subTools.executePs,
-  kill: subTools.executeKill,
-  crontab: subTools.executeCrontab,
-  apt: subTools.executeApt,
-  yum: subTools.executeYum,
-  df: subTools.executeDf,
-  du: subTools.executeDu,
-  ping: subTools.executePing,
-  traceroute: subTools.executeTraceroute,
-  nslookup: subTools.executeNslookup,
-  dig: subTools.executeDig,
-  wget: subTools.executeWget,
-  tail: subTools.executeTail,
-  jq: subTools.executeJq,
-  yq: subTools.executeYq,
-  xmllint: subTools.executeXmllint,
-  scp: subTools.executeScp,
-  rsync: subTools.executeRsync,
-  ffmpeg: subTools.executeFfmpeg,
-  update: subTools.executeUpdate,
-  backup: subTools.executeBackup,
-  password: subTools.executePassword,
-  weather: subTools.executeWeather,
-  time: subTools.executeTime,
-  ufw: subTools.executeUfw,
-  at: subTools.executeAt,
-  quota: subTools.executeQuota,
-  iso: subTools.executeIso,
-  free: subTools.executeFree,
-  iostat: subTools.executeIostat,
-  netstat: subTools.executeNetstat,
-  ss: subTools.executeSs,
-};
-
-// ============================================================================
 // Tool definition factory
 // ============================================================================
 
@@ -208,12 +146,13 @@ const execMap: Record<string, (...args: any[]) => any> = {
  * Add this to AgentSession.customTools to make it available as a built-in tool.
  */
 export function createSubLoaderToolDefinition(cwd: string) {
-  // Build discriminated union schema
+  // Build discriminated union schema using cached schemas
+  const schemas = getSchemaMap(cwd);
   const schema = Type.Union(
     subToolNames.map((tool) =>
       Type.Object({
         subtool: Type.Literal(tool),
-        args: Type.Union([schemaMap[tool], Type.String()]),
+        args: Type.Union([schemas[tool] || Type.String(), Type.String()]),
       })
     )
   );
@@ -222,7 +161,8 @@ export function createSubLoaderToolDefinition(cwd: string) {
 
 Use the "get_schema" subtool to see argument details for any subtool, then invoke that subtool with proper args.
 
-Available subtools: bash, ls, find, grep, read, git, docker, k8s, ssh, http, aws, terraform, db, kafka, redis, make, npm, systemctl, journalctl, ps, kill, crontab, apt, yum, df, du, ping, traceroute, nslookup, dig, wget, tail, jq, yq, xmllint, scp, rsync, ffmpeg, update, backup, password, weather, time, ufw, at, quota, iso, free, iostat, netstat, ss.
+Currently supported built-in tools: bash, ls, find, grep, read.
+More tools will be added as definitions become available.
 
 Example: {"subtool":"bash","args":{"command":"echo hello"}}`;
 
@@ -278,16 +218,21 @@ Example: {"subtool":"bash","args":{"command":"echo hello"}}`;
         }
       }
       try {
-        const execFn = execMap[subtool];
-        if (!execFn) {
+        if (subtool === "get_schema") {
+          return executeGetSchema(parsedArgs, cwd, signal, ctx);
+        }
+        const effectiveCwd = ctx?.cwd || cwd;
+        const toolMap = getToolMap(effectiveCwd);
+        const toolDef = toolMap[subtool];
+        if (!toolDef) {
           return {
-            content: [{ type: "text", text: `Unknown subtool: ${subtool}` }],
+            content: [{ type: "text", text: `Unknown subtool: ${subtool}. Note: Only bash, ls, find, grep, read are currently supported.` }],
             details: undefined,
             isError: true,
           } as const;
         }
-        const effectiveCwd = ctx?.cwd || cwd;
-        return await execFn(parsedArgs, effectiveCwd, signal, ctx);
+        // Delegate to the built-in tool's execute method
+        return await toolDef.execute(toolCallId, parsedArgs, signal, onUpdate, ctx);
       } catch (error: any) {
         return {
           content: [{ type: "text", text: `Error: ${error.message}` }],
