@@ -12,14 +12,14 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { ProviderConfig } from "@mariozechner/pi-coding-agent";
-import { KILO_MODELS } from "./models/kilo-models.js";
+import { KILO_MODELS_ALL } from "./models/index.js";
 
 export function registerKiloProvider(api: ExtensionAPI): void {
   const config: ProviderConfig = {
     baseUrl: "https://api.kilo.ai/v1",
     apiKey: "KILO_API_KEY",
     api: "openai-completions",
-    models: KILO_MODELS,
+    models: KILO_MODELS_ALL,
   };
 
   api.registerProvider("kilo", config);

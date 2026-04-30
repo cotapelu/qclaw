@@ -3,20 +3,40 @@
 /**
  * Enhanced Todo Tool - Full CRUD with Interactive UI
  *
- * Operations: add, list, edit, delete, clear
- * Features: priority, due dates, tags, fuzzy search, keyboard shortcuts
+ * Operations: add, list, edit, delete, clear, replace, add_phase, add_task, update, remove_task
+ * Features: priority, due dates, tags, fuzzy search, keyboard shortcuts, phases, status, auto-continue
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Type, StringEnum } from "@mariozechner/pi-ai";
 import { matchesKey, SelectList, Text, truncateToWidth } from "@mariozechner/pi-tui";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export type Priority = "low" | "medium" | "high" | "critical";
+export type TodoStatus = "pending" | "in_progress" | "completed" | "abandoned";
 
+// Phase grouping (like todo_write backup)
+export interface Phase {
+  id: string;
+  name: string;
+  tasks: PhaseTodo[];
+}
+
+// Enhanced Todo with status (replaces 'done' boolean)
+export interface PhaseTodo {
+  id: string;
+  content: string;
+  status: TodoStatus;
+  notes?: string;
+  details?: string;
+}
+
+// Backward compatible wrapper
 export interface Todo {
   id: number;
   text: string;
@@ -27,16 +47,20 @@ export interface Todo {
   created: number;
   updated: number;
   _deleted?: boolean; // internal flag for soft delete in session
+  // Phase mapping (for display)
+  phaseId?: string;
+  phaseName?: string;
 }
 
 export interface TodoDetails {
-  action: "list" | "add" | "edit" | "delete" | "clear";
+  action: string;
   todos: Todo[];
   nextId: number;
   error?: string;
   stats?: TodoStats;
   targetId?: number;
   affectedIds?: number[];
+  phases?: Phase[];
 }
 
 export interface TodoStats {
@@ -44,9 +68,12 @@ export interface TodoStats {
   done: number;
   pending: number;
   byPriority: Record<string, number>;
+  byStatus: Record<string, number>;
   overdue: number;
   dueToday: number;
   dueThisWeek: number;
+  currentPhase?: string;
+  phaseProgress?: string;
 }
 
 export interface TodoFilter {
@@ -61,13 +88,16 @@ export interface TodoFilter {
 export interface TodoEdit {
   text?: string;
   done?: boolean;
+  status?: TodoStatus;
   priority?: Priority;
   due?: string;
   tags?: string[];
+  notes?: string;
+  details?: string;
 }
 
 // ============================================================================
-// TypeBox Schemas (separated to avoid deep instantiation)
+// TypeBox Schemas
 // ============================================================================
 
 const TodoFilterSchema = Type.Object({
@@ -81,15 +111,61 @@ const TodoFilterSchema = Type.Object({
 
 const TodoEditSchema = Type.Object({
   text: Type.Optional(Type.String()),
-  done: Type.Optional(Type.Boolean()),
+  status: Type.Optional(StringEnum(["pending", "in_progress", "completed", "abandoned"] as const)),
   priority: Type.Optional(StringEnum(["low", "medium", "high", "critical"] as const)),
   due: Type.Optional(Type.String()),
   tags: Type.Optional(Type.Array(Type.String())),
+  notes: Type.Optional(Type.String()),
+  details: Type.Optional(Type.String()),
 });
+
+// Phase schemas
+const PhaseTodoSchema = Type.Object({
+  content: Type.String({ description: "Task description (required)" }),
+  status: Type.Optional(StringEnum(["pending", "in_progress", "completed", "abandoned"] as const)),
+  notes: Type.Optional(Type.String({ description: "Additional context or notes (optional)" })),
+  details: Type.Optional(Type.String({ description: "Implementation details, file paths, and specifics (optional)" })),
+});
+
+const PhaseSchema = Type.Object({
+  name: Type.String({ description: "Phase name (required)" }),
+  tasks: Type.Optional(Type.Array(PhaseTodoSchema)),
+});
+
+// Operation schemas
+const ReplaceOp = Type.Object({
+  phases: Type.Array(PhaseSchema),
+});
+
+const AddPhaseOp = Type.Object({
+  name: Type.String({ description: "Phase name (required)" }),
+  tasks: Type.Optional(Type.Array(PhaseTodoSchema)),
+});
+
+const AddTaskOp = Type.Object({
+  phase: Type.String({ description: "Phase ID, e.g. phase-1 (required)" }),
+  content: Type.String({ description: "Task description (required)" }),
+  notes: Type.Optional(Type.String({ description: "Additional context or notes (optional)" })),
+  details: Type.Optional(Type.String({ description: "Implementation details, file paths, and specifics (optional)" })),
+});
+
+const UpdateTaskOp = Type.Object({
+  id: Type.String({ description: "Task ID, e.g. task-3 (required)" }),
+  status: Type.Optional(StringEnum(["pending", "in_progress", "completed", "abandoned"] as const)),
+  content: Type.Optional(Type.String({ description: "Updated task description (optional)" })),
+  notes: Type.Optional(Type.String({ description: "Updated notes (optional)" })),
+  details: Type.Optional(Type.String({ description: "Updated details (optional)" })),
+});
+
+const RemoveTaskOp = Type.Object({
+  id: Type.String({ description: "Task ID, e.g. task-3 (required)" }),
+});
+
+const ListOp = Type.Object({}, { description: "List current todo list without modification" });
 
 // ============================================================================
 // Constants
-// =
+// ============================================================================
 
 const PRIORITY_ORDER: Record<Priority, number> = {
   critical: 0,
@@ -101,20 +177,276 @@ const PRIORITY_ORDER: Record<Priority, number> = {
 const MAX_SEARCH_RESULTS = 100;
 
 // ============================================================================
-// State Management (Immutable Updates)
+// File Persistence
+// ============================================================================
+
+interface TodoFile {
+  phases: Phase[];
+  nextTaskId: number;
+  nextPhaseId: number;
+}
+
+interface PersistedTodo {
+  version: 1;
+  phases: Phase[];
+  nextTaskId: number;
+  nextPhaseId: number;
+  updatedAt: string;
+}
+
+function getProjectTodoFilePath(): string {
+  return join(process.cwd(), ".pi", "agent", "todos.json");
+}
+
+function loadTodoFromFile(): TodoFile | null {
+  const filePath = getProjectTodoFilePath();
+  if (!existsSync(filePath)) return null;
+
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const parsed: PersistedTodo = JSON.parse(content);
+    if (parsed.version !== 1) return null;
+    return { phases: parsed.phases, nextTaskId: parsed.nextTaskId, nextPhaseId: parsed.nextPhaseId };
+  } catch {
+    return null;
+  }
+}
+
+function saveTodoToFile(_sessionDir: string, todo: TodoFile): void {
+  const filePath = getProjectTodoFilePath();
+  const dir = dirname(filePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+
+  const persisted: PersistedTodo = {
+    version: 1,
+    phases: todo.phases,
+    nextTaskId: todo.nextTaskId,
+    nextPhaseId: todo.nextPhaseId,
+    updatedAt: new Date().toISOString(),
+  };
+  writeFileSync(filePath, JSON.stringify(persisted, null, 2));
+}
+
+// ============================================================================
+// Normalization
+// ============================================================================
+
+function normalizeParams(params: unknown): any {
+  if (typeof params === "string") {
+    try {
+      params = JSON.parse(params);
+    } catch (e) {
+      throw new Error(`Invalid JSON string: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (typeof params !== "object" || params === null) {
+    throw new Error("Parameters must be an object");
+  }
+
+  const normalized = params as Record<string, unknown>;
+
+  if (normalized.add_phase && typeof normalized.add_phase === "string") {
+    try {
+      normalized.add_phase = JSON.parse(normalized.add_phase);
+    } catch (e) {
+      throw new Error(`add_phase must be an object, not a string. Error parsing: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (normalized.add_phase && typeof normalized.add_phase === "object") {
+    const addPhase = normalized.add_phase as Record<string, unknown>;
+    if (addPhase.name && typeof addPhase.name === "string" && addPhase.name.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(addPhase.name);
+        if (typeof parsed === "object" && parsed !== null) {
+          normalized.add_phase = parsed;
+        }
+      } catch {
+        // Keep original if parse fails
+      }
+    }
+  }
+
+  if (normalized.add_phase && typeof normalized.add_phase === "object") {
+    const addPhase = normalized.add_phase as Record<string, unknown>;
+    if (addPhase.tasks && typeof addPhase.tasks === "string") {
+      try {
+        addPhase.tasks = JSON.parse(addPhase.tasks);
+      } catch {
+        addPhase.tasks = (addPhase.tasks as string).split(",").map((s) => ({ content: s.trim() }));
+      }
+    }
+  }
+
+  if (normalized.replace && typeof normalized.replace === "object") {
+    const replace = normalized.replace as Record<string, unknown>;
+    if (replace.phases && typeof replace.phases === "string") {
+      try {
+        replace.phases = JSON.parse(replace.phases);
+      } catch (e) {
+        throw new Error(`replace.phases must be an array, not a string. Error parsing: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  }
+
+  return normalized;
+}
+
+// ============================================================================
+// Phase helpers
+// ============================================================================
+
+function findTask(phases: Phase[], id: string): PhaseTodo | undefined {
+  for (const phase of phases) {
+    const task = phase.tasks.find((t) => t.id === id);
+    if (task) return task;
+  }
+  return undefined;
+}
+
+function buildPhaseFromInput(
+  input: { name: string; tasks?: Array<{ content: string; status?: TodoStatus; notes?: string; details?: string }> },
+  phaseId: string,
+  nextTaskId: number,
+): { phase: Phase; nextTaskId: number } {
+  const tasks: PhaseTodo[] = [];
+  let tid = nextTaskId;
+  for (const t of input.tasks ?? []) {
+    tasks.push({
+      id: `task-${tid++}`,
+      content: t.content,
+      status: t.status ?? "pending",
+      notes: t.notes,
+      details: t.details,
+    });
+  }
+  return { phase: { id: phaseId, name: input.name, tasks }, nextTaskId: tid };
+}
+
+function getNextIds(phases: Phase[]): { nextTaskId: number; nextPhaseId: number } {
+  let maxTaskId = 0;
+  let maxPhaseId = 0;
+
+  for (const phase of phases) {
+    const phaseMatch = /^phase-(\d+)$/.exec(phase.id);
+    if (phaseMatch) {
+      const value = Number.parseInt(phaseMatch[1], 10);
+      if (Number.isFinite(value) && value > maxPhaseId) maxPhaseId = value;
+    }
+
+    for (const task of phase.tasks) {
+      const taskMatch = /^task-(\d+)$/.exec(task.id);
+      if (!taskMatch) continue;
+      const value = Number.parseInt(taskMatch[1], 10);
+      if (Number.isFinite(value) && value > maxTaskId) maxTaskId = value;
+    }
+  }
+
+  return { nextTaskId: maxTaskId + 1, nextPhaseId: maxPhaseId + 1 };
+}
+
+function fileFromPhases(phases: Phase[]): TodoFile {
+  const { nextTaskId, nextPhaseId } = getNextIds(phases);
+  return { phases, nextTaskId, nextPhaseId };
+}
+
+function clonePhases(phases: Phase[]): Phase[] {
+  return phases.map((phase) => ({ ...phase, tasks: phase.tasks.map((task) => ({ ...task })) }));
+}
+
+function normalizeInProgressTask(phases: Phase[]): void {
+  const orderedTasks = phases.flatMap((phase) => phase.tasks);
+  if (orderedTasks.length === 0) return;
+
+  const inProgressTasks = orderedTasks.filter((task) => task.status === "in_progress");
+  if (inProgressTasks.length > 1) {
+    for (const task of inProgressTasks.slice(1)) {
+      task.status = "pending";
+    }
+  }
+
+  if (inProgressTasks.length > 0) return;
+
+  const firstPendingTask = orderedTasks.find((task) => task.status === "pending");
+  if (firstPendingTask) firstPendingTask.status = "in_progress";
+}
+
+function formatSummary(phases: Phase[], errors: string[]): string {
+  const tasks = phases.flatMap((p) => p.tasks);
+  if (tasks.length === 0) return errors.length > 0 ? `Errors: ${errors.join("; ")}` : "Todo list cleared.";
+
+  const remainingByPhase = phases
+    .map((phase) => ({
+      name: phase.name,
+      tasks: phase.tasks.filter((task) => task.status === "pending" || task.status === "in_progress"),
+    }))
+    .filter((phase) => phase.tasks.length > 0);
+  const remainingTasks = remainingByPhase.flatMap((phase) =>
+    phase.tasks.map((task) => ({ ...task, phase: phase.name })),
+  );
+
+  let currentIdx = phases.findIndex((p) => p.tasks.some((t) => t.status === "pending" || t.status === "in_progress"));
+  if (currentIdx === -1) currentIdx = phases.length - 1;
+  const current = phases[currentIdx];
+  const done = current?.tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length ?? 0;
+
+  const lines: string[] = [];
+  if (errors.length > 0) {
+    lines.push(`⚠️ Errors: ${errors.join("; ")}`);
+  } else {
+    const pending = tasks.filter((t) => t.status === "pending" || t.status === "in_progress").length;
+    const completed = tasks.filter((t) => t.status === "completed" || t.status === "abandoned").length;
+    lines.push(`✅ Todo updated: ${pending} remaining, ${completed} completed.`);
+    lines.push(`📊 Use /todos to view, or continue with next task.`);
+    lines.push("");
+  }
+  if (remainingTasks.length === 0) {
+    lines.push("Remaining items: none.");
+  } else {
+    lines.push(`Remaining items (${remainingTasks.length}):`);
+    for (const task of remainingTasks) {
+      lines.push(`  - ${task.id} ${task.content} [${task.status}] (${task.phase})`);
+      if (task.status === "in_progress" && task.details) {
+        for (const line of task.details.split("\n")) {
+          lines.push(`      ${line}`);
+        }
+      }
+    }
+  }
+  lines.push(
+    `Phase ${currentIdx + 1}/${phases.length} "${current?.name ?? "unknown"}" — ${done}/${current?.tasks.length ?? 0} tasks complete`,
+  );
+  return lines.join("\n");
+}
+
+// ============================================================================
+// State Management
 // ============================================================================
 
 class TodoState {
   private _todos: Todo[] = [];
   private _nextId = 1;
+  private _phases: Phase[] = [];
   private listeners: Set<() => void> = new Set();
+  autoTriggerInProgress = false;
 
   get todos(): readonly Todo[] {
     return this._todos;
   }
 
+  get phases(): readonly Phase[] {
+    return this._phases;
+  }
+
   get nextId(): number {
     return this._nextId;
+  }
+
+  set nextId(val: number) {
+    this._nextId = val;
   }
 
   subscribe(listener: () => void): () => void {
@@ -129,7 +461,18 @@ class TodoState {
   reconstructFromEntries(entries: any[]): void {
     this._todos = [];
     this._nextId = 1;
+    this._phases = [];
 
+    // Try to load from project file first
+    const fileData = loadTodoFromFile();
+    if (fileData) {
+      this._phases = clonePhases(fileData.phases);
+      this._nextId = fileData.nextTaskId;
+      this.syncTodosFromPhases();
+      return;
+    }
+
+    // Fallback to session entries (legacy format)
     for (const entry of entries) {
       if (entry.type !== "message") continue;
       const msg = entry.message;
@@ -138,19 +481,45 @@ class TodoState {
       const details = msg.details as TodoDetails | undefined;
       if (!details) continue;
 
-      // Handle soft deletes
       if (details.action === "delete" || details.action === "clear") {
-        // Deleted todos are marked with _deleted in appendEntry
-        // We skip them in reconstruction (they're already removed from active list)
-        // But we need to keep nextId progression
         this._nextId = Math.max(this._nextId, details.nextId);
       } else {
         this._todos = details.todos;
         this._nextId = details.nextId;
+        if (details.phases) {
+          this._phases = clonePhases(details.phases);
+        }
       }
     }
   }
 
+  private syncTodosFromPhases(): void {
+    this._todos = [];
+    for (const phase of this._phases) {
+      for (const task of phase.tasks) {
+        const todo: Todo = {
+          id: parseInt(task.id.replace("task-", "")),
+          text: task.content,
+          done: task.status === "completed" || task.status === "abandoned",
+          priority: "medium",
+          phaseId: phase.id,
+          phaseName: phase.name,
+          created: Date.now(),
+          updated: Date.now(),
+        };
+        this._todos.push(todo);
+      }
+    }
+    this._todos.sort((a, b) => {
+      const phaseA = this._phases.find(p => p.id === a.phaseId);
+      const phaseB = this._phases.find(p => p.id === b.phaseId);
+      const phaseCmp = (this._phases.indexOf(phaseA!) - this._phases.indexOf(phaseB!));
+      if (phaseCmp !== 0) return phaseCmp;
+      return a.id - b.id;
+    });
+  }
+
+  // Legacy operations
   add(texts: string[], priority?: Priority, due?: string): Todo[] {
     const added: Todo[] = [];
     const now = Date.now();
@@ -185,7 +554,6 @@ class TodoState {
       updated: Date.now(),
     };
 
-    // Remove empty tags
     if (updated.tags && updated.tags.length === 0) {
       updated.tags = undefined;
     }
@@ -220,12 +588,80 @@ class TodoState {
   clear(): Todo[] {
     const cleared = this._todos.map(t => ({ ...t, _deleted: true }));
     this._todos = [];
+    this._phases = [];
     this.notify();
     return cleared;
   }
 
   getAll(): Todo[] {
     return [...this._todos];
+  }
+
+  getPhases(): Phase[] {
+    return clonePhases(this._phases);
+  }
+
+  // Phase-based operations
+  addPhase(name: string, tasks?: Array<{ content: string; status?: TodoStatus; notes?: string; details?: string }>): Phase {
+    const phaseId = `phase-${this._nextId++}`;
+    const { phase, nextTaskId } = buildPhaseFromInput({ name, tasks }, phaseId, this._nextId);
+    this._phases.push(phase);
+    this._nextId = nextTaskId;
+    this.syncTodosFromPhases();
+    this.notify();
+    return phase;
+  }
+
+  addTask(phaseId: string, content: string, notes?: string, details?: string): PhaseTodo | null {
+    const phase = this._phases.find(p => p.id === phaseId);
+    if (!phase) return null;
+
+    const task: PhaseTodo = {
+      id: `task-${this._nextId++}`,
+      content,
+      status: "pending",
+      notes,
+      details,
+    };
+    phase.tasks.push(task);
+    this.syncTodosFromPhases();
+    this.notify();
+    return task;
+  }
+
+  updateTask(taskId: string, updates: Partial<Pick<PhaseTodo, 'status' | 'content' | 'notes' | 'details'>>): PhaseTodo | null {
+    const task = findTask(this._phases, taskId);
+    if (!task) return null;
+
+    if (updates.status !== undefined) task.status = updates.status;
+    if (updates.content !== undefined) task.content = updates.content;
+    if (updates.notes !== undefined) task.notes = updates.notes;
+    if (updates.details !== undefined) task.details = updates.details;
+
+    normalizeInProgressTask(this._phases);
+    this.syncTodosFromPhases();
+    this.notify();
+    return task;
+  }
+
+  removeTask(taskId: string): boolean {
+    for (const phase of this._phases) {
+      const idx = phase.tasks.findIndex(t => t.id === taskId);
+      if (idx !== -1) {
+        phase.tasks.splice(idx, 1);
+        this.syncTodosFromPhases();
+        this.notify();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  replacePhases(phases: Phase[]): void {
+    this._phases = clonePhases(phases);
+    normalizeInProgressTask(this._phases);
+    this.syncTodosFromPhases();
+    this.notify();
   }
 
   getStats(): TodoStats {
@@ -237,14 +673,16 @@ class TodoState {
     const done = this._todos.filter(t => t.done).length;
     const pending = total - done;
 
-    const byPriority: Record<string, number> = {
-      low: 0,
-      medium: 0,
-      high: 0,
-      critical: 0,
-    };
+    const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0, critical: 0 };
     for (const t of this._todos) {
       if (t.priority) byPriority[t.priority]++;
+    }
+
+    const byStatus: Record<string, number> = { pending: 0, in_progress: 0, completed: 0, abandoned: 0 };
+    for (const phase of this._phases) {
+      for (const task of phase.tasks) {
+        byStatus[task.status]++;
+      }
     }
 
     const overdue = this._todos.filter(t => !t.done && t.due && new Date(t.due).getTime() < today).length;
@@ -255,7 +693,18 @@ class TodoState {
       return due >= today && due < weekFromNow;
     }).length;
 
-    return { total, done, pending, byPriority, overdue, dueToday, dueThisWeek };
+    let currentPhase: string | undefined;
+    let phaseProgress: string | undefined;
+    if (this._phases.length > 0) {
+      const currentPhaseIdx = this._phases.findIndex(p => p.tasks.some(t => t.status === "pending" || t.status === "in_progress"));
+      const idx = currentPhaseIdx === -1 ? this._phases.length - 1 : currentPhaseIdx;
+      const phase = this._phases[idx];
+      currentPhase = phase.name;
+      const doneCount = phase.tasks.filter(t => t.status === "completed" || t.status === "abandoned").length;
+      phaseProgress = `${doneCount}/${phase.tasks.length}`;
+    }
+
+    return { total, done, pending, byPriority, byStatus, overdue, dueToday, dueThisWeek, currentPhase, phaseProgress };
   }
 
   filter(filter: TodoFilter): Todo[] {
@@ -264,27 +713,21 @@ class TodoState {
     if (filter.done !== undefined) {
       result = result.filter(t => t.done === filter.done);
     }
-
     if (filter.priority) {
       result = result.filter(t => t.priority === filter.priority);
     }
-
     if (filter.dueAfter) {
       const after = new Date(filter.dueAfter).getTime();
       result = result.filter(t => !t.due || new Date(t.due).getTime() > after);
     }
-
     if (filter.dueBefore) {
       const before = new Date(filter.dueBefore).getTime();
       result = result.filter(t => !t.due || new Date(t.due).getTime() < before);
     }
-
     if (filter.search) {
       const q = filter.search.toLowerCase();
-      result = result.filter(t => t.text.toLowerCase().includes(q) ||
-        (t.tags && t.tags.some(tag => tag.toLowerCase().includes(q))));
+      result = result.filter(t => t.text.toLowerCase().includes(q) || (t.tags && t.tags.some(tag => tag.toLowerCase().includes(q))));
     }
-
     if (filter.tags && filter.tags.length > 0) {
       result = result.filter(t => t.tags && filter.tags!.some(tag => t.tags!.includes(tag)));
     }
@@ -312,284 +755,92 @@ class TodoState {
           return a.id - b.id;
       }
     });
-
     return descending ? sorted.reverse() : sorted;
+  }
+
+  // Persistence
+  saveToFile(): void {
+    const file: TodoFile = {
+      phases: clonePhases(this._phases),
+      nextTaskId: this._nextId,
+      nextPhaseId: this._phases.length > 0 ? parseInt(this._phases[this._phases.length - 1].id.replace("phase-", "")) + 1 : 1,
+    };
+    saveTodoToFile("", file);
+  }
+
+  loadFromFile(): boolean {
+    const fileData = loadTodoFromFile();
+    if (!fileData) return false;
+    this._phases = clonePhases(fileData.phases);
+    this._nextId = fileData.nextTaskId;
+    this.syncTodosFromPhases();
+    this.notify();
+    return true;
   }
 }
 
 // ============================================================================
-// Interactive UI Component
+// Tool Execution
 // ============================================================================
 
-class EnhancedTodoListComponent {
-  private state: TodoState;
-  private theme: any;
-  private onClose: () => void;
-  private filter: TodoFilter = {};
-  private sortBy: "id" | "priority" | "due" | "created" = "id";
-  private sortDesc: boolean = false;
-  private selectedId: number | null = null;
-  private searchInput: string = "";
-  private page: number = 0;
-  private pageSize: number = 20;
-  private cachedWidth?: number;
-  private cachedLines?: string[];
-
-  constructor(state: TodoState, theme: any, onClose: () => void) {
-    this.state = state;
-    this.theme = theme;
-    this.onClose = onClose;
-    this.state.subscribe(() => this.invalidate());
+function formatListOutput(todos: Todo[], stats?: TodoStats): string {
+  if (todos.length === 0) {
+    return "No todos.";
   }
 
-  handleInput(data: string): void {
-    const filtered = this.getDisplayed();
+  let out = `✓ ${todos.length} todo${todos.length > 1 ? 's' : ''}`;
+  if (stats) {
+    out += ` (${stats.done}/${stats.total} done`;
+    if (stats.overdue > 0) out += `, ${stats.overdue} overdue`;
+    if (stats.dueToday > 0) out += `, ${stats.dueToday} due today`;
+    out += ")";
+  }
+  out += "\n";
 
-    if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) {
-      this.onClose();
-      return;
-    }
-
-    if (matchesKey(data, "enter") && this.selectedId !== null) {
-      const todo = this.state.getAll().find(t => t.id === this.selectedId);
-      if (todo) {
-        // Toggle selected todo
-        this.state.toggle(this.selectedId);
-      }
-      return;
-    }
-
-    if (matchesKey(data, "d") && this.selectedId !== null) {
-      this.state.delete(this.selectedId);
-      this.selectedId = null;
-      return;
-    }
-
-    if (matchesKey(data, "e") && this.selectedId !== null) {
-      const todo = this.state.getAll().find(t => t.id === this.selectedId);
-      if (todo) {
-        this.promptEditTodo(todo);
-      }
-      return;
-    }
-
-    if (matchesKey(data, "n")) {
-      this.promptAddTodo();
-      return;
-    }
-
-    if (matchesKey(data, "a")) {
-      this.filter = {};
-      this.searchInput = "";
-      this.selectedId = null;
-      this.invalidate();
-      return;
-    }
-
-    if (matchesKey(data, "ctrl+d")) {
-      this.filter.done = this.filter.done === undefined ? true : undefined;
-      this.invalidate();
-      return;
-    }
-
-    if (matchesKey(data, "ctrl+p")) {
-      this.filter.done = this.filter.done === false ? undefined : false;
-      this.invalidate();
-      return;
-    }
-
-    if (matchesKey(data, "ctrl+shift+p")) {
-      const priorities: Priority[] = ["low", "medium", "high", "critical"];
-      if (!this.filter.priority) {
-        this.filter.priority = "low";
-      } else {
-        const idx = priorities.indexOf(this.filter.priority);
-        this.filter.priority = idx < priorities.length - 1 ? priorities[idx + 1] : undefined;
-      }
-      this.invalidate();
-      return;
-    }
-
-    if (matchesKey(data, "ctrl+s")) {
-      const sorts: Array<"id" | "priority" | "due" | "created"> = ["id", "priority", "due", "created"];
-      const idx = sorts.indexOf(this.sortBy);
-      if (idx < sorts.length - 1) {
-        this.sortBy = sorts[idx + 1];
-      } else {
-        this.sortBy = "id";
-      }
-      this.invalidate();
-      return;
-    }
-
-    if (matchesKey(data, "ctrl+r")) {
-      this.sortDesc = !this.sortDesc;
-      this.invalidate();
-      return;
-    }
-
-    if (matchesKey(data, "ctrl+up")) {
-      this.page = Math.max(0, this.page - 1);
-      this.invalidate();
-      return;
-    }
-
-    if (matchesKey(data, "ctrl+down")) {
-      const totalPages = Math.ceil(filtered.length / this.pageSize);
-      this.page = Math.min(totalPages - 1, this.page + 1);
-      this.invalidate();
-      return;
-    }
-
-    if (matchesKey(data, "up") && filtered.length > 0) {
-      if (this.selectedId === null) {
-        this.selectedId = filtered[0].id;
-      } else {
-        const idx = filtered.findIndex(t => t.id === this.selectedId);
-        if (idx > 0) {
-          this.selectedId = filtered[idx - 1].id;
-        } else {
-          this.selectedId = filtered[filtered.length - 1].id;
-        }
-      }
-      this.invalidate();
-      return;
-    }
-
-    if (matchesKey(data, "down") && filtered.length > 0) {
-      if (this.selectedId === null) {
-        this.selectedId = filtered[0].id;
-      } else {
-        const idx = filtered.findIndex(t => t.id === this.selectedId);
-        if (idx < filtered.length - 1) {
-          this.selectedId = filtered[idx + 1].id;
-        } else {
-          this.selectedId = filtered[0].id;
-        }
-      }
-      this.invalidate();
-      return;
-    }
-
-    // Simple search: append single character (avoid control keys)
-    if (data && data.length === 1 && !data.startsWith("ctrl+") && !data.startsWith("shift+") && !data.startsWith("alt+")) {
-      this.searchInput += data;
-      this.filter.search = this.searchInput;
-      this.selectedId = null;
-      this.page = 0;
-      this.invalidate();
-      // Clear search after 5 seconds of no typing
-      setTimeout(() => {
-        this.searchInput = "";
-        this.invalidate();
-      }, 5000);
-      return;
-    }
+  for (const t of todos) {
+    const check = t.done ? "✓" : "○";
+    const id = `#${t.id}`;
+    const priority = t.priority ? `[${t.priority[0].toUpperCase()}]` : "";
+    const due = t.due ? `📅${new Date(t.due).toLocaleDateString()}` : "";
+    const phase = t.phaseName ? `[${t.phaseName}]` : "";
+    const text = t.text;
+    out += `${check} ${id} ${priority} ${phase} ${due} ${text}\n`;
   }
 
-  private async promptAddTodo(): Promise<void> {
-    // For now, we can't easily prompt in this component without ui.input
-    // The user would use the todos tool directly
-    // This is a placeholder for future interactive add
+  return out.trim();
+}
+
+function renderListResult(todos: Todo[], stats?: TodoStats, theme?: any): string {
+  if (!theme) {
+    return formatListOutput(todos, stats);
   }
 
-  private async promptEditTodo(todo: Todo): Promise<void> {
-    // Similar limitation - would need ui.input
-    // Use todos tool directly: todos({ action: 'edit', id: X, updates: { ... } })
+  const th = theme;
+  if (todos.length === 0) {
+    return th.fg("dim", "No todos");
   }
 
-  private getDisplayed(): Todo[] {
-    let result = this.state.filter(this.filter);
-    result = this.state.sort(result, this.sortBy, this.sortDesc);
+  let out = th.fg("success", "✓") + th.fg("muted", ` ${todos.length} todos`);
+  if (stats) {
+    out += th.fg("muted", ` (${stats.done}/${stats.total} done`);
+    if (stats.overdue > 0) out += th.fg("error", `, ${stats.overdue} overdue`);
+    if (stats.dueToday > 0) out += th.fg("warning", `, ${stats.dueToday} due today`);
+    out += th.fg("muted", ")");
+  }
+  out += "\n";
 
-    const start = this.page * this.pageSize;
-    return result.slice(start, start + this.pageSize);
+  for (const t of todos) {
+    const check = t.done ? th.fg("success", "✓") : th.fg("dim", "○");
+    const id = th.fg("accent", `#${t.id}`);
+    const priorityColor = t.priority === 'critical' ? 'error' : t.priority === 'high' ? 'warning' : 'muted';
+    const priority = t.priority ? th.fg(priorityColor, `[${t.priority[0].toUpperCase()}]`) : "";
+    const due = t.due ? th.fg("accent", `📅${new Date(t.due).toLocaleDateString()}`) : "";
+    const phase = t.phaseName ? th.fg("dim", `[${t.phaseName}]`) : "";
+    const text = th.fg(t.done ? "dim" : "text", t.text);
+    out += `${check} ${id} ${priority} ${phase} ${due} ${text}\n`;
   }
 
-  private getFilteredCount(): number {
-    return this.state.filter(this.filter).length;
-  }
-
-  invalidate(): void {
-    this.cachedWidth = undefined;
-    this.cachedLines = undefined;
-  }
-
-  render(width: number): string[] {
-    if (this.cachedWidth === width && this.cachedLines) {
-      return this.cachedLines;
-    }
-
-    const lines: string[] = [];
-    const th = this.theme;
-    const stats = this.state.getStats();
-    const displayed = this.getDisplayed();
-    const totalFiltered = this.getFilteredCount();
-
-    lines.push("");
-    const title = th.fg("accent", " Todos ");
-    const headerLine =
-      th.fg("borderMuted", "─".repeat(3)) + title + th.fg("borderMuted", "─".repeat(Math.max(0, width - 10)));
-    lines.push(truncateToWidth(headerLine, width));
-    lines.push("");
-
-    // Stats line
-    const statsText = `${stats.total} total, ${stats.done} ✓, ${stats.pending} pending`;
-    lines.push(truncateToWidth(`  ${th.fg("muted", statsText)}`, width));
-
-    // Overdue/due warnings
-    if (stats.overdue > 0) {
-      lines.push(truncateToWidth(`  ${th.fg("error", `⚠ ${stats.overdue} overdue`)}`, width));
-    }
-    if (stats.dueToday > 0) {
-      lines.push(truncateToWidth(`  ${th.fg("warning", `📅 ${stats.dueToday} due today`)}`, width));
-    }
-
-    if (this.filter.search) {
-      lines.push(truncateToWidth(`  Search: ${th.fg("accent", this.filter.search)}`, width));
-    }
-
-    const filterParts: string[] = [];
-    if (this.filter.done === true) filterParts.push(th.fg("success", "Done"));
-    if (this.filter.done === false) filterParts.push(th.fg("warning", "Pending"));
-    if (this.filter.priority) filterParts.push(th.fg("accent", `P:${this.filter.priority}`));
-    if (filterParts.length > 0) {
-      lines.push(truncateToWidth(`  Filter: ${filterParts.join(", ")}`, width));
-    }
-
-    lines.push(truncateToWidth(`  Sort: ${this.sortBy}${this.sortDesc ? " ↓" : ""} (Ctrl+S)`, width));
-    lines.push(truncateToWidth(`  Showing: ${totalFiltered} items (page ${this.page + 1}/${Math.max(1, Math.ceil(totalFiltered / this.pageSize))})`, width));
-    lines.push("");
-
-    if (displayed.length === 0) {
-      lines.push(truncateToWidth(`  ${th.fg("dim", "No todos match filter.")}`, width));
-    } else {
-      for (const todo of displayed) {
-        const check = todo.done ? th.fg("success", "✓") : th.fg("dim", "○");
-        const id = th.fg("accent", `#${todo.id}`);
-        const priorityColor = {
-          critical: "error",
-          high: "warning",
-          medium: "muted",
-          low: "dim"
-        }[todo.priority || "low"];
-        const priorityText = todo.priority ? th.fg(priorityColor, `[${todo.priority[0].toUpperCase()}]`) : "";
-        const dueText = todo.due ? th.fg("accent", `📅${new Date(todo.due).toLocaleDateString()}`) : "";
-        const sel = this.selectedId === todo.id ? th.fg("selected", "> ") : "  ";
-        const textColor = todo.done ? "dim" : "text";
-        const text = th.fg(textColor, todo.text);
-        lines.push(truncateToWidth(`${sel}${check} ${id} ${priorityText} ${dueText} ${text}`, width));
-      }
-    }
-
-    lines.push("");
-    lines.push(truncateToWidth(`  ${th.fg("dim", "Keys: Esc=Close ↑↓=Select Enter=Toggle E=Edit D=Delete N=New A=All Ctrl+D=Done Ctrl+P=Pending Ctrl+Shift+P=Prio Ctrl+S=Sort Ctrl+R=Reverse Ctrl+Up/Down=Page")}`, width));
-    lines.push("");
-
-    this.cachedWidth = width;
-    this.cachedLines = lines;
-    return lines;
-  }
+  return out.trim();
 }
 
 // ============================================================================
@@ -609,70 +860,63 @@ export function registerTodosTool(api: ExtensionAPI): void {
   const tool: any = {
     name: "todos",
     label: "Todo",
-    description: "Manage a todo list with full CRUD, priorities, due dates, tags, filtering, and sorting. State persists across branches via session.",
-    promptSnippet: "todos({ action: 'add'|'list'|'edit'|'delete'|'clear', ... })",
+    description: "Manage a todo list with full CRUD, priorities, due dates, tags, phases, status, filtering, and sorting. State persists across branches via session and file.",
+    promptSnippet: "todos({ action: 'add'|'list'|'edit'|'delete'|'clear'|'add_phase'|'add_task'|'update'|'remove_task', ... })",
     promptGuidelines: [
-      "📌 ADD: todos({ action: 'add', items: ['Task A', 'Task B'], priority?: 'low|medium|high|critical', due?: 'YYYY-MM-DD' })",
-      "   Example: todos({ action: 'add', items: ['Fix login bug', 'Write docs'], priority: 'high', due: '2025-05-15' })",
+      "📌 LEGACY ADD: todos({ action: 'add', items: ['Task A', 'Task B'], priority?: 'low|medium|high|critical', due?: 'YYYY-MM-DD' })",
+      "📌 PHASE ADD: todos({ action: 'add_phase', name: 'Phase 1', tasks: [{ content: 'Task 1', status?: 'pending|in_progress|completed|abandoned', notes?: '...', details?: '...' }] })",
+      "📌 TASK ADD: todos({ action: 'add_task', phase: 'phase-1', content: 'Task 2', notes?: '...', details?: '...' })",
       "📋 LIST: todos() or todos({ action: 'list', filter?: { done?, priority?, dueAfter?, dueBefore?, search?, tags? } })",
-      "   Example: todos({ action: 'list', filter: { done: false, priority: 'high' } })",
-      "✏️  EDIT: todos({ action: 'edit', id: 123, updates: { text?, done?, priority?, due?, tags? } })",
-      "   Example: todos({ action: 'edit', id: 5, updates: { done: true, priority: 'medium' } })",
+      "✏️  EDIT: todos({ action: 'edit', id: 123, updates: { text?, status?, priority?, due?, tags?, notes?, details? } })",
       "🗑️  DELETE: todos({ action: 'delete', ids: 123 }) or todos({ action: 'delete', ids: [1,2,3] })",
-      "   Example: todos({ action: 'delete', ids: [2, 4] }) - bulk delete supported",
       "💥 CLEAR: todos({ action: 'clear' }) - deletes all todos",
-      "💡 TIP: Use tags for categorization (e.g., 'bug', 'feature', 'refactor'). Filter by tags: todos({ action: 'list', filter: { tags: ['bug'] } })",
-      "💡 TIP: Due dates support 'overdue', 'today', 'this week' in stats. Sort implementation sorts by priority then due date internally.",
-      "⚠️  NOTE: State is stored in session entries; branching automatically preserves todo state at each point.",
-      "📊 After each change, stats show: total, done, pending, overdue, due today, due this week.",
+      "🔄 REPLACE: todos({ action: 'replace', phases: [{ name: 'Phase 1', tasks: [...] }] }) - complete replacement",
+      "📝 UPDATE TASK: todos({ action: 'update', id: 'task-1', status: 'completed', details: 'Implementation notes' })",
+      "❌ REMOVE TASK: todos({ action: 'remove_task', id: 'task-1' })",
+      "💡 STATUS: pending, in_progress, completed, abandoned. Auto-normalizes to single in_progress.",
+      "💡 PHASES: Group tasks by phase for better organization. Each task belongs to a phase.",
+      "💡 TIP: Due dates support 'overdue', 'today', 'this week' in stats.",
+      "⚠️  NOTE: State persists to ./.pi/agent/todos.json and survives branches.",
+      "📊 After each change, stats show: total, done, pending, by status, phase progress.",
     ],
     parameters: Type.Object({
-      action: StringEnum(["list", "add", "edit", "delete", "clear"] as const),
+      action: StringEnum(["list", "add", "edit", "delete", "clear", "replace", "add_phase", "add_task", "update", "remove_task"] as const),
 
-      // add
+      // Legacy actions
       items: Type.Optional(Type.Array(Type.String())),
       priority: Type.Optional(StringEnum(["low", "medium", "high", "critical"] as const)),
       due: Type.Optional(Type.String()),
-
-      // list
       filter: Type.Optional(Type.Any()),
-
-      // edit
       id: Type.Optional(Type.Number()),
-      updates: Type.Optional(Type.Any()),
-
-      // delete
+      updates: Type.Optional(TodoEditSchema),
       ids: Type.Optional(Type.Union([Type.Number(), Type.Array(Type.Number())])),
+
+      // Phase-based operations
+      phases: Type.Optional(Type.Array(PhaseSchema)),
+      name: Type.Optional(Type.String()),
+      tasks: Type.Optional(Type.Array(PhaseTodoSchema)),
+      phase: Type.Optional(Type.String()),
+      content: Type.Optional(Type.String()),
+      notes: Type.Optional(Type.String()),
+      details: Type.Optional(Type.String()),
     }),
 
     async execute(_toolCallId: string, params: any, _signal: AbortSignal | undefined, _onUpdate: any, ctx: any) {
-      const action = params.action as "list" | "add" | "edit" | "delete" | "clear";
+      try {
+        params = normalizeParams(params);
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `❌ Error: ${e instanceof Error ? e.message : String(e)}` }],
+          details: { action: "list", todos: [], nextId: state.nextId, phases: state.getPhases() } as TodoDetails,
+          isError: false,
+        } as any;
+      }
+
+      const action = params.action as string;
 
       const makeDetails = (action: string, todos?: Todo[], targetId?: number, affectedIds?: number[], error?: string): TodoDetails => {
         const allTodos = state.getAll();
-        const stats: TodoStats = {
-          total: allTodos.length,
-          done: allTodos.filter(t => t.done).length,
-          pending: allTodos.filter(t => !t.done).length,
-          byPriority: { low: 0, medium: 0, high: 0, critical: 0 },
-          overdue: 0,
-          dueToday: 0,
-          dueThisWeek: 0,
-        };
-        for (const t of allTodos) {
-          if (t.priority) stats.byPriority[t.priority]++;
-        }
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        const weekFromNow = today + 7 * 24 * 60 * 60 * 1000;
-        for (const t of allTodos) {
-          if (!t.done && t.due) {
-            const due = new Date(t.due).getTime();
-            if (due < today) stats.overdue++;
-            else if (due === today) stats.dueToday++;
-            else if (due < weekFromNow) stats.dueThisWeek++;
-          }
-        }
+        const stats = state.getStats();
         return {
           action: action as any,
           todos: todos || allTodos,
@@ -681,9 +925,30 @@ export function registerTodosTool(api: ExtensionAPI): void {
           targetId,
           affectedIds,
           error,
+          phases: state.getPhases(),
         };
       };
 
+      try {
+        if (action === "list" || action === "add" || action === "edit" || action === "delete" || action === "clear") {
+          return this.executeLegacy(action, params, makeDetails, api);
+        }
+
+        if (action === "replace" || action === "add_phase" || action === "add_task" || action === "update" || action === "remove_task") {
+          return this.executePhaseBased(action, params, makeDetails, api);
+        }
+
+        return {
+          content: [{ type: "text", text: `Unknown action: ${action}` }],
+          details: makeDetails("list"),
+          isError: false,
+        } as any;
+      } finally {
+        state.saveToFile();
+      }
+    },
+
+    executeLegacy(action: string, params: any, makeDetails: any, api: any) {
       switch (action) {
         case "list": {
           const filter = params.filter as TodoFilter | undefined;
@@ -691,7 +956,7 @@ export function registerTodosTool(api: ExtensionAPI): void {
           todos = state.sort(todos, "id", false);
           const details = makeDetails("list", todos.slice(0, MAX_SEARCH_RESULTS));
           if (todos.length > MAX_SEARCH_RESULTS) {
-            details.stats!.total = todos.length; // Show actual total in stats
+            details.stats!.total = todos.length;
           }
           return {
             content: [{ type: "text" as const, text: formatListOutput(todos, details.stats) }],
@@ -790,13 +1055,127 @@ export function registerTodosTool(api: ExtensionAPI): void {
           } as any;
         }
 
-        default: {
+        default:
           return {
             content: [{ type: "text", text: `Unknown action: ${action}` }],
             details: makeDetails("list", state.getAll()),
             isError: false,
           } as any;
+      }
+    },
+
+    executePhaseBased(action: string, params: any, makeDetails: any, api: any) {
+      const errors: string[] = [];
+      let triggeredAutoContinue = false;
+
+      try {
+        if (action === "replace") {
+          const op = params.replace;
+          if (!Array.isArray(op.phases)) {
+            errors.push("replace.phases must be an array");
+          } else {
+            const newPhases: Phase[] = [];
+            for (const inputPhase of op.phases) {
+              if (!inputPhase || typeof inputPhase !== "object") {
+                errors.push("Each phase must be an object");
+                continue;
+              }
+              if (!inputPhase.name || typeof inputPhase.name !== "string") {
+                errors.push("Each phase must have a name (string)");
+                continue;
+              }
+              const phaseId = `phase-${state.nextId++}`;
+              const { phase, nextTaskId } = buildPhaseFromInput(inputPhase, phaseId, state.nextId);
+              newPhases.push(phase);
+              state.nextId = nextTaskId;
+            }
+            state.replacePhases(newPhases);
+          }
+        } else if (action === "add_phase") {
+          const op = params.add_phase;
+          if (!op || typeof op !== "object") {
+            errors.push("add_phase must be an object");
+          } else if (!op.name || typeof op.name !== "string") {
+            errors.push("add_phase.name must be a string");
+          } else {
+            if (op.tasks && !Array.isArray(op.tasks)) {
+              errors.push("add_phase.tasks must be an array");
+            } else {
+              state.addPhase(op.name, op.tasks);
+            }
+          }
+        } else if (action === "add_task") {
+          const op = params.add_task;
+          if (!op || typeof op !== "object") {
+            errors.push("add_task must be an object");
+          } else if (!op.phase || typeof op.phase !== "string") {
+            errors.push("add_task.phase must be a string (e.g., 'phase-1')");
+          } else if (!op.content || typeof op.content !== "string") {
+            errors.push("add_task.content must be a string");
+          } else {
+            const task = state.addTask(op.phase, op.content, op.notes, op.details);
+            if (!task) {
+              errors.push(`Phase "${op.phase}" not found`);
+            }
+          }
+        } else if (action === "update") {
+          const op = params.update;
+          if (!op || typeof op !== "object") {
+            errors.push("update must be an object");
+          } else if (!op.id || typeof op.id !== "string") {
+            errors.push("update.id must be a string (e.g., 'task-1')");
+          } else {
+            const task = state.updateTask(op.id, op);
+            if (!task) {
+              errors.push(`Task "${op.id}" not found`);
+            }
+          }
+        } else if (action === "remove_task") {
+          const op = params.remove_task;
+          if (!op || typeof op !== "object") {
+            errors.push("remove_task must be an object");
+          } else if (!op.id || typeof op.id !== "string") {
+            errors.push("remove_task.id must be a string (e.g., 'task-1')");
+          } else {
+            const removed = state.removeTask(op.id);
+            if (!removed) {
+              errors.push(`Task "${op.id}" not found`);
+            }
+          }
         }
+
+        const phases = state.getPhases();
+        const summary = formatSummary(phases, errors);
+
+        // Auto-continue trigger
+        const isModifyingOp = ["replace", "add_phase", "add_task", "update", "remove_task"].includes(action);
+        if (isModifyingOp && errors.length === 0 && !state.autoTriggerInProgress) {
+          state.autoTriggerInProgress = true;
+          api.sendMessage(
+            {
+              customType: "todo-auto-continue",
+              content: summary,
+              display: true,
+            },
+            { triggerTurn: true },
+          );
+          setTimeout(() => {
+            state.autoTriggerInProgress = false;
+          }, 1000);
+          triggeredAutoContinue = true;
+        }
+
+        return {
+          content: triggeredAutoContinue ? [] : [{ type: "text", text: summary }],
+          details: makeDetails(action, state.getAll(), undefined, undefined, errors.length > 0 ? errors.join("; ") : undefined, phases),
+          isError: false,
+        } as any;
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `❌ Error: ${e instanceof Error ? e.message : String(e)}` }],
+          details: makeDetails(action, state.getAll(), undefined, undefined, errors.length > 0 ? errors.join("; ") : e instanceof Error ? e.message : String(e), state.getPhases()),
+          isError: false,
+        } as any;
       }
     },
 
@@ -882,6 +1261,9 @@ export function registerTodosTool(api: ExtensionAPI): void {
 
   api.registerTool(tool);
 
+  // Load persisted state on startup
+  state.loadFromFile();
+
   // Show updated todo list after changes
   api.on("tool_execution_end", async (event, ctx) => {
     if (event.toolName !== "todos") return;
@@ -890,9 +1272,8 @@ export function registerTodosTool(api: ExtensionAPI): void {
     const details = result?.details as TodoDetails | undefined;
     if (!details) return;
 
-    if (!["add", "edit", "delete", "clear"].includes(details.action as any)) return;
+    if (!["add", "edit", "delete", "clear", "replace", "add_phase", "add_task", "update", "remove_task"].includes(details.action as any)) return;
 
-    // Build summary message
     const stats = details.stats || state.getStats();
     const pending = stats.pending;
     const total = stats.total;
@@ -919,7 +1300,8 @@ export function registerTodosTool(api: ExtensionAPI): void {
         const check = t.done ? "✓" : "○";
         const prio = t.priority ? `[${t.priority[0].toUpperCase()}]` : "";
         const due = t.due ? `📅${new Date(t.due).toLocaleDateString()}` : "";
-        msg += `\n${check} #${t.id} ${prio} ${due} ${t.text}`;
+        const phase = t.phaseName ? `[${t.phaseName}]` : "";
+        msg += `\n${check} #${t.id} ${prio} ${phase} ${due} ${t.text}`;
       }
     }
 
@@ -940,77 +1322,4 @@ export function registerTodosTool(api: ExtensionAPI): void {
     return new Text(theme.fg("accent", `📋 ${content}`), 0, 0);
   });
 
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function formatListOutput(todos: Todo[], stats?: TodoStats): string {
-  if (todos.length === 0) {
-    return "No todos.";
-  }
-
-  const th = {
-    fg: (c: string, t: string) => t,
-    bold: (t: string) => t,
-    dim: (t: string) => t,
-    muted: (t: string) => t,
-    accent: (t: string) => t,
-    success: (t: string) => t,
-    warning: (t: string) => t,
-    error: (t: string) => t,
-  };
-
-  let out = `✓ ${todos.length} todo${todos.length > 1 ? 's' : ''}`;
-  if (stats) {
-    out += ` (${stats.done}/${stats.total} done`;
-    if (stats.overdue > 0) out += `, ${stats.overdue} overdue`;
-    if (stats.dueToday > 0) out += `, ${stats.dueToday} due today`;
-    out += ")";
-  }
-  out += "\n";
-
-  for (const t of todos) {
-    const check = t.done ? "✓" : "○";
-    const id = `#${t.id}`;
-    const priority = t.priority ? `[${t.priority[0].toUpperCase()}]` : "";
-    const due = t.due ? `📅${new Date(t.due).toLocaleDateString()}` : "";
-    const text = t.text;
-    out += `${check} ${id} ${priority} ${due} ${text}\n`;
-  }
-
-  return out.trim();
-}
-
-function renderListResult(todos: Todo[], stats?: TodoStats, theme?: any): string {
-  if (!theme) {
-    return formatListOutput(todos, stats);
-  }
-
-  const th = theme;
-  if (todos.length === 0) {
-    return th.fg("dim", "No todos");
-  }
-
-  let out = th.fg("success", "✓") + th.fg("muted", ` ${todos.length} todos`);
-  if (stats) {
-    out += th.fg("muted", ` (${stats.done}/${stats.total} done`);
-    if (stats.overdue > 0) out += th.fg("error", `, ${stats.overdue} overdue`);
-    if (stats.dueToday > 0) out += th.fg("warning", `, ${stats.dueToday} due today`);
-    out += th.fg("muted", ")");
-  }
-  out += "\n";
-
-  for (const t of todos) {
-    const check = t.done ? th.fg("success", "✓") : th.fg("dim", "○");
-    const id = th.fg("accent", `#${t.id}`);
-    const priorityColor = t.priority === 'critical' ? 'error' : t.priority === 'high' ? 'warning' : 'muted';
-    const priority = t.priority ? th.fg(priorityColor, `[${t.priority[0].toUpperCase()}]`) : "";
-    const due = t.due ? th.fg("accent", `📅${new Date(t.due).toLocaleDateString()}`) : "";
-    const text = th.fg(t.done ? "dim" : "text", t.text);
-    out += `${check} ${id} ${priority} ${due} ${text}\n`;
-  }
-
-  return out.trim();
 }

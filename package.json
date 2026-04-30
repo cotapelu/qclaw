@@ -12,9 +12,10 @@
     "piclaw": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && chmod +x dist/cli.js dist/main.js",
+    "generate-custom-models": "tsx scripts/generate-custom-models.ts",
+    "build": "npm run generate-custom-models && tsc -p tsconfig.build.json && chmod +x dist/cli.js dist/main.js",
     "start": "node dist/cli.js",
-    "dev": "tsx src/cli.ts",
+    "dev": "npm run generate-custom-models && tsx src/cli.ts",
     "lint": "eslint src/**/*.ts --fix",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck",
