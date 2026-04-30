@@ -15,7 +15,7 @@ import {
   type AgentSessionServices,
   type SessionStartEvent,
 } from "@mariozechner/pi-coding-agent";
-import { getAgentDir, VERSION } from "./config.js";
+import { getAgentDir, VERSION } from "./config/config.js";
 import { createSubLoaderToolDefinition } from "./tools/subtool-loader.js";
 import chalk from "chalk";
 import { loadConfig, saveConfig, type PiclawConfig } from "./config/config-manager.js";
