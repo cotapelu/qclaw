@@ -11,7 +11,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 
 // Import all custom sub-tools (git, docker, k8s, ssh, http, aws, ...)
-import * as subTools from "./sub-tools";
+import * as subTools from "./sub-tools/index.js";
 
 // ============================================================================
 // Build dynamic sub-tool maps from ./sub-tools/index
