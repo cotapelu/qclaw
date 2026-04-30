@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import { Text } from "@mariozechner/pi-tui";
 import * as subTools from "./sub-tools/index.js";
 
 // ============================================================================
@@ -209,6 +210,37 @@ export function createSubLoaderToolDefinition(cwd: string) {
 - netstat: network connections
 - ss: socket statistics`;
 
+  // Render functions
+  const renderCall = (args: any, theme: any, _context: any) => {
+    const th = theme;
+    const { subtool, args: toolArgs } = args as { subtool: string; args: any };
+    let text = th.fg("toolTitle", th.bold(`subtool_loader `)) + th.fg("muted", subtool);
+    // Show first arg value if simple string
+    if (toolArgs && typeof toolArgs === 'object') {
+      const keys = Object.keys(toolArgs);
+      if (keys.length > 0) {
+        const firstKey = keys[0];
+        const value = toolArgs[firstKey];
+        if (typeof value === 'string') {
+          text += ` ${th.fg("dim", `"${value.substring(0, 30)}${value.length > 30 ? "..." : ""}"`)}`;
+        }
+      }
+    }
+    return new Text(text, 0, 0);
+  };
+
+  const renderResult = (result: any, options: { expanded: boolean; isPartial: boolean }, theme: any, _context: any) => {
+    const th = theme;
+    if (options.isPartial) {
+      return new Text(th.fg("warning", "Processing..."), 0, 0);
+    }
+    const content = result.content?.[0]?.text || "";
+    if (result.isError) {
+      return new Text(th.fg("error", content), 0, 0);
+    }
+    return new Text(th.fg("success", content), 0, 0);
+  };
+
   return {
     name: "subtool_loader",
     label: "SubTool Loader",
@@ -235,5 +267,8 @@ export function createSubLoaderToolDefinition(cwd: string) {
         } as const;
       }
     },
+    renderCall,
+    renderResult,
+    renderShell: "self" as const,
   };
 }
