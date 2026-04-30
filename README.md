@@ -13,6 +13,7 @@ PiClaw is a professional AI coding agent built on [pi-coding-agent](https://gith
 - Automatic tool allowlist from config
 - Model and thinking level persistence across sessions
 - Extension system for custom commands
+- **SubTool Loader** – a single custom built-in tool exposing 50+ system operations (bash, git, docker, k8s, ssh, http, aws, terraform, db, kafka, redis, make, npm, systemctl, journalctl, ps, kill, crontab, apt, yum, df, du, ping, traceroute, nslookup, dig, wget, tail, jq, yq, xmllint, scp, rsync, ffmpeg, update, backup, password, weather, time, ufw, at, quota, iso, free, iostat, netstat, ss, ...)
 
 ## Installation
 

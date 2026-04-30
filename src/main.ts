@@ -16,6 +16,7 @@ import {
   type SessionStartEvent,
 } from "@mariozechner/pi-coding-agent";
 import { getAgentDir, VERSION } from "./config.js";
+import { createSubLoaderToolDefinition } from "./tools/subtool-loader.js";
 import chalk from "chalk";
 import { loadConfig, saveConfig, type PiclawConfig } from "./config/config-manager.js";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
@@ -204,11 +205,13 @@ async function main(args: string[] = process.argv.slice(2)): Promise<void> {
     // 3. Create session from services with allowed tools from config
     const sessionStartEvent: SessionStartEvent = { type: "session_start", reason: "startup" };
 
+    const customTools = [createSubLoaderToolDefinition(services.cwd)];
     const createSessionResult = await createAgentSessionFromServices({
       services,
       sessionManager,
       sessionStartEvent,
       tools: config.tools,
+      customTools,
     });
 
     // 4. Create runtime factory (for session switching)
@@ -223,11 +226,13 @@ async function main(args: string[] = process.argv.slice(2)): Promise<void> {
         agentDir: runtimeOpts.agentDir,
       });
 
+      const customTools = [createSubLoaderToolDefinition(newServices.cwd)];
       const result = await createAgentSessionFromServices({
         services: newServices,
         sessionManager: runtimeOpts.sessionManager,
         sessionStartEvent: runtimeOpts.sessionStartEvent,
         tools: config.tools,
+        customTools,
       });
 
       return {

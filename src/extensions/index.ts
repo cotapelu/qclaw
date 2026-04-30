@@ -24,4 +24,5 @@ export default function (api: import("@mariozechner/pi-coding-agent").ExtensionA
 
   // Load auto-memory integration
   autoMemory(api);
+
 }
