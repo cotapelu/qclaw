@@ -16,7 +16,7 @@ import { KILO_MODELS_ALL } from "./models/index.js";
 
 export function registerKiloProvider(api: ExtensionAPI): void {
   const config: ProviderConfig = {
-    baseUrl: "https://api.kilo.ai/v1",
+    baseUrl: "https://api.kilo.ai/api/gateway",
     apiKey: "KILO_API_KEY",
     api: "openai-completions",
     models: KILO_MODELS_ALL,
