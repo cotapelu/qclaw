@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { registerTodosTool } from '../extensions/tools/todos-tool.js';
-import type { TodoDetails } from '../extensions/tools/todos-tool.js';
+import type { TodoToolDetails, TodoPhase } from '../extensions/tools/todos-tool.js';
 import { Text } from '@mariozechner/pi-tui';
 import { unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,13 +13,11 @@ function deletePersistedFile(): void {
   }
 }
 
-// Mock ExtensionAPI with events support
+// Mock ExtensionAPI
 const createMockApi = () => ({
   registerTool: vi.fn(),
-  appendEntry: vi.fn(),
   on: vi.fn(),
-  registerCommand: vi.fn(),
-  registerMessageRenderer: vi.fn(),
+  sendMessage: vi.fn().mockResolvedValue(undefined),
 });
 
 // Mock Context
@@ -31,7 +29,7 @@ const createMockCtx = (entries: any[] = []) => ({
   hasUI: true,
 });
 
-describe('todos tool', () => {
+describe('todos tool (phase-only)', () => {
   let mockApi: any;
   let mockCtx: any;
   let capturedTool: any;
@@ -40,132 +38,102 @@ describe('todos tool', () => {
     deletePersistedFile();
     vi.clearAllMocks();
     mockApi = createMockApi();
-
-    // Capture the tool that gets registered
-    mockApi.registerTool.mockImplementation((tool: any) => {
-      capturedTool = tool;
-    });
-
+    mockApi.registerTool.mockImplementation((tool: any) => { capturedTool = tool; });
     mockCtx = createMockCtx();
     registerTodosTool(mockApi);
-    // Clear any previous state
+    // Clear initial state if any
     try {
-      await capturedTool.execute('reset', { action: 'clear' }, undefined, undefined, mockCtx);
+      await capturedTool.execute('clear-init', { list: {} }, undefined, undefined, mockCtx);
     } catch {}
   });
 
   it('should register the tool', () => {
-    // registerTodosTool already called in beforeEach
     expect(mockApi.registerTool).toHaveBeenCalledTimes(1);
     expect(capturedTool).toBeDefined();
     expect(capturedTool.name).toBe('todos');
   });
 
   it('should have promptSnippet and promptGuidelines', () => {
-    // Already registered in beforeEach
-    expect(capturedTool.promptSnippet).toContain('todos({ action:');
-    expect(capturedTool.promptSnippet).toContain('add');
+    expect(capturedTool.promptSnippet).toContain('todos(');
     expect(capturedTool.promptSnippet).toContain('add_phase');
-    expect(capturedTool.promptGuidelines.some((g: string) => g.includes("PHASE") || g.includes("ADD"))).toBe(true);
+    expect(capturedTool.promptGuidelines.some((g: string) => g.includes('NESTED'))).toBe(true);
   });
 
-  it('should list todos from tool result state (empty)', async () => {
-    registerTodosTool(mockApi);
-    const params = { action: 'list' };
-    const result = await capturedTool.execute('list-empty', params, undefined, undefined, mockCtx);
-    expect(result.content[0].text).toContain('No todos');
-    expect(result.details.action).toBe('list');
-    expect((result.details as TodoDetails).todos).toEqual([]);
+  it('should list empty todos', async () => {
+    const result = await capturedTool.execute('list', { list: {} }, undefined, undefined, mockCtx);
+    const details = result.details as TodoToolDetails;
+    expect(details.phases).toEqual([]);
+    expect(result.content[0].text).toContain('Todo list cleared');
   });
 
-  it('should add todos with optional priority and due', async () => {
-    registerTodosTool(mockApi);
-    const params = { action: 'add', items: ['Task 1', 'Task 2'], priority: 'high', due: '2025-12-31' };
-    const result = await capturedTool.execute('add', params, undefined, undefined, mockCtx);
-    expect(mockApi.appendEntry).toHaveBeenCalledTimes(2);
-    // Check first entry contains correct fields (id can vary)
-    expect(mockApi.appendEntry).toHaveBeenNthCalledWith(1, 'todos', expect.objectContaining({ text: 'Task 1', done: false, priority: 'high', due: '2025-12-31' }));
-    const details = result.details as TodoDetails;
-    expect(details.affectedIds).toHaveLength(2);
-    expect(result.content[0].text).toContain('Added 2 todo(s)');
-    expect(details.action).toBe('add');
-    expect(details.todos.length).toBe(2);
+  it('should add a phase with tasks', async () => {
+    const params = {
+      add_phase: {
+        name: 'Phase 1',
+        tasks: [{ content: 'Task 1', status: 'pending' }, { content: 'Task 2', status: 'in_progress' }]
+      }
+    };
+    const result = await capturedTool.execute('add-phase', params, undefined, undefined, mockCtx);
+    const details = result.details as TodoToolDetails;
+    expect(details.phases.length).toBe(1);
+    expect(details.phases[0].name).toBe('Phase 1');
+    expect(details.phases[0].tasks.length).toBe(2);
+    expect(details.phases[0].tasks[1].status).toBe('in_progress');
   });
 
-  it('should add single todo without optional fields', async () => {
-    registerTodosTool(mockApi);
-    const params = { action: 'add', items: ['Single task'] };
-    const result = await capturedTool.execute('add-single', params, undefined, undefined, mockCtx);
-    expect(mockApi.appendEntry).toHaveBeenCalledTimes(1);
-    const details = result.details as TodoDetails;
-    expect(details.affectedIds).toHaveLength(1);
-    expect(result.content[0].text).toContain('Added 1 todo(s)');
+  it('should add a task to existing phase', async () => {
+    // First add phase
+    await capturedTool.execute('p1', { add_phase: { name: 'P1' } }, undefined, undefined, mockCtx);
+    const listResult = await capturedTool.execute('list', { list: {} }, undefined, undefined, mockCtx);
+    const phases = (listResult.details as any).phases as TodoPhase[];
+    const phaseId = phases[0].id;
+
+    // Add task
+    const result = await capturedTool.execute('add-task', { add_task: { phase: phaseId, content: 'New task' } }, undefined, undefined, mockCtx);
+    const details = result.details as TodoToolDetails;
+    expect(details.phases[0].tasks.length).toBe(1);
+    expect(details.phases[0].tasks[0].content).toBe('New task');
   });
 
-  it('should toggle todo done status', async () => {
-    registerTodosTool(mockApi);
-    await capturedTool.execute('add1', { action: 'add', items: ['Task'] }, undefined, undefined, mockCtx);
-    const result = await capturedTool.execute('toggle', { action: 'edit', id: 1, updates: { done: true } }, undefined, undefined, mockCtx);
-    // Check appendEntry called with a todo that has done: true (id may vary)
-    expect(mockApi.appendEntry).toHaveBeenCalledWith('todos', expect.objectContaining({ done: true }));
-    expect(result.content[0].text).toContain('Edited todo');
-    expect(result.details.action).toBe('edit');
-    expect((result.details as TodoDetails).todos[0].done).toBe(true);
+  it('should update task status', async () => {
+    // Create phase with task
+    await capturedTool.execute('add', { add_phase: { name: 'Work', tasks: [{ content: 'Do thing' }] } }, undefined, undefined, mockCtx);
+    const phases = (await capturedTool.execute('list', { list: {} }, undefined, undefined, mockCtx)).details.phases as TodoPhase[];
+    const taskId = phases[0].tasks[0].id;
+
+    const result = await capturedTool.execute('update', { update: { id: taskId, status: 'completed' } }, undefined, undefined, mockCtx);
+    const details = result.details as TodoToolDetails;
+    expect(details.phases[0].tasks[0].status).toBe('completed');
   });
 
-  it('should handle toggle with non-existent id', async () => {
-    registerTodosTool(mockApi);
-    const params = { action: 'edit', id: 999, updates: { done: true } };
-    const result = await capturedTool.execute('toggle-fail', params, undefined, undefined, mockCtx);
-    expect(result.isError).toBe(false); // Not an exception, but error in details
-    expect(result.details.error).toBe('#999 not found');
+  it('should remove a task', async () => {
+    await capturedTool.execute('add', { add_phase: { name: 'X', tasks: [{ content: 'A' }, { content: 'B' }] } }, undefined, undefined, mockCtx);
+    const phases = (await capturedTool.execute('list', { list: {} }, undefined, undefined, mockCtx)).details.phases as TodoPhase[];
+    const taskIdToRemove = phases[0].tasks[0].id;
+
+    const result = await capturedTool.execute('remove', { remove_task: { id: taskIdToRemove } }, undefined, undefined, mockCtx);
+    const details = result.details as TodoToolDetails;
+    expect(details.phases[0].tasks.length).toBe(1);
+    expect(details.phases[0].tasks[0].content).toBe('B');
   });
 
-  it('should delete a todo', async () => {
-    registerTodosTool(mockApi);
-    await capturedTool.execute('add1', { action: 'add', items: ['Task 1', 'Task 2'] }, undefined, undefined, mockCtx);
-    const result = await capturedTool.execute('delete', { action: 'delete', ids: 1 }, undefined, undefined, mockCtx);
-    // Check deleted flag (id may vary)
-    expect(mockApi.appendEntry).toHaveBeenCalledWith('todos', expect.objectContaining({ _deleted: true }));
-    expect(result.content[0].text).toContain('Deleted 1 todo(s)');
-    const details = result.details as TodoDetails;
-    expect(details.todos.length).toBe(1);
-    expect(details.todos[0].text).toBe('Task 2');
+  it('should replace all phases', async () => {
+    // Initial
+    await capturedTool.execute('add1', { add_phase: { name: 'Old1' } }, undefined, undefined, mockCtx);
+    await capturedTool.execute('add2', { add_phase: { name: 'Old2' } }, undefined, undefined, mockCtx);
+
+    const newPhases = [
+      { name: 'New1', tasks: [{ content: 'T1' }] },
+      { name: 'New2', tasks: [{ content: 'T2' }, { content: 'T3' }] }
+    ];
+    const result = await capturedTool.execute('replace', { replace: { phases: newPhases } }, undefined, undefined, mockCtx);
+    const details = result.details as TodoToolDetails;
+    expect(details.phases.length).toBe(2);
+    expect(details.phases[0].name).toBe('New1');
+    expect(details.phases[1].tasks.length).toBe(2);
   });
 
-  it('should clear all todos', async () => {
-    registerTodosTool(mockApi);
-    await capturedTool.execute('add1', { action: 'add', items: ['Task 1', 'Task 2'] }, undefined, undefined, mockCtx);
-    expect(mockApi.appendEntry).toHaveBeenCalledTimes(2);
-    const result = await capturedTool.execute('clear', { action: 'clear' }, undefined, undefined, mockCtx);
-    // 2 additional appendEntry calls for cleared todos
-    expect(mockApi.appendEntry).toHaveBeenCalledTimes(4);
-    expect(result.content[0].text).toContain('Cleared 2 todos');
-    const details = result.details as TodoDetails;
-    expect(details.todos).toEqual([]);
-  });
-
-  it('should compute stats correctly', async () => {
-    registerTodosTool(mockApi);
-    const r1 = await capturedTool.execute('add1', { action: 'add', items: ['T1'], priority: 'high' }, undefined, undefined, mockCtx);
-    const r2 = await capturedTool.execute('add2', { action: 'add', items: ['T2'], priority: 'high' }, undefined, undefined, mockCtx);
-    const r3 = await capturedTool.execute('add3', { action: 'add', items: ['T3'], priority: 'low' }, undefined, undefined, mockCtx);
-    const details1 = r1.details as TodoDetails;
-    const id1 = details1.affectedIds?.[0];
-    expect(id1).toBeDefined();
-    await capturedTool.execute('toggle1', { action: 'edit', id: id1, updates: { done: true } }, undefined, undefined, mockCtx);
-    const result = await capturedTool.execute('list', { action: 'list' }, undefined, undefined, mockCtx);
-    const details = result.details as TodoDetails;
-    expect(details.stats?.total).toBe(3);
-    expect(details.stats?.done).toBe(1);
-    expect(details.stats?.pending).toBe(2);
-    expect(details.stats?.byPriority.high).toBe(2);
-    expect(details.stats?.byPriority.low).toBe(1);
-  });
-
-  // ============================================================================
-  // Rendering Tests
-  // ============================================================================
+  // Rendering tests
   describe('rendering', () => {
     let theme: any;
 
@@ -180,95 +148,36 @@ describe('todos tool', () => {
         warning: 'warning',
         text: 'text',
         muted: 'muted',
-        borderMuted: 'borderMuted'
       } as any;
     });
 
-    it('should render call with action and optional fields', () => {
-      registerTodosTool(mockApi);
-      const call = capturedTool.renderCall({ action: 'add', items: ['test'], priority: 'high', id: 5 }, theme, {});
-      expect(call).toBeInstanceOf(Text);
-    });
-
-    it('should render result for list action (not expanded)', () => {
-      registerTodosTool(mockApi);
-      const todos = [
-        { id: 1, text: 'A', done: false },
-        { id: 2, text: 'B', done: true },
-      ];
-      const result = {
-        content: [{ type: 'text', text: 'list' }],
-        details: {
-          action: 'list',
-          todos,
-          nextId: 3,
-          stats: { total: 2, done: 1, pending: 1, byPriority: { low: 0, medium: 0, high: 0, critical: 0 } }
-        }
-      } as any;
-      const comp = capturedTool.renderResult(result, { expanded: false, isPartial: false }, theme, {});
+    it('should render call', () => {
+      const comp = capturedTool.renderCall({ add_phase: { name: 'P' } }, theme, {});
       expect(comp).toBeInstanceOf(Text);
     });
 
-    it('should render result for list expanded', () => {
-      registerTodosTool(mockApi);
-      const todos = [
-        { id: 1, text: 'A', done: false, priority: 'high' },
-        { id: 2, text: 'B', done: true, priority: 'low' },
+    it('should render result with phases', () => {
+      const phases: TodoPhase[] = [
+        { id: 'phase-1', name: 'Dev', tasks: [
+          { id: 'task-1', content: 'Code', status: 'in_progress' },
+          { id: 'task-2', content: 'Test', status: 'pending' }
+        ]}
       ];
       const result = {
-        content: [{ type: 'text', text: 'list' }],
-        details: {
-          action: 'list',
-          todos,
-          nextId: 3,
-          stats: { total: 2, done: 1, pending: 1, byPriority: { low: 1, medium: 0, high: 1, critical: 0 } }
-        }
-      } as any;
-      const comp = capturedTool.renderResult(result, { expanded: true, isPartial: false }, theme, {});
-      expect(comp).toBeInstanceOf(Text);
-    });
-
-    it('should render result for add action', () => {
-      registerTodosTool(mockApi);
-      const todos = [{ id: 1, text: 'New', done: false, priority: 'high' }];
-      const result = {
-        content: [{ type: 'text', text: 'Added' }],
-        details: {
-          action: 'add',
-          todos,
-          nextId: 2,
-          stats: { total: 1, done: 0, pending: 1, byPriority: { low: 0, medium: 0, high: 1, critical: 0 } }
-        }
+        content: [{ type: 'text', text: 'summary' }],
+        details: { phases, storage: 'file' } as TodoToolDetails
       } as any;
       const comp = capturedTool.renderResult(result, { expanded: false, isPartial: false }, theme, {});
       expect(comp).toBeInstanceOf(Text);
     });
 
     it('should show processing when partial', () => {
-      registerTodosTool(mockApi);
       const comp = capturedTool.renderResult({}, { expanded: false, isPartial: true }, theme, {});
       expect(comp).toBeInstanceOf(Text);
     });
-
-    it('should show error when details has error', () => {
-      registerTodosTool(mockApi);
-      const result = {
-        content: [{ type: 'text', text: '' }],
-        details: { action: 'list', todos: [], nextId: 1, error: 'something broke' }
-      } as any;
-      const comp = capturedTool.renderResult(result, { expanded: false, isPartial: false }, theme, {});
-      expect(comp).toBeInstanceOf(Text);
-    });
   });
 
-  it('should register session event listeners for state reconstruction', () => {
-    registerTodosTool(mockApi);
-    expect(mockApi.on).toHaveBeenCalledWith('session_start', expect.any(Function));
-    expect(mockApi.on).toHaveBeenCalledWith('session_tree', expect.any(Function));
-  });
-
-  it('tool should have custom renderShell set to self', () => {
-    registerTodosTool(mockApi);
+  it('should have renderShell self', () => {
     expect(capturedTool.renderShell).toBe('self');
   });
 });
