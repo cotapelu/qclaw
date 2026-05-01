@@ -1,6 +1,6 @@
 // THIS FILE IS AUTO-GENERATED
 // Source: https://models.dev/api.json
-// Generated: 2026-04-30T17:21:19.173Z
+// Generated: 2026-05-01T02:14:05.372Z
 // DO NOT EDIT MANUALLY - Run 'npm run generate-custom-models' to update
 
 import type { Model } from "@mariozechner/pi-ai";
@@ -12,7 +12,7 @@ export const CUSTOM_MODELS = {
       name: "AI21: Jamba Large 1.7",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -29,7 +29,7 @@ export const CUSTOM_MODELS = {
       name: "Tongyi DeepResearch 30B A3B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -46,7 +46,7 @@ export const CUSTOM_MODELS = {
       name: "AllenAI: Olmo 3.1 32B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -63,7 +63,7 @@ export const CUSTOM_MODELS = {
       name: "Amazon: Nova 2 Lite",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -80,7 +80,7 @@ export const CUSTOM_MODELS = {
       name: "Amazon: Nova Lite 1.0",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -97,7 +97,7 @@ export const CUSTOM_MODELS = {
       name: "Amazon: Nova Micro 1.0",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -114,7 +114,7 @@ export const CUSTOM_MODELS = {
       name: "Amazon: Nova Premier 1.0",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -131,7 +131,7 @@ export const CUSTOM_MODELS = {
       name: "Amazon: Nova Pro 1.0",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -148,7 +148,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude 3 Haiku",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -165,7 +165,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude 3.5 Haiku",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -182,7 +182,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude 3.7 Sonnet",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -199,7 +199,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude 3.7 Sonnet (thinking)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -216,7 +216,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude Haiku 4.5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -233,7 +233,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude Opus 4",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -250,7 +250,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude Opus 4.1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -267,7 +267,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude Opus 4.5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -284,7 +284,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude Opus 4.6",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -301,7 +301,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude Opus 4.6 (Fast)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -318,7 +318,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude Sonnet 4",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -335,7 +335,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude Sonnet 4.5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -352,7 +352,7 @@ export const CUSTOM_MODELS = {
       name: "Anthropic: Claude Sonnet 4.6",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -369,7 +369,7 @@ export const CUSTOM_MODELS = {
       name: "Arcee AI: Trinity Large Thinking",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -386,7 +386,7 @@ export const CUSTOM_MODELS = {
       name: "Arcee AI: Trinity Large Thinking (free)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -403,7 +403,7 @@ export const CUSTOM_MODELS = {
       name: "Arcee AI: Trinity Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -420,7 +420,7 @@ export const CUSTOM_MODELS = {
       name: "Arcee AI: Virtuoso Large",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -437,7 +437,7 @@ export const CUSTOM_MODELS = {
       name: "Baidu: ERNIE 4.5 21B A3B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -454,7 +454,7 @@ export const CUSTOM_MODELS = {
       name: "Baidu: ERNIE 4.5 VL 28B A3B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -471,7 +471,7 @@ export const CUSTOM_MODELS = {
       name: "ByteDance Seed: Dola Seed 2.0 Pro (free)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -488,7 +488,7 @@ export const CUSTOM_MODELS = {
       name: "ByteDance Seed: Seed 1.6",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -505,7 +505,7 @@ export const CUSTOM_MODELS = {
       name: "ByteDance Seed: Seed 1.6 Flash",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -522,7 +522,7 @@ export const CUSTOM_MODELS = {
       name: "ByteDance Seed: Seed-2.0-Lite",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -539,7 +539,7 @@ export const CUSTOM_MODELS = {
       name: "ByteDance Seed: Seed-2.0-Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -556,7 +556,7 @@ export const CUSTOM_MODELS = {
       name: "Cohere: Command R (08-2024)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -573,7 +573,7 @@ export const CUSTOM_MODELS = {
       name: "Cohere: Command R+ (08-2024)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -590,7 +590,7 @@ export const CUSTOM_MODELS = {
       name: "Cohere: Command R7B (12-2024)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -607,7 +607,7 @@ export const CUSTOM_MODELS = {
       name: "DeepSeek: DeepSeek V3",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -624,7 +624,7 @@ export const CUSTOM_MODELS = {
       name: "DeepSeek: DeepSeek V3 0324",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -641,7 +641,7 @@ export const CUSTOM_MODELS = {
       name: "DeepSeek: DeepSeek V3.1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -658,7 +658,7 @@ export const CUSTOM_MODELS = {
       name: "DeepSeek: R1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -675,7 +675,7 @@ export const CUSTOM_MODELS = {
       name: "DeepSeek: R1 0528",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -692,7 +692,7 @@ export const CUSTOM_MODELS = {
       name: "DeepSeek: DeepSeek V3.1 Terminus",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -709,7 +709,7 @@ export const CUSTOM_MODELS = {
       name: "DeepSeek: DeepSeek V3.2",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -726,7 +726,7 @@ export const CUSTOM_MODELS = {
       name: "DeepSeek: DeepSeek V3.2 Exp",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -743,7 +743,7 @@ export const CUSTOM_MODELS = {
       name: "EssentialAI: Rnj 1 Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -760,7 +760,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 2.0 Flash",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -777,7 +777,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 2.0 Flash Lite",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -794,7 +794,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 2.5 Flash",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -811,7 +811,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 2.5 Flash Lite",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -828,7 +828,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 2.5 Flash Lite Preview 09-2025",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -845,7 +845,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 2.5 Pro",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -862,7 +862,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 2.5 Pro Preview 06-05",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -879,7 +879,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 2.5 Pro Preview 05-06",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -896,7 +896,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 3 Flash Preview",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -913,7 +913,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 3.1 Flash Lite Preview",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -930,7 +930,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 3.1 Pro Preview",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -947,7 +947,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemini 3.1 Pro Preview Custom Tools",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -964,7 +964,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemma 3 27B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -981,7 +981,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemma 4 26B A4B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -998,7 +998,7 @@ export const CUSTOM_MODELS = {
       name: "Google: Gemma 4 31B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -1015,7 +1015,7 @@ export const CUSTOM_MODELS = {
       name: "Inception: Mercury 2",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1032,7 +1032,7 @@ export const CUSTOM_MODELS = {
       name: "Kilo Auto Balanced",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1049,7 +1049,7 @@ export const CUSTOM_MODELS = {
       name: "Kilo Auto Free",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1066,7 +1066,7 @@ export const CUSTOM_MODELS = {
       name: "Kilo Auto Frontier",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -1083,7 +1083,7 @@ export const CUSTOM_MODELS = {
       name: "Kilo Auto Small",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -1100,7 +1100,7 @@ export const CUSTOM_MODELS = {
       name: "Kwaipilot: KAT-Coder-Pro V2",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1117,7 +1117,7 @@ export const CUSTOM_MODELS = {
       name: "Meituan: LongCat Flash Chat",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1134,7 +1134,7 @@ export const CUSTOM_MODELS = {
       name: "Meta: Llama 3 8B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1151,7 +1151,7 @@ export const CUSTOM_MODELS = {
       name: "Meta: Llama 3.1 70B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1168,7 +1168,7 @@ export const CUSTOM_MODELS = {
       name: "Meta: Llama 3.1 8B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1185,7 +1185,7 @@ export const CUSTOM_MODELS = {
       name: "Meta: Llama 3.3 70B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1202,7 +1202,7 @@ export const CUSTOM_MODELS = {
       name: "Meta: Llama 4 Maverick",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1219,7 +1219,7 @@ export const CUSTOM_MODELS = {
       name: "Meta: Llama 4 Scout",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1236,7 +1236,7 @@ export const CUSTOM_MODELS = {
       name: "MiniMax: MiniMax M1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1253,7 +1253,7 @@ export const CUSTOM_MODELS = {
       name: "MiniMax: MiniMax M2",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1270,7 +1270,7 @@ export const CUSTOM_MODELS = {
       name: "MiniMax: MiniMax M2.1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1287,7 +1287,7 @@ export const CUSTOM_MODELS = {
       name: "MiniMax: MiniMax M2.5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1304,7 +1304,7 @@ export const CUSTOM_MODELS = {
       name: "MiniMax: MiniMax M2.7",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1321,7 +1321,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Codestral 2508",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1338,7 +1338,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Devstral 2 2512",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1355,7 +1355,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Devstral Medium",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1372,7 +1372,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Devstral Small 1.1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1389,7 +1389,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Ministral 3 14B 2512",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1406,7 +1406,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Ministral 3 3B 2512",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1423,7 +1423,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Ministral 3 8B 2512",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1440,7 +1440,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral Large",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1457,7 +1457,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral Large 2407",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1474,7 +1474,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral Large 2411",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1491,7 +1491,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mistral Large 3 2512",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1508,7 +1508,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mistral Medium 3",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1525,7 +1525,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mistral Medium 3.1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1542,7 +1542,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mistral Nemo",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1559,7 +1559,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Saba",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1576,7 +1576,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mistral Small 3",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1593,7 +1593,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mistral Small 4",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -1610,7 +1610,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mistral Small 3.2 24B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1627,7 +1627,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mistral Small Creative",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1644,7 +1644,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mixtral 8x22B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1661,7 +1661,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Mixtral 8x7B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1678,7 +1678,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Pixtral Large 2411",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -1695,7 +1695,7 @@ export const CUSTOM_MODELS = {
       name: "Mistral: Voxtral Small 24B 2507",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1712,7 +1712,7 @@ export const CUSTOM_MODELS = {
       name: "MoonshotAI: Kimi K2 0711",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1729,7 +1729,7 @@ export const CUSTOM_MODELS = {
       name: "MoonshotAI: Kimi K2 0905",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1746,7 +1746,7 @@ export const CUSTOM_MODELS = {
       name: "MoonshotAI: Kimi K2 Thinking",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1763,7 +1763,7 @@ export const CUSTOM_MODELS = {
       name: "MoonshotAI: Kimi K2.5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -1780,7 +1780,7 @@ export const CUSTOM_MODELS = {
       name: "MoonshotAI: Kimi K2.6",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -1797,7 +1797,7 @@ export const CUSTOM_MODELS = {
       name: "Nex AGI: DeepSeek V3.1 Nex N1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1814,7 +1814,7 @@ export const CUSTOM_MODELS = {
       name: "NVIDIA: Llama 3.1 Nemotron 70B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1831,7 +1831,7 @@ export const CUSTOM_MODELS = {
       name: "NVIDIA: Llama 3.3 Nemotron Super 49B V1.5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1848,7 +1848,7 @@ export const CUSTOM_MODELS = {
       name: "NVIDIA: Nemotron 3 Nano 30B A3B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1865,7 +1865,7 @@ export const CUSTOM_MODELS = {
       name: "NVIDIA: Nemotron 3 Super",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1882,7 +1882,7 @@ export const CUSTOM_MODELS = {
       name: "NVIDIA: Nemotron 3 Super (free)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1899,7 +1899,7 @@ export const CUSTOM_MODELS = {
       name: "NVIDIA: Nemotron Nano 9B V2",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -1916,7 +1916,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-3.5 Turbo",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1933,7 +1933,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-3.5 Turbo (older v0613)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1950,7 +1950,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-3.5 Turbo 16k",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1967,7 +1967,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -1984,7 +1984,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4 (older v0314)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2001,7 +2001,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4 Turbo (older v1106)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2018,7 +2018,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4 Turbo",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2035,7 +2035,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4 Turbo Preview",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2052,7 +2052,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4.1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2069,7 +2069,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4.1 Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2086,7 +2086,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4.1 Nano",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2103,7 +2103,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4o",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2120,7 +2120,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4o (2024-05-13)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2137,7 +2137,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4o (2024-08-06)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2154,7 +2154,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4o (2024-11-20)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2171,7 +2171,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4o Audio",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2188,7 +2188,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4o-mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2205,7 +2205,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4o-mini (2024-07-18)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2222,7 +2222,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-4o (extended)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2239,7 +2239,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2256,7 +2256,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5 Codex",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2273,7 +2273,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5 Image",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2290,7 +2290,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5 Image Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2307,7 +2307,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5 Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2324,7 +2324,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5 Nano",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2341,7 +2341,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5 Pro",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2358,7 +2358,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2375,7 +2375,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.1 Chat",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2392,7 +2392,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.1-Codex",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2409,7 +2409,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.1-Codex-Max",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2426,7 +2426,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.1-Codex-Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2443,7 +2443,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.2",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2460,7 +2460,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.2 Chat",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2477,7 +2477,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.2-Codex",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2494,7 +2494,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.2 Pro",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2511,7 +2511,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.3 Chat",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2528,7 +2528,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.3-Codex",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2545,7 +2545,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.4",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2562,7 +2562,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.4 Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2579,7 +2579,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.4 Nano",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2596,7 +2596,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: GPT-5.4 Pro",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2613,7 +2613,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: gpt-oss-120b",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -2630,7 +2630,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: gpt-oss-20b",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -2647,7 +2647,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: gpt-oss-safeguard-20b",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -2664,7 +2664,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: o1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -2681,7 +2681,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: o3",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2698,7 +2698,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: o3 Deep Research",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2715,7 +2715,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: o3 Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2732,7 +2732,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: o3 Mini High",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2749,7 +2749,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: o3 Pro",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2766,7 +2766,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: o4 Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2783,7 +2783,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: o4 Mini Deep Research",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2800,7 +2800,7 @@ export const CUSTOM_MODELS = {
       name: "OpenAI: o4 Mini High",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2817,7 +2817,7 @@ export const CUSTOM_MODELS = {
       name: "Auto Router",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2834,7 +2834,7 @@ export const CUSTOM_MODELS = {
       name: "Elephant (new)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -2851,7 +2851,7 @@ export const CUSTOM_MODELS = {
       name: "Free Models Router",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -2868,7 +2868,7 @@ export const CUSTOM_MODELS = {
       name: "Prime Intellect: INTELLECT-3",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -2885,7 +2885,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen2.5 72B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2902,7 +2902,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen2.5 7B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2919,7 +2919,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen-Max ",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2936,7 +2936,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen-Plus",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2953,7 +2953,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen Plus 0728",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -2970,7 +2970,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen Plus 0728 (thinking)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -2987,7 +2987,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen-Turbo",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3004,7 +3004,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen VL Max",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -3021,7 +3021,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 14B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3038,7 +3038,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 235B A22B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3055,7 +3055,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 235B A22B Instruct 2507",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3072,7 +3072,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 235B A22B Thinking 2507",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3089,7 +3089,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 30B A3B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3106,7 +3106,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 30B A3B Instruct 2507",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3123,7 +3123,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 30B A3B Thinking 2507",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3140,7 +3140,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 32B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3157,7 +3157,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 8B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3174,7 +3174,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 Coder 480B A35B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3191,7 +3191,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 Coder 30B A3B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3208,7 +3208,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 Coder Flash",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3225,7 +3225,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 Coder Next",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3242,7 +3242,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 Coder Plus",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3259,7 +3259,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 Max",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3276,7 +3276,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 Max Thinking",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3293,7 +3293,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 Next 80B A3B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3310,7 +3310,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 Next 80B A3B Thinking",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3327,7 +3327,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 VL 235B A22B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -3344,7 +3344,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 VL 235B A22B Thinking",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3361,7 +3361,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 VL 30B A3B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -3378,7 +3378,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 VL 30B A3B Thinking",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3395,7 +3395,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 VL 32B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -3412,7 +3412,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 VL 8B Instruct",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -3429,7 +3429,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3 VL 8B Thinking",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3446,7 +3446,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3.5-122B-A10B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3463,7 +3463,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3.5-27B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3480,7 +3480,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3.5-35B-A3B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3497,7 +3497,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3.5 397B A17B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3514,7 +3514,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3.5-9B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3531,7 +3531,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3.5-Flash",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3548,7 +3548,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3.5 Plus 2026-02-15",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3565,7 +3565,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: Qwen3.6 Plus",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3582,7 +3582,7 @@ export const CUSTOM_MODELS = {
       name: "Qwen: QwQ 32B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3599,7 +3599,7 @@ export const CUSTOM_MODELS = {
       name: "Reka Edge",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text", "image"],
       cost: {
@@ -3616,7 +3616,7 @@ export const CUSTOM_MODELS = {
       name: "Relace: Relace Search",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3633,7 +3633,7 @@ export const CUSTOM_MODELS = {
       name: "Sao10k: Llama 3 Euryale 70B v2.1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3650,7 +3650,7 @@ export const CUSTOM_MODELS = {
       name: "Sao10K: Llama 3.1 Euryale 70B v2.2",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3667,7 +3667,7 @@ export const CUSTOM_MODELS = {
       name: "StepFun: Step 3.5 Flash",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3684,7 +3684,7 @@ export const CUSTOM_MODELS = {
       name: "TheDrummer: Rocinante 12B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3701,7 +3701,7 @@ export const CUSTOM_MODELS = {
       name: "TheDrummer: UnslopNemo 12B",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3718,7 +3718,7 @@ export const CUSTOM_MODELS = {
       name: "TNG: DeepSeek R1T2 Chimera",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3735,7 +3735,7 @@ export const CUSTOM_MODELS = {
       name: "Upstage: Solar Pro 3",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3752,7 +3752,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok 3",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3769,7 +3769,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok 3 Beta",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -3786,7 +3786,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok 3 Mini",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3803,7 +3803,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok 3 Mini Beta",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3820,7 +3820,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok 4",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3837,7 +3837,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok 4 Fast",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3854,7 +3854,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok 4.1 Fast",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3871,7 +3871,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok 4.20",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3888,7 +3888,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok Code Fast 1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3905,7 +3905,7 @@ export const CUSTOM_MODELS = {
       name: "xAI: Grok Code Fast 1 Optimized (experimental, free)",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3922,7 +3922,7 @@ export const CUSTOM_MODELS = {
       name: "Xiaomi: MiMo-V2-Flash",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3939,7 +3939,7 @@ export const CUSTOM_MODELS = {
       name: "Xiaomi: MiMo-V2-Omni",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -3956,7 +3956,7 @@ export const CUSTOM_MODELS = {
       name: "Xiaomi: MiMo-V2-Pro",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3973,7 +3973,7 @@ export const CUSTOM_MODELS = {
       name: "Xiaomi: MiMo-V2.5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -3990,7 +3990,7 @@ export const CUSTOM_MODELS = {
       name: "Xiaomi: MiMo V2.5 Pro",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -4007,7 +4007,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 4 32B ",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: false,
       input: ["text"],
       cost: {
@@ -4024,7 +4024,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 4.5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -4041,7 +4041,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 4.5 Air",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -4058,7 +4058,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 4.5V",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -4075,7 +4075,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 4.6",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -4092,7 +4092,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 4.6V",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {
@@ -4109,7 +4109,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 4.7",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -4126,7 +4126,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 4.7 Flash",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -4143,7 +4143,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 5",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -4160,7 +4160,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 5 Turbo",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -4177,7 +4177,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 5.1",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text"],
       cost: {
@@ -4194,7 +4194,7 @@ export const CUSTOM_MODELS = {
       name: "Z.ai: GLM 5V Turbo",
       api: "openai-completions",
       provider: "kilo",
-      baseUrl: "https://api.kilo.ai/v1",
+      baseUrl: "https://api.kilo.ai/api/gateway",
       reasoning: true,
       input: ["text", "image"],
       cost: {

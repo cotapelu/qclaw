@@ -3,8 +3,9 @@
 /**
  * Generate Custom Models Script
  *
- * Bắt chước y chang pi-ai/generate-models.ts nhưng chỉ fetch từ models.dev
- * cho các custom providers đã khai báo trong registry.ts.
+ * Fetch models từ models.dev API cho các custom providers đã khai báo.
+ *
+ * Để thêm provider mới: thêm key vào CUSTOM_PROVIDER_KEYS array.
  */
 
 import { writeFileSync, mkdirSync } from "fs";
@@ -18,11 +19,15 @@ const PROJECT_ROOT = join(__dirname, "..");
 const OUTPUT_DIR = join(PROJECT_ROOT, "src", "extensions", "providers", "models");
 const OUTPUT_FILE = join(OUTPUT_DIR, "custom-models.generated.ts");
 
-// Import registry (this executes registrations)
-await import(join(PROJECT_ROOT, "src", "extensions", "providers", "registry.js"));
-const { getKnownCustomProviders } = await import(
-  join(PROJECT_ROOT, "src", "extensions", "providers", "registry.js")
-);
+interface ModelsDevProvider {
+  id: string;
+  env?: string[];
+  npm?: string;
+  api: string;  // base URL
+  name: string;
+  doc?: string;
+  models: Record<string, any>;
+}
 
 interface ModelsDevModel {
   id: string;
@@ -34,11 +39,28 @@ interface ModelsDevModel {
   modalities?: { input?: string[] };
 }
 
+// ============================================================================
+// CUSTOM PROVIDER KEYS
+// Import từ registry (được khai báo tập trung)
+// ============================================================================
+const { CUSTOM_PROVIDERS } = await import(
+  join(PROJECT_ROOT, "src", "extensions", "providers", "registry.js"));
+const CUSTOM_PROVIDER_KEYS = CUSTOM_PROVIDERS as readonly string[];
+
+
+function getApiTypeFromNpm(npm?: string): string {
+  if (!npm) return "openai-completions";
+  if (npm.includes("@ai-sdk/anthropic")) return "anthropic-messages";
+  if (npm.includes("@ai-sdk/google")) return "google-generative-ai";
+  // @ai-sdk/openai, @ai-sdk/openai-compatible, etc.
+  return "openai-completions";
+}
+
 function escapeName(name: string): string {
   return name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-async function loadModelsDevData(customProviders: any[]): Promise<Model<any>[]> {
+async function loadModelsDevData(): Promise<Model<any>[]> {
   console.log("Fetching models from models.dev API...");
   const response = await fetch("https://models.dev/api.json");
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -46,25 +68,33 @@ async function loadModelsDevData(customProviders: any[]): Promise<Model<any>[]> 
 
   const models: Model<any>[] = [];
 
-  // Duyệt từng custom provider (dựa trên sourceKey)
-  for (const provider of customProviders) {
-    const providerData = data[provider.sourceKey];
+  for (const key of CUSTOM_PROVIDER_KEYS) {
+    const provider = data[key] as ModelsDevProvider | undefined;
 
-    if (!providerData?.models) {
-      console.log(`  ⚠️  ${provider.providerName}: No data in models.dev`);
+    if (!provider?.models || !provider.api) {
+      console.log(`  ⚠️  ${key}: Missing provider data or api field in models.dev`);
       continue;
     }
 
-    for (const [modelId, model] of Object.entries(providerData.models)) {
+    const apiType = getApiTypeFromNpm(provider.npm) as any;
+    // Only include OpenAI-compatible providers
+    if (apiType !== "openai-completions") {
+      console.log(`  ⏭️  ${key}: Skipping (api type: ${apiType}, not openai-completions)`);
+      continue;
+    }
+    const baseUrl = provider.api;
+
+    let modelCount = 0;
+    for (const [modelId, model] of Object.entries(provider.models)) {
       const m = model as ModelsDevModel;
       if (m.tool_call !== true) continue;
 
       models.push({
         id: modelId,
         name: m.name || modelId,
-        api: provider.api as any,
-        provider: provider.providerName as any,
-        baseUrl: provider.baseUrl,
+        api: apiType,
+        provider: key,
+        baseUrl,
         reasoning: m.reasoning === true,
         input: (m.modalities?.input?.includes("image") ? ["text", "image"] : ["text"]) as ("text" | "image")[],
         cost: {
@@ -76,10 +106,13 @@ async function loadModelsDevData(customProviders: any[]): Promise<Model<any>[]> 
         contextWindow: m.limit?.context || 4096,
         maxTokens: m.limit?.output || 4096,
       });
+      modelCount++;
     }
+
+    console.log(`  ✅ ${key}: ${modelCount} model(s) (api: ${apiType}, baseUrl: ${baseUrl})`);
   }
 
-  console.log(`Loaded ${models.length} tool-capable models from models.dev`);
+  console.log(`\nTotal loaded: ${models.length} models`);
   return models;
 }
 
@@ -87,18 +120,9 @@ async function generate(): Promise<void> {
   console.log("🚀 Generating custom models from models.dev...\n");
 
   try {
-    const customProviders = getKnownCustomProviders();
-    if (customProviders.length === 0) {
-      console.log("⚠️  No custom providers registered in registry.ts");
-      process.exit(0);
-    }
+    const allModels = await loadModelsDevData();
 
-    console.log(`Processing ${customProviders.length} custom provider(s):\n`);
-
-    // Fetch models từ models.dev
-    const allModels = await loadModelsDevData(customProviders);
-
-    // Group by provider: Record<providerName, Record<modelId, Model>>
+    // Group by provider
     const providers: Record<string, Record<string, Model<any>>> = {};
     for (const model of allModels) {
       if (!providers[model.provider]) {
@@ -119,13 +143,11 @@ async function generate(): Promise<void> {
       "export const CUSTOM_MODELS = {",
     ];
 
-    // Sort providers for deterministic output
     const sortedProviderNames = Object.keys(providers).sort();
     for (const providerName of sortedProviderNames) {
       const providerModels = providers[providerName];
       lines.push(`  "${providerName}": {`);
 
-      // Sort model IDs
       const sortedModelIds = Object.keys(providerModels).sort();
       for (const modelId of sortedModelIds) {
         const model = providerModels[modelId];
@@ -155,7 +177,6 @@ async function generate(): Promise<void> {
 
     lines.push(`} as const;`);
 
-    // Write file
     mkdirSync(OUTPUT_DIR, { recursive: true });
     writeFileSync(OUTPUT_FILE, lines.join("\n"), "utf-8");
     console.log(`\n✅ Generated: ${OUTPUT_FILE}\n`);
