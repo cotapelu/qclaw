@@ -248,48 +248,45 @@ function normalizeParams(params: unknown): any {
 
   const normalized = params as Record<string, unknown>;
 
-  if (normalized.add_phase && typeof normalized.add_phase === "string") {
-    try {
-      normalized.add_phase = JSON.parse(normalized.add_phase);
-    } catch (e) {
-      throw new Error(`add_phase must be an object, not a string. Error parsing: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
+  // Backward compatibility: lift nested objects to root
   if (normalized.add_phase && typeof normalized.add_phase === "object") {
     const addPhase = normalized.add_phase as Record<string, unknown>;
-    if (addPhase.name && typeof addPhase.name === "string" && addPhase.name.startsWith("{")) {
-      try {
-        const parsed = JSON.parse(addPhase.name);
-        if (typeof parsed === "object" && parsed !== null) {
-          normalized.add_phase = parsed;
-        }
-      } catch {
-        // Keep original if parse fails
-      }
-    }
-  }
-
-  if (normalized.add_phase && typeof normalized.add_phase === "object") {
-    const addPhase = normalized.add_phase as Record<string, unknown>;
-    if (addPhase.tasks && typeof addPhase.tasks === "string") {
-      try {
-        addPhase.tasks = JSON.parse(addPhase.tasks);
-      } catch {
-        addPhase.tasks = (addPhase.tasks as string).split(",").map((s) => ({ content: s.trim() }));
-      }
-    }
+    if (!normalized.name && addPhase.name !== undefined) normalized.name = addPhase.name;
+    if (!normalized.tasks && addPhase.tasks !== undefined) normalized.tasks = addPhase.tasks;
+    delete normalized.add_phase;
   }
 
   if (normalized.replace && typeof normalized.replace === "object") {
     const replace = normalized.replace as Record<string, unknown>;
-    if (replace.phases && typeof replace.phases === "string") {
-      try {
-        replace.phases = JSON.parse(replace.phases);
-      } catch (e) {
-        throw new Error(`replace.phases must be an array, not a string. Error parsing: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
+    if (!normalized.phases && replace.phases !== undefined) normalized.phases = replace.phases;
+    delete normalized.replace;
+  }
+
+  if (normalized.update && typeof normalized.update === "object") {
+    const update = normalized.update as Record<string, unknown>;
+    const lifted: Record<string, unknown> = {};
+    if (update.id !== undefined && !normalized.id) lifted.id = update.id;
+    if (update.status !== undefined && !normalized.status) lifted.status = update.status;
+    if (update.content !== undefined && !normalized.content) lifted.content = update.content;
+    if (update.notes !== undefined && !normalized.notes) lifted.notes = update.notes;
+    if (update.details !== undefined && !normalized.details) lifted.details = update.details;
+    Object.assign(normalized, lifted);
+    delete normalized.update;
+  }
+
+  if (normalized.remove_task && typeof normalized.remove_task === "object") {
+    const removeTask = normalized.remove_task as Record<string, unknown>;
+    if (!normalized.id && removeTask.id !== undefined) normalized.id = removeTask.id;
+    delete normalized.remove_task;
+  }
+
+  if (normalized.add_task && typeof normalized.add_task === "object") {
+    const addTask = normalized.add_task as Record<string, unknown>;
+    if (!normalized.phase && addTask.phase !== undefined) normalized.phase = addTask.phase;
+    if (!normalized.content && addTask.content !== undefined) normalized.content = addTask.content;
+    if (!normalized.notes && addTask.notes !== undefined) normalized.notes = addTask.notes;
+    if (!normalized.details && addTask.details !== undefined) normalized.details = addTask.details;
+    delete normalized.add_task;
   }
 
   return normalized;
@@ -548,11 +545,21 @@ class TodoState {
     if (index === -1) return null;
 
     const old = this._todos[index];
+    // Map status to done if provided
+    let done = old.done;
+    if (updates.status !== undefined) {
+      done = updates.status === 'completed' || updates.status === 'abandoned';
+    }
+
     const updated: Todo = {
       ...old,
       ...updates,
+      done,
       updated: Date.now(),
     };
+
+    // Remove status from updates since Todo doesn't have it
+    delete (updated as any).status;
 
     if (updated.tags && updated.tags.length === 0) {
       updated.tags = undefined;
@@ -724,7 +731,7 @@ class TodoState {
       const before = new Date(filter.dueBefore).getTime();
       result = result.filter(t => !t.due || new Date(t.due).getTime() < before);
     }
-    if (filter.search) {
+    if (filter.search && typeof filter.search === 'string') {
       const q = filter.search.toLowerCase();
       result = result.filter(t => t.text.toLowerCase().includes(q) || (t.tags && t.tags.some(tag => tag.toLowerCase().includes(q))));
     }
@@ -1070,12 +1077,12 @@ export function registerTodosTool(api: ExtensionAPI): void {
 
       try {
         if (action === "replace") {
-          const op = params.replace;
-          if (!Array.isArray(op.phases)) {
+          const phases = params.phases;
+          if (!Array.isArray(phases)) {
             errors.push("replace.phases must be an array");
           } else {
             const newPhases: Phase[] = [];
-            for (const inputPhase of op.phases) {
+            for (const inputPhase of phases) {
               if (!inputPhase || typeof inputPhase !== "object") {
                 errors.push("Each phase must be an object");
                 continue;
@@ -1092,54 +1099,59 @@ export function registerTodosTool(api: ExtensionAPI): void {
             state.replacePhases(newPhases);
           }
         } else if (action === "add_phase") {
-          const op = params.add_phase;
-          if (!op || typeof op !== "object") {
-            errors.push("add_phase must be an object");
-          } else if (!op.name || typeof op.name !== "string") {
+          const name = params.name;
+          const tasks = params.tasks;
+          if (!name || typeof name !== "string") {
             errors.push("add_phase.name must be a string");
           } else {
-            if (op.tasks && !Array.isArray(op.tasks)) {
+            if (tasks && !Array.isArray(tasks)) {
               errors.push("add_phase.tasks must be an array");
             } else {
-              state.addPhase(op.name, op.tasks);
+              state.addPhase(name, tasks);
             }
           }
         } else if (action === "add_task") {
-          const op = params.add_task;
-          if (!op || typeof op !== "object") {
-            errors.push("add_task must be an object");
-          } else if (!op.phase || typeof op.phase !== "string") {
+          const phase = params.phase;
+          const content = params.content;
+          const notes = params.notes;
+          const details = params.details;
+          if (!phase || typeof phase !== "string") {
             errors.push("add_task.phase must be a string (e.g., 'phase-1')");
-          } else if (!op.content || typeof op.content !== "string") {
+          } else if (!content || typeof content !== "string") {
             errors.push("add_task.content must be a string");
           } else {
-            const task = state.addTask(op.phase, op.content, op.notes, op.details);
+            const task = state.addTask(phase, content, notes, details);
             if (!task) {
-              errors.push(`Phase "${op.phase}" not found`);
+              errors.push(`Phase "${phase}" not found`);
             }
           }
         } else if (action === "update") {
-          const op = params.update;
-          if (!op || typeof op !== "object") {
-            errors.push("update must be an object");
-          } else if (!op.id || typeof op.id !== "string") {
+          const id = params.id;
+          const status = params.status;
+          const content = params.content;
+          const notes = params.notes;
+          const details = params.details;
+          if (!id || typeof id !== "string") {
             errors.push("update.id must be a string (e.g., 'task-1')");
           } else {
-            const task = state.updateTask(op.id, op);
+            const updates: any = {};
+            if (status !== undefined) updates.status = status;
+            if (content !== undefined) updates.content = content;
+            if (notes !== undefined) updates.notes = notes;
+            if (details !== undefined) updates.details = details;
+            const task = state.updateTask(id, updates);
             if (!task) {
-              errors.push(`Task "${op.id}" not found`);
+              errors.push(`Task "${id}" not found`);
             }
           }
         } else if (action === "remove_task") {
-          const op = params.remove_task;
-          if (!op || typeof op !== "object") {
-            errors.push("remove_task must be an object");
-          } else if (!op.id || typeof op.id !== "string") {
+          const id = params.id;
+          if (!id || typeof id !== "string") {
             errors.push("remove_task.id must be a string (e.g., 'task-1')");
           } else {
-            const removed = state.removeTask(op.id);
+            const removed = state.removeTask(id);
             if (!removed) {
-              errors.push(`Task "${op.id}" not found`);
+              errors.push(`Task "${id}" not found`);
             }
           }
         }
