@@ -211,6 +211,10 @@ function getNextIds(phases: TodoPhase[]): { nextTaskId: number; nextPhaseId: num
 	return { nextTaskId: maxTaskId + 1, nextPhaseId: maxPhaseId + 1 };
 }
 
+function makeEmptyFile(): TodoFile {
+	return { phases: [], nextTaskId: 1, nextPhaseId: 1 };
+}
+
 function fileFromPhases(phases: TodoPhase[]): TodoFile {
 	const { nextTaskId, nextPhaseId } = getNextIds(phases);
 	return { phases, nextTaskId, nextPhaseId };
@@ -313,8 +317,21 @@ class TodoState {
 		this._nextTaskId = val;
 	}
 
+	get nextPhaseId(): number {
+		return this._nextPhaseId;
+	}
+
+	set nextPhaseId(val: number) {
+		this._nextPhaseId = val;
+	}
+
 	get isLocked(): boolean {
 		return this._lock;
+	}
+
+	// Add method to get next phase id without incrementing
+	getNextPhaseId(): number {
+		return this._nextPhaseId;
 	}
 
 	subscribe(listener: () => void): () => void {
@@ -351,10 +368,11 @@ class TodoState {
 	// Save to file (async)
 	async saveToFile(): Promise<void> {
 		if (this._lock) return;
+		const ids = getNextIds(this._phases);
 		const file: TodoFile = {
 			phases: clonePhases(this._phases),
-			nextTaskId: this._nextTaskId,
-			nextPhaseId: this._phases.length > 0 ? parseInt(this._phases[this._phases.length - 1].id.replace("phase-", "")) + 1 : 1,
+			nextTaskId: ids.nextTaskId,
+			nextPhaseId: ids.nextPhaseId, // FIX: Use getNextIds, not parse last phase
 		};
 		await saveTodoToFile(file);
 	}
@@ -366,7 +384,10 @@ class TodoState {
 			const entry = entries[i];
 			if (entry.type !== "message") continue;
 			const msg = entry.message;
-			if (msg.role !== "toolResult" || msg.toolName !== "todos") continue;
+			if (msg.role !== "toolResult") continue;
+			// Check both 'todos' and 'todo_write' for compatibility
+			const toolName = msg.toolName as string;
+			if (toolName !== "todos" && toolName !== "todo_write") continue;
 
 			const details = msg.details as TodoToolDetails | undefined;
 			if (!details) continue;
@@ -384,7 +405,8 @@ class TodoState {
 
 	// Phase operations
 	addPhase(name: string, tasks?: Array<{ content: string; status?: TodoStatus; notes?: string; details?: string }>): TodoPhase {
-		const phaseId = `phase-${this._nextId()}`;
+		// FIX: Use nextPhaseId for phase ID, not nextTaskId
+		const phaseId = `phase-${this._nextPhaseId++}`;
 		const { phase, nextTaskId } = buildPhaseFromInput({ name, tasks }, phaseId, this._nextTaskId);
 		this._nextTaskId = nextTaskId;
 		this._phases.push(phase);
@@ -628,14 +650,15 @@ function applyReplace(state: TodoState, phasesInput: any[], errors: string[]): v
 			errors.push(`Phase "${inputPhase.name}": tasks must be an array`);
 			continue;
 		}
-		const phaseId = `phase-${state.nextTaskId++}`; // reuse nextTaskId for phase numbering
+		// FIX: Use nextPhaseId for phase IDs, increment after use
+		const phaseId = `phase-${state.nextPhaseId++}`;
 		const { phase, nextTaskId } = buildPhaseFromInput(inputPhase, phaseId, state.nextTaskId);
 		newPhases.push(phase);
 		state.nextTaskId = nextTaskId;
-	}
-	if (newPhases.length > 0 || phasesInput.length === 0) {
-		state.replacePhases(newPhases);
-	}
+		// Note: state.replacePhases() will recalc nextPhaseId from all phases
+		// So we don't manually set state.nextPhaseId here
+}
+	state.replacePhases(newPhases);
 }
 
 function applyAddPhase(state: TodoState, op: any, errors: string[]): void {
@@ -767,10 +790,11 @@ async function sendUpdateMessage(api: ExtensionAPI, ctx: ExtensionContext, actio
 }
 
 // ============================================================================
-// Params Normalization (simple string handling)
+// Params Normalization (comprehensive - handles common LLM errors)
 // ============================================================================
 
 function normalizeParams(params: unknown): TodoWriteParams {
+	// If params is a string, try to parse it
 	if (typeof params === "string") {
 		try {
 			params = JSON.parse(params);
@@ -779,32 +803,68 @@ function normalizeParams(params: unknown): TodoWriteParams {
 		}
 	}
 
+	// Ensure params is an object
 	if (typeof params !== "object" || params === null) {
 		throw new Error("Parameters must be an object");
 	}
 
 	const normalized = params as Record<string, unknown>;
 
-	// Handle nested object parsing (common LLM error)
+	// Handle add_phase being a string instead of object
 	if (normalized.add_phase && typeof normalized.add_phase === "string") {
 		try {
 			normalized.add_phase = JSON.parse(normalized.add_phase);
 		} catch (e) {
-			throw new Error(`add_phase must be an object, not a string: ${e}`);
+			throw new Error(
+				`add_phase must be an object, not a string. Error parsing: ${e instanceof Error ? e.message : String(e)}`,
+			);
 		}
 	}
 
+	// Handle add_phase.name being a stringified object (LLM puts whole object in name field)
+	if (normalized.add_phase && typeof normalized.add_phase === "object") {
+		const addPhase = normalized.add_phase as Record<string, unknown>;
+		if (addPhase.name && typeof addPhase.name === "string" && addPhase.name.startsWith("{")) {
+			try {
+				const parsed = JSON.parse(addPhase.name);
+				if (typeof parsed === "object" && parsed !== null) {
+					// LLM put the whole object in name field
+					normalized.add_phase = parsed;
+				}
+			} catch {
+				// Keep original if parse fails
+			}
+		}
+	}
+
+	// Handle tasks being a string instead of array (comma-separated)
+	if (normalized.add_phase && typeof normalized.add_phase === "object") {
+		const addPhase = normalized.add_phase as Record<string, unknown>;
+		if (addPhase.tasks && typeof addPhase.tasks === "string") {
+			try {
+				addPhase.tasks = JSON.parse(addPhase.tasks);
+			} catch {
+				// If it's a comma-separated string, split it
+				addPhase.tasks = (addPhase.tasks as string). split(",").map((s) => ({ content: s.trim() }));
+			}
+		}
+	}
+
+	// Handle replace.phases being a string
 	if (normalized.replace && typeof normalized.replace === "object") {
 		const replace = normalized.replace as Record<string, unknown>;
 		if (replace.phases && typeof replace.phases === "string") {
 			try {
 				replace.phases = JSON.parse(replace.phases);
 			} catch (e) {
-				throw new Error(`replace.phases must be an array: ${e}`);
+				throw new Error(
+					`replace.phases must be an array, not a string. Error parsing: ${e instanceof Error ? e.message : String(e)}`,
+				);
 			}
 		}
 	}
 
+	// Handle add_task.phase being stringified
 	if (normalized.add_task && typeof normalized.add_task === "object") {
 		const addTask = normalized.add_task as Record<string, unknown>;
 		if (addTask.phase && typeof addTask.phase === "string" && addTask.phase.startsWith("{")) {
