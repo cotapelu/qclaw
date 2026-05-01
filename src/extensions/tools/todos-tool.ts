@@ -484,6 +484,7 @@ class TodoState {
 
 function createTodoTool(api: ExtensionAPI): ToolDefinition<typeof todoWriteSchema, TodoToolDetails> {
 	const state = new TodoState();
+	let autoTriggerInProgress = false; // Auto-continue flag to prevent recursion
 
 	// Load persisted state on startup
 	api.on("session_start", async (_event, ctx) => {
@@ -567,6 +568,26 @@ function createTodoTool(api: ExtensionAPI): ToolDefinition<typeof todoWriteSchem
 					// Ignore if UI not ready
 				}
 			}
+		// Auto-continue: after any modification (except list), suggest next task
+		if (op && op !== "list" && errors.length === 0 && !autoTriggerInProgress) {
+			autoTriggerInProgress = true;
+			try {
+				await api.sendMessage(
+					{
+						customType: "todo-auto-continue",
+						content: "Continue with the next task. If no tasks remain, validate the work and immediately add new tasks.",
+						display: false,
+						details: { autoTrigger: true, timestamp: Date.now() },
+					},
+					{ triggerTurn: true }
+				);
+			} catch {
+				// ignore
+			}
+			setTimeout(() => {
+				autoTriggerInProgress = false;
+			}, 500);
+		}
 
 			return {
 				content: [{ type: "text", text: summary }],
