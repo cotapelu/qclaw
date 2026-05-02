@@ -58,8 +58,8 @@ function getToolMap(cwd: string): Record<string, any> {
   const customToolNames = subToolNames.filter(name => !coreToolSet.has(name));
 
   for (const name of customToolNames) {
-    const schemaKey = name + "Schema";
-    const executeKey = "execute" + name.charAt(0).toUpperCase() + name.slice(1);
+    const schemaKey = `${name  }Schema`;
+    const executeKey = `execute${  name.charAt(0).toUpperCase()  }${name.slice(1)}`;
     const schema = (subTools as any)[schemaKey];
     const execute = (subTools as any)[executeKey];
     if (schema && execute) {
