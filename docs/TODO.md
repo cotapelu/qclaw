@@ -297,3 +297,81 @@ npm start
 **Ghi chú:**
 - Sau khi integrate vào `main.ts`, cần build và test thủ công
 - Nếu có lỗi runtime, check `ctx.exec` availability (ExtensionContext có exec không?)
+
+## 📋 **TODOS TOOL ENHANCEMENTS** (Post-Migration)
+
+Sau khi đã migrate từ `todo_write.ts_bk` và thêm auto-continue, các cải tiến tiềm năng:
+
+### **🔴 MUST-HAVE** (Critical)
+1. **Fix hidden bug trong `applyReplace`** – Đã fix nhưng cần test kỹ với `replace` operation rỗng và non-array phases
+2. **Add comprehensive unit tests** cho edge cases: phase not found, task not found, invalid status
+3. **Validate phase/task ID format** – Hiện tại chỉ check existence, chưa validate format (`phase-\d+`, `task-\d+`)
+4. **Add migration logic** từ old todos format (nếu có user data cũ)
+
+### **🟡 SHOULD-HAVE** (Important)
+5. **Extract renderer** ra object riêng – Giống backup, tách `renderCall`/`renderResult` thành constant để reusable và testable
+6. **Unify operation handling** với `applySingleOp()` – Gộp 5 functions `apply*` thành 1 function switch-case cho DRY
+7. **Add operation undo/redo** – Lưu history để user có thể rollback thay đổi
+8. **Add search/filter** – Tìm task theo keyword, filter theo status
+9. **Add task dependencies** – Cho phép đánh dấu task A phụ thuộc vào task B
+10. **Add time tracking** – Ghi nhận start time, end time, estimate vs actual
+
+### **🟢 NICE-TO-HAVE** (Enhancement)
+11. **Export/Import todos** – Xuất JSON, nhập từ file external
+12. **Sync with external tools** – GitHub Issues, Jira, Trello integration
+13. **Add tagging system** – Mỗi task có tags (`#bug`, `#feature`), filter by tag
+14. **Add priority field** – `low/medium/high/critical`
+15. **Add effort estimate** – Story points, hours
+16. **Add progress bar** in renderResult – Visual % completion per phase
+17. **Add drag-and-drop reordering** trong TUI (nếu supported)
+18. **Add task archiving** – Soft delete vs hard delete
+19. **Add notifications** – Push notification khi deadline approaching
+20. **Add dashboard view** – Summary stats (burndown, velocity)
+
+### **⚙️ TECHNICAL DEBT**
+21. **Remove unused imports** – `chalk` trong backup (current không có)
+22. **Add JSDoc comments** cho public APIs (`TodoState` methods, helper functions)
+23. **Consider aggressive auto-continue** – Backup dùng `waitForIdle().then(continue())`, có thể mạnh hơn passive hiện tại
+24. **Add integration tests** – Simulate full turn với auto-continue
+25. **Performance: debounce state notifications** – `TodoState.notify()` gọi quá nhiều nếu nhiều updates nhanh
+26. **Add state snapshotting** – Cho phép revert to previous state
+
+### **📚 DOCS & UX**
+27. **Add examples in promptGuidelines** – Thêm ví dụ về `replace`, `remove_task` (hiện tại thiếu)
+28. **Add error message improvements** – Khi phase/task not found, suggest valid IDs
+29. **Add /todos CLI command** – Separate từ tool, cho phép xem todos ngoài agent context
+30. **Add todos visualization** – Mermaid/ASCII chart trong renderResult
+
+---
+
+**Ưu tiên thực hiện:**
+1. Start với #5, #6 (renderer extraction, applySingleOp) – clean code
+2. Sau đó #1-4 (bug fixes, tests)
+3. Sau đó #7-10 (features dùng nhiều)
+4. Cuối cùng #11-30 (enhancements)
+
+**Lưu ý:** Hiện tại current đã tốt với pattern factory+registration. Một số cải tiến từ backup (aggressive auto-continue, separate renderer) có thể optional.
+
+---
+
+## 🏗️ **KIẾN TRÚC & HIỂU BIẾT**
+
+### **Tại sao dùng Factory Pattern?**
+- **Decoupling**: ToolDefinition không phụ thuộc vào `AgentSession`
+- **Testability**: Có unit test `TodoState` mà không cần mock pi APIs
+- **Lifecycle**: Tự động load state qua `api.on()` events
+- **Reusability**: Có thể tạo nhiều tool instances với config khác nhau
+
+### **Tại sao dùng async file I/O?**
+- Non-blocking – quan trọng với event-driven system
+- Avoid blocking event loop
+- Consistent với rest của pi codebase
+
+### **Auto-continue: passive vs aggressive**
+- **Passive (current)**: Chỉ gửi message, để system decide khi nào continue. An toàn, không can thiệp vào agent internals.
+- **Aggressive (backup)**: Gửi message rồi gọi `agent.continue()` ngay. Mạnh nhưng risk race condition nếu agent đang process other events.
+- **Recommendation**: Giữ passive, chỉ tăng aggressiveness nếu user feedback cho thấy auto-continue bị skip.
+
+---
+
+*(Last updated: 2026-05-02)*
