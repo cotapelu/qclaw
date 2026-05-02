@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { cwd } from 'node:process';
 
 function deletePersistedFile(): void {
-  const filePath = join(cwd(), '.pi', 'agent', 'todos.json');
+  const filePath = join(cwd(), '.piclaw', 'agent', 'todos.json');
   if (existsSync(filePath)) {
     try { unlinkSync(filePath); } catch {}
   }

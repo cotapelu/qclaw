@@ -120,7 +120,7 @@ type TodoWriteParams = Static<typeof todoWriteSchema>;
 // File Persistence (Async)
 // ============================================================================
 
-const TODO_FILE_NAME = ".pi/agent/todos.json";
+const TODO_FILE_NAME = ".piclaw/agent/todos.json";
 
 function getProjectTodoFilePath(): string {
 	return join(process.cwd(), TODO_FILE_NAME);
@@ -510,7 +510,7 @@ function createTodoTool(api: ExtensionAPI): ToolDefinition<typeof todoWriteSchem
 			"📌 STATUS: pending, in_progress, completed, abandoned. Auto-normalizes to ONE in_progress at a time.",
 			"📌 PHASES: Group tasks by phase for project planning. Phase IDs auto-generated (phase-1, phase-2, ...).",
 			"📌 LIST: { list: {} } to view current todos.",
-			"📌 PERSISTENCE: Saved to ./.pi/agent/todos.json automatically.",
+			"📌 PERSISTENCE: Saved to ./.piclaw/agent/todos.json automatically.",
 			"📌 After todos, state: 'Todo updated: X remaining, Y completed'. Suggest next action.",
 			"📌 Examples:",
 			"    - Add phase: { add_phase: { name: 'Build API', tasks: [{ content: 'Design endpoints', status: 'pending' }] } }",

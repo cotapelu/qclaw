@@ -33,7 +33,17 @@ function getConfigFilePath(): string {
 const DEFAULT_CONFIG: PiclawConfig = {
 	model: undefined,
 	thinking: "medium",
-	tools: ["read", "bash", "edit", "write"],
+	// Include all custom tools by default
+	tools: [
+		// Built-in tools
+		"read", "bash", "edit", "write",
+		// Piclaw custom tools
+		"subtool_loader",
+		"todos",
+		"memory",
+		"echo",
+		"system-info",
+	],
 	sessionDir: undefined,
 	verbose: false,
 };
