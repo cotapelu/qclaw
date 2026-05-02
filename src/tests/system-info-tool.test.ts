@@ -4,7 +4,7 @@
  * Unit tests for system-info-tool.ts
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { registerSystemInfoTool } from '../extensions/tools/system-info-tool.js';
 
 describe('system_info tool', () => {

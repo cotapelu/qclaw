@@ -20,7 +20,6 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck",
     "test": "vitest run",
-    "prepare": "npm run build",
     "prepublishOnly": "npm run build && npm test",
     "clean": "rm -rf dist"
   },
@@ -37,7 +36,7 @@
     "@vitest/coverage-v8": "^4.1.5",
     "c8": "^8.0.0",
     "eslint": "^9.0.0",
-    "tsx": "^4.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.0.0",
     "vitest": "^4.1.5"
   }
