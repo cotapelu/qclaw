@@ -12,19 +12,10 @@ vi.mock('../extensions/providers/kilo-provider.js', () => ({
   registerKiloProvider: vi.fn(),
 }));
 
-vi.mock('../extensions/tools/todos-tool.js', () => ({
+vi.mock('../extensions/tools/index.js', () => ({
   registerTodosTool: vi.fn(),
-}));
-
-vi.mock('../extensions/tools/memory-tool.js', () => ({
   registerMemoryTool: vi.fn(),
-}));
-
-vi.mock('../extensions/tools/echo-tool.js', () => ({
   registerEchoTool: vi.fn(),
-}));
-
-vi.mock('../extensions/tools/system-info-tool.js', () => ({
   registerSystemInfoTool: vi.fn(),
 }));
 
@@ -32,13 +23,14 @@ vi.mock('../extensions/auto-memory.js', () => ({
   default: vi.fn(),
 }));
 
+vi.mock('../tools/subtool-loader.js', () => ({
+  createSubLoaderToolDefinition: vi.fn().mockReturnValue({ name: 'mock-tool' }),
+}));
+
 // Now import the module after mocks are set up
 import extensionIndex from '../extensions/index.js';
 import { registerKiloProvider } from '../extensions/providers/kilo-provider.js';
-import { registerTodosTool } from '../extensions/tools/todos-tool.js';
-import { registerMemoryTool } from '../extensions/tools/memory-tool.js';
-import { registerEchoTool } from '../extensions/tools/echo-tool.js';
-import { registerSystemInfoTool } from '../extensions/tools/system-info-tool.js';
+import { registerTodosTool, registerMemoryTool, registerEchoTool, registerSystemInfoTool } from '../extensions/tools/index.js';
 import autoMemory from '../extensions/auto-memory.js';
 
 describe('extensions/index', () => {
@@ -50,44 +42,46 @@ describe('extensions/index', () => {
     expect(typeof extensionIndex).toBe('function');
   });
 
+  const createMockApi = () => ({ registerTool: vi.fn() }) as any;
+
   it('should register kilo provider', () => {
-    const mockApi = {} as any;
+    const mockApi = createMockApi();
     extensionIndex(mockApi);
     expect(registerKiloProvider).toHaveBeenCalledWith(mockApi);
   });
 
   it('should register todos tool', () => {
-    const mockApi = {} as any;
+    const mockApi = createMockApi();
     extensionIndex(mockApi);
     expect(registerTodosTool).toHaveBeenCalledWith(mockApi);
   });
 
   it('should register memory tool', () => {
-    const mockApi = {} as any;
+    const mockApi = createMockApi();
     extensionIndex(mockApi);
     expect(registerMemoryTool).toHaveBeenCalledWith(mockApi);
   });
 
   it('should register echo tool', () => {
-    const mockApi = {} as any;
+    const mockApi = createMockApi();
     extensionIndex(mockApi);
     expect(registerEchoTool).toHaveBeenCalledWith(mockApi);
   });
 
   it('should register system info tool', () => {
-    const mockApi = {} as any;
+    const mockApi = createMockApi();
     extensionIndex(mockApi);
     expect(registerSystemInfoTool).toHaveBeenCalledWith(mockApi);
   });
 
   it('should load auto-memory integration', () => {
-    const mockApi = {} as any;
+    const mockApi = createMockApi();
     extensionIndex(mockApi);
     expect(autoMemory).toHaveBeenCalledWith(mockApi);
   });
 
   it('should call all registrations in correct order (not guaranteed but all called)', () => {
-    const mockApi = {} as any;
+    const mockApi = createMockApi();
     extensionIndex(mockApi);
     // All mocks should be called exactly once
     expect(registerKiloProvider).toHaveBeenCalledTimes(1);
