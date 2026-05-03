@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Refactor todos-tool.ts",
+      "tasks": [
+        {
+          "id": "task-1",
+          "content": "Fix critical race condition with triggerTurn (remove duplicate triggers)",
+          "status": "in_progress"
+        },
+        {
+          "id": "task-2",
+          "content": "Implement proper locking mechanism around all state mutations",
+          "status": "pending"
+        },
+        {
+          "id": "task-3",
+          "content": "Fix auto-continue logic with proper delay and session lifecycle",
+          "status": "pending"
+        },
+        {
+          "id": "task-4",
+          "content": "Simplify normalizeParams with TypeBox validation",
+          "status": "pending"
+        },
+        {
+          "id": "task-5",
+          "content": "Add error recovery with automatic rollback on failure",
+          "status": "pending"
+        },
+        {
+          "id": "task-6",
+          "content": "Write comprehensive unit tests for edge cases",
+          "status": "pending"
+        },
+        {
+          "id": "task-7",
+          "content": "Test the refactored tool in real scenarios",
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "nextTaskId": 8,
+  "nextPhaseId": 2,
+  "updatedAt": "2026-05-03T15:13:28.948Z"
+}
