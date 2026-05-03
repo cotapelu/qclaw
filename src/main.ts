@@ -20,7 +20,6 @@ import { createSubLoaderToolDefinition } from "./tools/subtool-loader.js";
 import { loadConfig, type PiclawConfig } from "./config/config-manager.js";
 import { parseOptions } from "./cli/args.js";
 import { ensurePiclawExtensionRegistered, validateApiKeys } from "./helpers.js";
-import chalk from "chalk";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";

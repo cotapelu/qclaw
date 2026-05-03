@@ -180,4 +180,67 @@ describe('todos tool (phase-only)', () => {
   it('should have renderShell self', () => {
     expect(capturedTool.renderShell).toBe('self');
   });
+
+  // Edge case tests: phase not found, task not found, invalid status
+  describe('edge cases', () => {
+    it('should return error when adding task to non-existent phase', async () => {
+      const result = await capturedTool.execute('add-task-nonexistent', { add_task: { phase: 'phase-999', content: 'New task' } }, undefined, undefined, mockCtx);
+      const details = result.details as any;
+      expect(details.error).toBeDefined();
+      expect(details.error).toContain('not found');
+    });
+
+    it('should return error when updating task with non-existent ID', async () => {
+      const result = await capturedTool.execute('update-nonexistent', { update: { id: 'task-999', status: 'completed' } }, undefined, undefined, mockCtx);
+      const details = result.details as any;
+      expect(details.error).toBeDefined();
+      expect(details.error).toContain('not found');
+    });
+
+    it('should return error when removing task with non-existent ID', async () => {
+      const result = await capturedTool.execute('remove-nonexistent', { remove_task: { id: 'task-999' } }, undefined, undefined, mockCtx);
+      const details = result.details as any;
+      expect(details.error).toBeDefined();
+      expect(details.error).toContain('not found');
+    });
+
+    it('should accept any status value (no validation)', async () => {
+      // First create a phase with a task
+      await capturedTool.execute('add', { add_phase: { name: 'Test', tasks: [{ content: 'Task' }] } }, undefined, undefined, mockCtx);
+      const phases = (await capturedTool.execute('list', { list: {} }, undefined, undefined, mockCtx)).details.phases as TodoPhase[];
+      const taskId = phases[0].tasks[0].id;
+
+      // Try to set invalid status - code accepts any value without validation
+      const result = await capturedTool.execute('update-invalid', { update: { id: taskId, status: 'invalid_status' } }, undefined, undefined, mockCtx);
+      const details = result.details as any;
+      // The code doesn't validate status values, so no error is returned
+      // This test documents the current behavior
+      expect(details.error).toBeUndefined();
+      // Verify the task was updated (with the invalid status)
+      const updatedPhases = (await capturedTool.execute('list', { list: {} }, undefined, undefined, mockCtx)).details.phases as TodoPhase[];
+      expect(updatedPhases[0].tasks[0].status).toBe('invalid_status');
+    });
+
+    it('should return error when removing non-existent task', async () => {
+      // Use valid task ID format but non-existent task
+      const result = await capturedTool.execute('remove-phase-nonexistent', { remove_task: { id: 'task-999' } }, undefined, undefined, mockCtx);
+      const details = result.details as any;
+      expect(details.error).toBeDefined();
+      expect(details.error).toContain('not found');
+    });
+
+    it('should return error for invalid phase ID format', async () => {
+      const result = await capturedTool.execute('invalid-id', { add_task: { phase: 'invalid-id-format', content: 'Test' } }, undefined, undefined, mockCtx);
+      const details = result.details as any;
+      expect(details.error).toBeDefined();
+      expect(details.error).toContain('format');
+    });
+
+    it('should return error for invalid task ID format', async () => {
+      const result = await capturedTool.execute('invalid-task-id', { update: { id: 'invalid-task-id', status: 'completed' } }, undefined, undefined, mockCtx);
+      const details = result.details as any;
+      expect(details.error).toBeDefined();
+      expect(details.error).toContain('format');
+    });
+  });
 });

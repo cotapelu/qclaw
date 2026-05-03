@@ -176,6 +176,159 @@ export { phpSchema, executePhp } from "./php.js";
 // Ruby/Gem/Bundle
 export { rubySchema, executeRuby } from "./ruby.js";
 
+// Perl/CPAN
+export { perlSchema, executePerl } from "./perl.js";
+
+// Conda/Anaconda
+export { condaSchema, executeConda } from "./conda.js";
+
+// R/Rscript
+export { rSchema, executeR } from "./r.js";
+
+// Julia
+export { juliaSchema, executeJulia } from "./julia.js";
+
+// HTTPie
+export { httpieSchema, executeHttpie } from "./httpie.js";
+
+// Netcat
+export { netcatSchema, executeNetcat } from "./netcat.js";
+
+// Socat
+export { socatSchema, executeSocat } from "./socat.js";
+
+// SSH-Keygen
+export { sshKeygenSchema, executeSshKeygen } from "./ssh-keygen.js";
+
+// GPG
+export { gpgSchema, executeGpg } from "./gpg.js";
+
+// SFTP
+export { sftpSchema, executeSftp } from "./sftp.js";
+
+// FTP
+export { ftpSchema, executeFtp } from "./ftp.js";
+
+// SMBClient
+export { smbclientSchema, executeSmbclient } from "./smbclient.js";
+
+// Whois/DNS
+export { whoisSchema, executeWhois } from "./whois.js";
+
+// iftop/iptraf
+export { iftopSchema, executeIftop } from "./iftop.js";
+
+// Nethogs
+export { nethogsSchema, executeNethogs } from "./nethogs.js";
+
+// tcpdump
+export { tcpdumpSchema, executeTcpdump } from "./tcpdump.js";
+
+// Wireshark/Tshark
+export { wiresharkSchema, executeWireshark } from "./wireshark.js";
+
+// Benchmark (ab/wrk/bombardier)
+export { benchmarkSchema, executeBenchmark } from "./benchmark.js";
+
+// ImageMagick/GraphicsMagick
+export { imagemagickSchema, executeImagemagick } from "./imagemagick.js";
+
+// SoX (Audio)
+export { soxSchema, executeSox } from "./sox.js";
+
+// Pandoc
+export { pandocSchema, executePandoc } from "./pandoc.js";
+
+// wkhtmltopdf
+export { wkhtmltopdfSchema, executeWkhtmltopdf } from "./wkhtmltopdf.js";
+
+// pdftk/qpdf
+export { pdftkSchema, executePdftk } from "./pdftk.js";
+
+// ps2pdf/pdf2ps
+export { ps2pdfSchema, executePs2pdf } from "./ps2pdf.js";
+
+// enscript/a2ps
+export { enscriptSchema, executeEnscript } from "./enscript.js";
+
+// Graphviz
+export { graphvizSchema, executeGraphviz } from "./graphviz.js";
+
+// XMLStarlet
+export { xmlstarletSchema, executeXmlstarlet } from "./xmlstarlet.js";
+
+// json_pp/jsonschema
+export { json_ppSchema, executeJson_pp } from "./json_pp.js";
+
+// yamllint
+export { yamllintSchema, executeYamllint } from "./yamllint.js";
+
+// tomlq
+export { tomlqSchema, executeTomlq } from "./tomlq.js";
+
+// hjson
+export { hjsonSchema, executeHjson } from "./hjson.js";
+
+// archive (tar/gzip/bzip2)
+export { archiveSchema, executeArchive } from "./archive.js";
+
+// zip/unzip
+export { zipSchema, executeZip } from "./zip.js";
+
+// 7z
+export { sevenZipSchema, execute7z } from "./7z.js";
+
+// xz
+export { xzSchema, executeXz } from "./xz.js";
+
+// svn
+export { svnSchema, executeSvn } from "./svn.js";
+
+// Mercurial (hg)
+export { hgSchema, executeHg } from "./hg.js";
+
+// Darcs
+export { darcsSchema, executeDarcs } from "./darcs.js";
+
+// Fossil
+export { fossilSchema, executeFossil } from "./fossil.js";
+
+// Bazaar (bzr)
+export { bzrSchema, executeBzr } from "./bzr.js";
+
+// CVS
+export { cvsSchema, executeCvs } from "./cvs.js";
+
+// pacman (Arch Linux)
+export { pacmanSchema, executePacman } from "./pacman.js";
+
+// dnf (Fedora)
+export { dnfSchema, executeDnf } from "./dnf.js";
+
+// zypper (openSUSE)
+export { zypperSchema, executeZypper } from "./zypper.js";
+
+// emerge (Gentoo)
+export { emergeSchema, executeEmerge } from "./emerge.js";
+
+// apk (Alpine)
+export { apkSchema, executeApk } from "./apk.js";
+
+// pkg (FreeBSD)
+export { pkgSchema, executePkg } from "./pkg.js";
+
+// nix-env (Nix)
+export { nixEnvSchema, executeNixEnv } from "./nix-env.js";
+
+// guix (Guix)
+export { guixSchema, executeGuix } from "./guix.js";
+
+// spack (HPC)
+export { spackSchema, executeSpack } from "./spack.js";
+
+// pkgsrc
+export { pkgsrcSchema, executePkgsrc } from "./pkgsrc.js";
+
 // Journalctl
 export { journalctlSchema, executeJournalctl } from "./journalctl.js";
 

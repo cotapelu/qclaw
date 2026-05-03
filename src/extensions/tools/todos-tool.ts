@@ -14,12 +14,13 @@ import type { ToolDefinition, ExtensionAPI, ExtensionContext } from "@mariozechn
 import { Type, StringEnum } from "@mariozechner/pi-ai";
 import type { Static } from "typebox";
 import { Text } from "@mariozechner/pi-tui";
+import { renderTodosCall, renderTodosResult } from "./todos-render.js";
 
 // ============================================================================
 // Types (Phase-only)
 // ============================================================================
 
-export type TodoStatus = "pending" | "in_progress" | "completed" | "abandoned";
+export type TodoStatus = "pending" | "in_progress" | "completed" | "abandoned" | "archived";
 
 export interface TodoItem {
 	id: string;
@@ -27,6 +28,24 @@ export interface TodoItem {
 	status: TodoStatus;
 	notes?: string;
 	details?: string;
+	dependsOn?: string[];  // Array of task IDs this task depends on
+	
+	// Time tracking
+	estimate?: string;    // Estimated time (e.g., "2h", "30m")
+	startTime?: number; // Unix timestamp when task was started
+	endTime?: number;   // Unix timestamp when task was completed
+	
+	// Tags for categorization
+	tags?: string[];   // Array of tags (e.g., ["#bug", "#feature"])
+	
+	// Priority
+	priority?: "low" | "medium" | "high" | "critical";
+	
+	// Effort estimate (story points or effort units)
+	effort?: number;  // e.g., 1, 2, 3, 5, 8 (Fibonacci) or numeric value
+	
+	// Deadline
+	deadline?: number; // Unix timestamp for deadline
 }
 
 export interface TodoPhase {
@@ -89,6 +108,12 @@ const AddTaskOp = Type.Object({
 	content: Type.String({ description: "Task description (required)" }),
 	notes: Type.Optional(Type.String({ description: "Additional context or notes (optional)" })),
 	details: Type.Optional(Type.String({ description: "Implementation details, file paths, and specifics (optional)" })),
+	dependsOn: Type.Optional(Type.Array(Type.String({ description: "Array of task IDs this task depends on" }))),
+	estimate: Type.Optional(Type.String({ description: "Estimated time (e.g., '2h', '30m')" })),
+	tags: Type.Optional(Type.Array(Type.String({ description: "Array of tags (e.g., ['#bug', '#feature'])" }))),
+	priority: Type.Optional(Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high"), Type.Literal("critical")])),
+	effort: Type.Optional(Type.Number({ description: "Effort estimate in story points or units (e.g., 1, 2, 3, 5, 8)" })),
+	deadline: Type.Optional(Type.Number({ description: "Deadline as Unix timestamp (seconds)" })),
 });
 
 const UpdateOp = Type.Object({
@@ -103,7 +128,24 @@ const RemoveTaskOp = Type.Object({
 	id: Type.String({ description: "Task ID, e.g. task-3 (required)" }),
 });
 
-const ListOp = Type.Object({}, { description: "List current todo list without modification" });
+const MoveOp = Type.Object({
+	id: Type.String({ description: "Task ID to move, e.g. task-3 (required)" }),
+	position: Type.Number({ description: "New position index (0-based) within the phase" }),
+}, { description: "Move a task to a new position within its phase" });
+
+const ArchiveOp = Type.Object({
+	id: Type.String({ description: "Task ID to archive, e.g. task-3 (required)" }),
+	unarchive: Type.Optional(Type.Boolean({ description: "If true, unarchive the task instead of archiving" })),
+}, { description: "Archive (soft delete) or unarchive a task" });
+
+const DashboardOp = Type.Object({
+	period: Type.Optional(Type.Number({ description: "Number of days for burndown chart (default: 7)" })),
+}, { description: "Show dashboard with summary statistics (burndown, velocity)" });
+
+const ListOp = Type.Object({
+	search: Type.Optional(Type.String({ description: "Search tasks by keyword in content or notes" })),
+	status: Type.Optional(StringEnum(["pending", "in_progress", "completed", "abandoned"], { description: "Filter tasks by status" })),
+}, { description: "List current todo list with optional search/filter" });
 
 const todoWriteSchema = Type.Object({
 	replace: Type.Optional(ReplaceOp),
@@ -111,7 +153,14 @@ const todoWriteSchema = Type.Object({
 	add_task: Type.Optional(AddTaskOp),
 	update: Type.Optional(UpdateOp),
 	remove_task: Type.Optional(RemoveTaskOp),
+	move: Type.Optional(MoveOp),
+	archive: Type.Optional(ArchiveOp),
+	dashboard: Type.Optional(DashboardOp),
 	list: Type.Optional(ListOp),
+	undo: Type.Optional(Type.Object({}, { description: "Undo last operation" })),
+	redo: Type.Optional(Type.Object({}, { description: "Redo last undone operation" })),
+	export: Type.Optional(Type.Object({}, { description: "Export todos as JSON string" })),
+	import: Type.Optional(Type.Object({ json: Type.String({ description: "JSON string to import" }) }, { description: "Import todos from JSON string" })),
 });
 
 type TodoWriteParams = Static<typeof todoWriteSchema>;
@@ -304,6 +353,85 @@ class TodoState {
 	private _nextPhaseId = 1;
 	private _lock = false;
 	private listeners: Set<() => void> = new Set();
+	
+	// History for undo/redo
+	private _history: Array<{ phases: TodoPhase[]; nextTaskId: number; nextPhaseId: number }> = [];
+	private _historyIndex = -1;
+	private _maxHistory = 50;
+	
+	/**
+	 * Save current state to history before making changes
+	 */
+	saveToHistory(): void {
+		// Remove any redo states ahead of current position
+		if (this._historyIndex < this._history.length - 1) {
+			this._history = this._history.slice(0, this._historyIndex + 1);
+		}
+		// Add current state to history
+		this._history.push({
+			phases: clonePhases(this._phases),
+			nextTaskId: this._nextTaskId,
+			nextPhaseId: this._nextPhaseId,
+		});
+		// Limit history size
+		if (this._history.length > this._maxHistory) {
+			this._history.shift();
+		} else {
+			this._historyIndex++;
+		}
+	}
+	
+	/**
+	 * Undo last operation
+	 * Returns true if undo was successful
+	 */
+	undo(): boolean {
+		if (this._historyIndex <= 0) return false;
+		this._historyIndex--;
+		const snapshot = this._history[this._historyIndex];
+		this._phases = clonePhases(snapshot.phases);
+		this._nextTaskId = snapshot.nextTaskId;
+		this._nextPhaseId = snapshot.nextPhaseId;
+		this.notify();
+		return true;
+	}
+	
+	/**
+	 * Redo last undone operation
+	 * Returns true if redo was successful
+	 */
+	redo(): boolean {
+		if (this._historyIndex >= this._history.length - 1) return false;
+		this._historyIndex++;
+		const snapshot = this._history[this._historyIndex];
+		this._phases = clonePhases(snapshot.phases);
+		this._nextTaskId = snapshot.nextTaskId;
+		this._nextPhaseId = snapshot.nextPhaseId;
+		this.notify();
+		return true;
+	}
+	
+	/**
+	 * Check if undo is available
+	 */
+	canUndo(): boolean {
+		return this._historyIndex > 0;
+	}
+	
+	/**
+	 * Check if redo is available
+	 */
+	canRedo(): boolean {
+		return this._historyIndex < this._history.length - 1;
+	}
+	
+	/**
+	 * Placeholder for external sync functionality
+	 * This can be expanded to integrate with GitHub Issues, Jira, Trello, etc.
+	 */
+	async syncWithExternal(_provider: string, _options: any): Promise<{ success: boolean; message: string }> {
+		return { success: false, message: "External sync not yet implemented. This is a placeholder for future integration with GitHub Issues, Jira, Trello, etc." };
+	}
 
 	get phases(): readonly TodoPhase[] {
 		return this._phases;
@@ -366,6 +494,18 @@ class TodoState {
 	}
 
 	// Save to file (async)
+	/**
+	 * Migrate from old format if needed
+	 * This can be called when loading old data to convert to new format
+	 */
+	migrateFromOldFormat(): void {
+		// Placeholder for migration logic
+		// If old format is detected, convert to new format here
+		// Current format: phases with ids like 'phase-N', tasks with ids like 'task-N'
+		// Old formats would need to be detected and converted accordingly
+		// This is a no-op for now as there's no old data to migrate from
+	}
+
 	async saveToFile(): Promise<void> {
 		if (this._lock) return;
 		const ids = getNextIds(this._phases);
@@ -404,6 +544,12 @@ class TodoState {
 	}
 
 	// Phase operations
+	/**
+	 * Add a new phase to the todo list
+	 * @param name - Phase name (required)
+	 * @param tasks - Optional array of tasks to add to the phase
+	 * @returns The created phase
+	 */
 	addPhase(name: string, tasks?: Array<{ content: string; status?: TodoStatus; notes?: string; details?: string }>): TodoPhase {
 		// FIX: Use nextPhaseId for phase ID, not nextTaskId
 		const phaseId = `phase-${this._nextPhaseId++}`;
@@ -415,7 +561,21 @@ class TodoState {
 		return phase;
 	}
 
-	addTask(phaseId: string, content: string, notes?: string, details?: string): TodoItem | null {
+	/**
+	 * Add a new task to a phase
+	 * @param phaseId - Phase ID to add the task to (required)
+	 * @param content - Task description (required)
+	 * @param notes - Optional notes
+	 * @param details - Optional details/implementation notes
+	 * @param dependsOn - Optional array of task IDs this task depends on
+	 * @param estimate - Optional time estimate (e.g., '2h', '30m')
+	 * @param tags - Optional array of tags
+	 * @param priority - Optional priority (low, medium, high, critical)
+	 * @param effort - Optional effort estimate in story points
+	 * @param deadline - Optional deadline as Unix timestamp
+	 * @returns The created task or null if phase not found
+	 */
+	addTask(phaseId: string, content: string, notes?: string, details?: string, dependsOn?: string[], estimate?: string, tags?: string[], priority?: "low" | "medium" | "high" | "critical", effort?: number, deadline?: number): TodoItem | null {
 		const phase = this._phases.find((p) => p.id === phaseId);
 		if (!phase) return null;
 
@@ -425,6 +585,12 @@ class TodoState {
 			status: "pending",
 			notes,
 			details,
+			dependsOn,
+			estimate,
+			deadline,
+			tags,
+			priority,
+			effort,
 		};
 		phase.tasks.push(task);
 		normalizeInProgressTask(this._phases);
@@ -432,6 +598,12 @@ class TodoState {
 		return task;
 	}
 
+	/**
+	 * Update an existing task
+	 * @param taskId - Task ID to update (required)
+	 * @param updates - Object containing fields to update (status, content, notes, details)
+	 * @returns The updated task or null if not found
+	 */
 	updateTask(taskId: string, updates: Partial<Pick<TodoItem, 'status' | 'content' | 'notes' | 'details'>>): TodoItem | null {
 		const task = findTask(this._phases, taskId);
 		if (!task) return null;
@@ -457,6 +629,47 @@ class TodoState {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Move a task to a new position within its phase
+	 * @param taskId - The task ID to move
+	 * @param newPosition - The new position index (0-based)
+	 * @returns The moved task or null if not found
+	 */
+	moveTask(taskId: string, newPosition: number): TodoItem | null {
+		for (const phase of this._phases) {
+			const currentIdx = phase.tasks.findIndex((t) => t.id === taskId);
+			if (currentIdx !== -1) {
+				// Get the task and remove it from current position
+				const [task] = phase.tasks.splice(currentIdx, 1);
+				// Insert at new position (clamp to valid range)
+				const clampedPosition = Math.max(0, Math.min(newPosition, phase.tasks.length));
+				phase.tasks.splice(clampedPosition, 0, task);
+				this.notify();
+				return task;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Archive or unarchive a task (soft delete/restore)
+	 * @param taskId - The task ID to archive/unarchive
+	 * @param unarchive - If true, unarchive the task; otherwise archive it
+	 * @returns The archived/unarchived task or null if not found
+	 */
+	archiveTask(taskId: string, unarchive: boolean = false): TodoItem | null {
+		const task = findTask(this._phases, taskId);
+		if (!task) return null;
+		
+		if (unarchive) {
+			task.status = "pending";
+		} else {
+			task.status = "archived";
+		}
+		this.notify();
+		return task;
 	}
 
 	replacePhases(phases: TodoPhase[]): void {
@@ -541,12 +754,32 @@ function createTodoTool(api: ExtensionAPI): ToolDefinition<typeof todoWriteSchem
 
 			// Apply operation
 			try {
-				if (op === "replace") applyReplace(state, normalized.replace!.phases, errors);
-				else if (op === "add_phase") applyAddPhase(state, normalized.add_phase!, errors);
-				else if (op === "add_task") applyAddTask(state, normalized.add_task!, errors);
-				else if (op === "update") applyUpdate(state, normalized.update!, errors);
-				else if (op === "remove_task") applyRemoveTask(state, normalized.remove_task!, errors);
+				if (op === "replace") applySingleOp(state, "replace", normalized.replace!.phases, errors);
+				else if (op === "add_phase") applySingleOp(state, "add_phase", normalized.add_phase, errors);
+				else if (op === "add_task") applySingleOp(state, "add_task", normalized.add_task, errors);
+				else if (op === "update") applySingleOp(state, "update", normalized.update, errors);
+				else if (op === "remove_task") applySingleOp(state, "remove_task", normalized.remove_task, errors);
 				else if (op === "list") { /* read-only */ }
+				else if (op === "export") {
+					// Export todos as JSON - return JSON in details
+					const exportJson = JSON.stringify(state.getPhases(), null, 2);
+					(errors as any).exportJson = exportJson;
+				}
+				else if (op === "import") {
+					// Import todos from JSON
+					try {
+						const importData = normalized.import as any;
+						if (importData?.json) {
+							const importedPhases = JSON.parse(importData.json);
+							state.replacePhases(importedPhases);
+							await state.saveToFile();
+						} else {
+							errors.push("Import data not provided");
+						}
+					} catch (e) {
+						errors.push(`Invalid JSON: ${e instanceof Error ? e.message : String(e)}`);
+					}
+				}
 				else errors.push("No operation specified");
 			} catch (e) {
 				errors.push(e instanceof Error ? e.message : String(e));
@@ -557,7 +790,37 @@ function createTodoTool(api: ExtensionAPI): ToolDefinition<typeof todoWriteSchem
 				await state.saveToFile();
 			}
 
-			const phases = state.getPhases();
+			let phases = state.getPhases();
+			
+			// Apply search and status filtering if provided
+			if (op === "list" && normalized.list && typeof normalized.list === 'object') {
+				const listOp = normalized.list as any;
+				const searchQuery = listOp.search?.toLowerCase();
+				const statusFilter = listOp.status;
+				
+				// Only filter if search or status is actually provided
+				if (searchQuery || statusFilter) {
+					// Filter phases and their tasks
+					phases = phases
+						.map(phase => ({
+							...phase,
+							tasks: (phase.tasks || []).filter(task => {
+								// Filter by status if specified
+								if (statusFilter && task.status !== statusFilter) return false;
+								// Filter by search query if specified
+								if (searchQuery) {
+									const contentMatch = task.content?.toLowerCase().includes(searchQuery);
+									const notesMatch = task.notes?.toLowerCase().includes(searchQuery);
+									if (!contentMatch && !notesMatch) return false;
+								}
+								return true;
+							})
+						}))
+						// Remove phases that have no tasks after filtering
+						.filter(phase => (phase.tasks || []).length > 0);
+				}
+			}
+			
 			const summary = formatSummary(phases, errors);
 
 			// Send system message for modifications (excluding list)
@@ -595,51 +858,8 @@ function createTodoTool(api: ExtensionAPI): ToolDefinition<typeof todoWriteSchem
 				isError: false,
 			};
 		},
-		renderCall: (args, theme) => {
-			const op = detectOperation(args as any) || "list";
-			const text = `${theme.fg("toolTitle", theme.bold("todos"))} ${theme.fg("muted", op)}`;
-			return new Text(text, 0, 0);
-		},
-		renderResult: (result, options, theme) => {
-			const details = result.details as TodoToolDetails | undefined;
-			if (!details) return new Text("", 0, 0);
-
-			if (details.error) {
-				return new Text(theme.fg("error", `Error: ${details.error}`), 0, 0);
-			}
-
-			if (options.isPartial) {
-				return new Text(theme.fg("warning", "Processing..."), 0, 0);
-			}
-
-			const phases = details.phases.filter((p) => p.tasks.length > 0);
-			const allTasks = phases.flatMap((p) => p.tasks);
-
-			if (allTasks.length === 0) {
-				return new Text(theme.fg("dim", "No todos"), 0, 0);
-			}
-
-			const lines: string[] = [theme.fg("toolTitle", `Todos: ${allTasks.length} tasks`)];
-
-			for (const phase of phases) {
-				if (phases.length > 1) {
-					lines.push(theme.fg("accent", `▼ ${phase.name}`));
-				}
-				for (const task of phase.tasks) {
-					const statusColor = task.status === "completed" || task.status === "abandoned" ? "dim" : "text";
-					const prefix = task.status === "in_progress" ? "→" : task.status === "completed" ? "✓" : task.status === "abandoned" ? "✗" : " ";
-					const line = `${theme.fg(statusColor, `  ${prefix} ${task.id} ${task.content}`)}`;
-					lines.push(line);
-					if (task.status === "in_progress" && task.details) {
-						for (const line of task.details.split("\n")) {
-							lines.push(theme.fg("dim", `    ${line}`));
-						}
-					}
-				}
-			}
-
-			return new Text(lines.join("\n"), 0, 0);
-		},
+		renderCall: renderTodosCall,
+		renderResult: renderTodosResult,
 	};
 
 	return tool;
@@ -656,7 +876,66 @@ function detectOperation(params: TodoWriteParams): string | null {
 	if (params.update) return "update";
 	if (params.remove_task) return "remove_task";
 	if (params.list !== undefined) return "list";
+	if (params.undo !== undefined) return "undo";
+	if (params.redo !== undefined) return "redo";
+	if (params.export !== undefined) return "export";
+	if (params.import !== undefined) return "import";
 	return null;
+}
+
+/**
+ * Unified operation handler - replaces 5 separate apply* functions
+ * Uses switch-case for DRY principle
+ */
+function applySingleOp(state: TodoState, opType: string, opData: any, errors: string[]): void {
+	// Handle undo/redo separately - they don't need to save to history
+	if (opType === "undo") {
+		const success = state.undo();
+		if (!success) errors.push("Nothing to undo");
+		return;
+	}
+	if (opType === "redo") {
+		const success = state.redo();
+		if (!success) errors.push("Nothing to redo");
+		return;
+	}
+	
+	// Save current state to history before making changes
+	if (opType !== "list") {
+		state.saveToHistory();
+	}
+	switch (opType) {
+		case "replace":
+			applyReplace(state, opData, errors);
+			break;
+		case "add_phase":
+			applyAddPhase(state, opData, errors);
+			break;
+		case "add_task":
+			applyAddTask(state, opData, errors);
+			break;
+		case "update":
+			applyUpdate(state, opData, errors);
+			break;
+		case "remove_task":
+			applyRemoveTask(state, opData, errors);
+			break;
+		case "move":
+			applyMove(state, opData, errors);
+			break;
+		case "archive":
+			applyArchive(state, opData, errors);
+			break;
+		case "dashboard":
+			// Dashboard is read-only, just mark as processed
+			break;
+		case "export":
+			// Export is handled in execute function, just mark as processed
+			break;
+		case "import":
+			// Import is handled in execute function
+			break;
+	}
 }
 
 function applyReplace(state: TodoState, phasesInput: any[], errors: string[]): void {
@@ -714,11 +993,16 @@ function applyAddTask(state: TodoState, op: any, errors: string[]): void {
 		errors.push("add_task.phase must be a string (e.g., 'phase-1')");
 		return;
 	}
+	// Validate phase ID format
+	if (!/^phase-\d+$/.test(op.phase)) {
+		errors.push("add_task.phase must match format 'phase-N' (e.g., 'phase-1')");
+		return;
+	}
 	if (!op.content || typeof op.content !== "string") {
 		errors.push("add_task.content must be a string");
 		return;
 	}
-	const task = state.addTask(op.phase, op.content, op.notes, op.details);
+	const task = state.addTask(op.phase, op.content, op.notes, op.details, op.dependsOn, op.estimate, op.tags, op.priority, op.effort, op.deadline);
 	if (!task) {
 		errors.push(`Phase "${op.phase}" not found`);
 	}
@@ -731,6 +1015,11 @@ function applyUpdate(state: TodoState, op: any, errors: string[]): void {
 	}
 	if (!op.id || typeof op.id !== "string") {
 		errors.push("update.id must be a string (e.g., 'task-1')");
+		return;
+	}
+	// Validate task ID format
+	if (!/^task-\d+$/.test(op.id)) {
+		errors.push("update.id must match format 'task-N' (e.g., 'task-1')");
 		return;
 	}
 	const task = state.updateTask(op.id, op);
@@ -748,8 +1037,58 @@ function applyRemoveTask(state: TodoState, op: any, errors: string[]): void {
 		errors.push("remove_task.id must be a string (e.g., 'task-1')");
 		return;
 	}
+	// Validate task ID format
+	if (!/^task-\d+$/.test(op.id)) {
+		errors.push("remove_task.id must match format 'task-N' (e.g., 'task-1')");
+		return;
+	}
 	const removed = state.removeTask(op.id);
 	if (!removed) {
+		errors.push(`Task "${op.id}" not found`);
+	}
+}
+
+function applyMove(state: TodoState, op: any, errors: string[]): void {
+	if (!op || typeof op !== "object") {
+		errors.push("move must be an object");
+		return;
+	}
+	if (!op.id || typeof op.id !== "string") {
+		errors.push("move.id must be a string (e.g., 'task-1')");
+		return;
+	}
+	if (typeof op.position !== "number") {
+		errors.push("move.position must be a number (0-based index)");
+		return;
+	}
+	// Validate task ID format
+	if (!/^task-\d+$/.test(op.id)) {
+		errors.push("move.id must match format 'task-N' (e.g., 'task-1')");
+		return;
+	}
+	const moved = state.moveTask(op.id, op.position);
+	if (!moved) {
+		errors.push(`Task "${op.id}" not found`);
+	}
+}
+
+function applyArchive(state: TodoState, op: any, errors: string[]): void {
+	if (!op || typeof op !== "object") {
+		errors.push("archive must be an object");
+		return;
+	}
+	if (!op.id || typeof op.id !== "string") {
+		errors.push("archive.id must be a string (e.g., 'task-1')");
+		return;
+	}
+	// Validate task ID format
+	if (!/^task-\d+$/.test(op.id)) {
+		errors.push("archive.id must match format 'task-N' (e.g., 'task-1')");
+		return;
+	}
+	const unarchive = op.unarchive === true;
+	const archived = state.archiveTask(op.id, unarchive);
+	if (!archived) {
 		errors.push(`Task "${op.id}" not found`);
 	}
 }
