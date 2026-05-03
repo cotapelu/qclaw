@@ -44,6 +44,138 @@ export { npmSchema, executeNpm } from "./npm.js";
 // Systemctl
 export { systemctlSchema, executeSystemctl } from "./systemctl.js";
 
+// Sysctl
+export { sysctlSchema, executeSysctl } from "./sysctl.js";
+
+// Iptables
+export { iptablesSchema, executeIptables } from "./iptables.js";
+
+// Nft
+export { nftSchema, executeNft } from "./nft.js";
+
+// Lvm
+export { lvmSchema, executeLvm } from "./lvm.js";
+
+// Lsof
+export { lsofSchema, executeLsof } from "./lsof.js";
+
+// Pstree
+export { pstreeSchema, executePstree } from "./pstree.js";
+
+// Top
+export { topSchema, executeTop } from "./top.js";
+
+// Htop
+export { htopSchema, executeHtop } from "./htop.js";
+
+// Vmstat
+export { vmstatSchema, executeVmstat } from "./vmstat.js";
+
+// Mpstat
+export { mpstatSchema, executeMpstat } from "./mpstat.js";
+
+// Sar
+export { sarSchema, executeSar } from "./sar.js";
+
+// Mount
+export { mountSchema, executeMount } from "./mount.js";
+
+// Hardware
+export { hardwareSchema, executeHardware } from "./hardware.js";
+
+// Dmidecode
+export { dmidecodeSchema, executeDmidecode } from "./dmidecode.js";
+
+// Sensors
+export { sensorsSchema, executeSensors } from "./sensors.js";
+
+// Battery
+export { batterySchema, executeBattery } from "./battery.js";
+
+// Docker Compose
+export { dockerComposeSchema, executeDockerCompose } from "./docker-compose.js";
+
+// Podman
+export { podmanSchema, executePodman } from "./podman.js";
+
+// Kubectl Apply
+export { kubectlApplySchema, executeKubectlApply } from "./kubectl-apply.js";
+
+// Helm
+export { helmSchema, executeHelm } from "./helm.js";
+
+// Oc (OpenShift)
+export { ocSchema, executeOc } from "./oc.js";
+
+// Nomad
+export { nomadSchema, executeNomad } from "./nomad.js";
+
+// Vagrant
+export { vagrantSchema, executeVagrant } from "./vagrant.js";
+
+// Virsh (KVM)
+export { virshSchema, executeVirsh } from "./virsh.js";
+
+// QEMU
+export { qemuSchema, executeQemu } from "./qemu.js";
+
+// LXC/LXD
+export { lxcSchema, executeLxc } from "./lxc.js";
+
+// systemd-nspawn
+export { systemdNspawnSchema, executeSystemdNspawn } from "./systemd-nspawn.js";
+
+// chroot
+export { chrootSchema, executeChroot } from "./chroot.js";
+
+// Flatpak/Snap/AppImage
+export { flatpakSchema, executeFlatpak } from "./flatpak.js";
+
+// SQLite3
+export { sqlite3Schema, executeSqlite3 } from "./sqlite3.js";
+
+// MySQL
+export { mysqlSchema, executeMysql } from "./mysql.js";
+
+// PostgreSQL (psql)
+export { psqlSchema, executePsql } from "./psql.js";
+
+// MongoDB
+export { mongodbSchema, executeMongodb } from "./mongodb.js";
+
+// Kafka Console
+export { kafkaConsoleSchema, executeKafkaConsole } from "./kafka-console.js";
+
+// Python (pip/poetry/pipenv)
+export { pipSchema, executePip } from "./pip.js";
+
+// Rust (cargo/rustup)
+export { cargoSchema, executeCargo } from "./cargo.js";
+
+// Go (go/godoc)
+export { goSchema, executeGo } from "./go.js";
+
+// Java (mvn/gradle/ant)
+export { mavenSchema, executeMaven } from "./maven.js";
+
+// .NET (dotnet/msbuild)
+export { dotnetSchema, executeDotnet } from "./dotnet.js";
+
+// CMake/Ninja
+export { cmakeSchema, executeCmake } from "./cmake.js";
+
+// Yarn/PNPM
+export { yarnSchema, executeYarn } from "./yarn.js";
+
+// Deno/Bun
+export { denoSchema, executeDeno } from "./deno.js";
+
+// PHP/Composer
+export { phpSchema, executePhp } from "./php.js";
+
+// Ruby/Gem/Bundle
+export { rubySchema, executeRuby } from "./ruby.js";
+
 // Journalctl
 export { journalctlSchema, executeJournalctl } from "./journalctl.js";
 

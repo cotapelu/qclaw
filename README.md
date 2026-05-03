@@ -13,7 +13,79 @@ PiClaw is a professional AI coding agent built on [pi-coding-agent](https://gith
 - Automatic tool allowlist from config
 - Model and thinking level persistence across sessions
 - Extension system for custom commands
-- **SubTool Loader** – a single custom built-in tool exposing 50+ system operations (bash, git, docker, k8s, ssh, http, aws, terraform, db, kafka, redis, make, npm, systemctl, journalctl, ps, kill, crontab, apt, yum, df, du, ping, traceroute, nslookup, dig, wget, tail, jq, yq, xmllint, scp, rsync, ffmpeg, update, backup, password, weather, time, ufw, at, quota, iso, free, iostat, netstat, ss, ...)
+- **SubTool Loader** – a single custom built-in tool exposing 50+ system operations (bash, git, docker, k8s, ssh, http, aws, terraform, db, kafka, redis, make, npm, systemctl, journalctl, ps, kill, crontab, apt, yum, df, du, ping, traceroute, nslookup, dig, wget, tail, jq, yq, xmllint, scp, rsync, ffmpeg, update, backup, password, weather, time, ufw, at, quota, iso, free, iostat, netstat, ss, ...). See [SubTool Loader](#subtool-loader) for details.
+
+## SubTool Loader
+
+The SubTool Loader is a unified interface for executing 50+ common system commands and tools. Instead of managing dozens of separate tools, it's exposed as a single `subtool_loader` tool that can execute any supported command.
+
+### Available Sub-Tools
+
+| Category | Tools |
+|----------|-------|
+| **Version Control** | git |
+| **Containers** | docker, k8s |
+| **Cloud** | aws, terraform |
+| **Databases** | db, kafka, redis |
+| **Package Managers** | npm, apt, yum |
+| **Systemd** | systemctl, journalctl |
+| **Processes** | ps, kill, crontab |
+| **System Info** | df, du, free, iostat, netstat, ss |
+| **Network** | ping, traceroute, nslookup, dig, wget |
+| **File Ops** | tail, scp, rsync |
+| **Data Processing** | jq, yq, xmllint |
+| **Media** | ffmpeg |
+| **Security** | ufw, ssh |
+| **Utilities** | update, backup, password, weather, time, at, quota, iso |
+| **Computer Use** | bash, ls, find, grep, read |
+
+### Usage
+
+The LLM can call `subtool_loader` with any sub-tool name and arguments:
+
+```json
+{
+  "subtool": "git",
+  "args": {
+    "command": "status"
+  }
+}
+```
+
+```json
+{
+  "subtool": "docker",
+  "args": {
+    "command": "ps -a",
+    "timeout": 30
+  }
+}
+```
+
+```json
+{
+  "subtool": "k8s",
+  "args": {
+    "command": "get pods -n default",
+    "context": "production"
+  }
+}
+```
+
+### Common Parameters
+
+All sub-tools support:
+- `command` (string, required) - The command to execute
+- `cwd` (string, optional) - Working directory
+- `timeout` (number, optional) - Timeout in seconds
+
+### Documentation
+
+For complete usage examples for all 50+ sub-tools, see [docs/subtool-usage.md](docs/subtool-usage.md).
+
+### Security Note
+
+⚠️ Sub-tools execute arbitrary shell commands. Only use in trusted environments.
 
 ## Installation
 

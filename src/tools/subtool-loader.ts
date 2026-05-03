@@ -24,9 +24,9 @@ const subToolNames = [
   "edit", "write",
 
   // Extended sub-tools (custom in src/tools/sub-tools/)
-  "git", "docker", "k8s", "ssh", "http", "aws",
+  "git", "docker", "docker-compose", "podman", "k8s", "kubectl-apply", "helm", "oc", "nomad", "vagrant", "virsh", "qemu", "lxc", "systemd-nspawn", "chroot", "flatpak", "sqlite3", "mysql", "psql", "mongodb", "redis", "kafka-console", "pip", "cargo", "go", "maven", "dotnet", "cmake", "yarn", "deno", "php", "ruby", "ssh", "http", "aws",
   "terraform", "db", "kafka", "redis", "make", "npm",
-  "systemctl", "journalctl", "ps", "kill", "crontab",
+  "systemctl", "sysctl", "iptables", "nft", "lvm", "lsof", "pstree", "top", "htop", "vmstat", "mpstat", "sar", "mount", "hardware", "dmidecode", "sensors", "battery", "journalctl", "ps", "kill", "crontab",
   "apt", "yum", "df", "du", "ping", "traceroute",
   "nslookup", "dig", "wget", "tail", "jq", "yq",
   "xmllint", "scp", "rsync", "ffmpeg", "update",

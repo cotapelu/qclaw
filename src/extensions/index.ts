@@ -12,7 +12,6 @@ import { createSubLoaderToolDefinition } from "../tools/subtool-loader.js";
 import autoMemory from "./auto-memory.js";
 
 export default function (api: import("@mariozechner/pi-coding-agent").ExtensionAPI) {
-  console.log('[PICLAW EXTENSION] Extension loaded! Registering tools...'); // DEBUG
   // Register providers
   registerKiloProvider(api);
 
@@ -30,6 +29,4 @@ export default function (api: import("@mariozechner/pi-coding-agent").ExtensionA
 
   // Load auto-memory integration
   autoMemory(api);
-
-  console.log('[PICLAW EXTENSION] All tools registered'); // DEBUG
 }

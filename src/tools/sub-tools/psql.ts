@@ -1,12 +1,12 @@
 import { Type } from "typebox";
 
-export const redisSchema = Type.Object({
-  command: Type.String({ description: "redis-cli command (e.g., '', 'GET mykey', 'SET mykey value', 'KEYS *')" }),
+export const psqlSchema = Type.Object({
+  command: Type.String({ description: "psql command (e.g., '-U postgres -d mydb', '-U postgres -d mydb -c \"SELECT * FROM users\"')" }),
   cwd: Type.Optional(Type.String()),
   timeout: Type.Optional(Type.Number()),
 });
 
-export async function executeRedis(
+export async function executePsql(
   args: any,
   cwd: string,
   signal?: AbortSignal,
@@ -14,7 +14,7 @@ export async function executeRedis(
 ) {
   const { command, timeout } = args as { command: string; timeout?: number };
   try {
-    const cmd = command ? `redis-cli ${command}` : `redis-cli`;
+    const cmd = `psql ${command}`;
     const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
@@ -22,6 +22,6 @@ export async function executeRedis(
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {
-    return { content: [{ type: "text", text: `redis error: ${error.message}` }], details: undefined, isError: true } as const;
+    return { content: [{ type: "text", text: `psql error: ${error.message}` }], details: undefined, isError: true } as const;
   }
 }

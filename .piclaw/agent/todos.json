@@ -1,0 +1,843 @@
+{
+  "version": 1,
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "1. Integrate SubTool Loader vào AgentSession",
+      "tasks": [
+        {
+          "id": "task-1",
+          "content": "Import createSubLoaderToolDefinition từ ./tools/subtool-loader trong main.ts/cli.ts",
+          "status": "completed",
+          "details": "Tìm đoạn khởi tạo AgentSession và thêm customTools option"
+        },
+        {
+          "id": "task-2",
+          "content": "Thêm customTools: [createSubLoaderToolDefinition(cwd)] vào config",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-2",
+      "name": "2. Kiểm tra & Test",
+      "tasks": [
+        {
+          "id": "task-3",
+          "content": "Build lại toàn bộ: npm run build - kiểm tra TypeScript errors",
+          "status": "completed",
+          "details": "Kiểm tra output dist/cli.js, dist/main.js chạy được"
+        },
+        {
+          "id": "task-4",
+          "content": "Test runtime: npm start - kiểm tra notification 'subtool_loader loaded'",
+          "status": "completed",
+          "details": "Ask LLM: 'List files in src' để verify subtool_loader được gọi"
+        }
+      ]
+    },
+    {
+      "id": "phase-3",
+      "name": "3. Fix lỗi tiền đề",
+      "tasks": [
+        {
+          "id": "task-5",
+          "content": "Kiểm tra tất cả sub-tool files: đúng signature execute(args, cwd, signal, ctx)",
+          "status": "completed"
+        },
+        {
+          "id": "task-6",
+          "content": "Loại bỏ các console.log/debugging code",
+          "status": "completed"
+        },
+        {
+          "id": "task-7",
+          "content": "Đảm bảo tất cả imports dùng .js extension (TypeScript compile sang .js)",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-4",
+      "name": "4. Docs & Examples",
+      "tasks": [
+        {
+          "id": "task-8",
+          "content": "Viết ví dụ trong docs/subtool-usage.md cho mỗi sub-tool",
+          "status": "completed"
+        },
+        {
+          "id": "task-9",
+          "content": "Thêm section 'SubTool Loader' vào README.md chính",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-5",
+      "name": "5. Mở rộng - Thêm sub-tools mới (System & Network)",
+      "tasks": [
+        {
+          "id": "task-10",
+          "content": "Thêm sub-sysctl (kernel parameters)",
+          "status": "completed"
+        },
+        {
+          "id": "task-11",
+          "content": "Thêm sub-iptables (firewall rules)",
+          "status": "completed"
+        },
+        {
+          "id": "task-12",
+          "content": "Thêm sub-nft (nftables)",
+          "status": "completed"
+        },
+        {
+          "id": "task-13",
+          "content": "Thêm sub-lvm (logical volume management)",
+          "status": "completed"
+        },
+        {
+          "id": "task-14",
+          "content": "Thêm sub-lsof (list open files)",
+          "status": "completed"
+        },
+        {
+          "id": "task-15",
+          "content": "Thêm sub-pstree (process tree)",
+          "status": "completed"
+        },
+        {
+          "id": "task-16",
+          "content": "Thêm sub-top / sub-htop (process monitor)",
+          "status": "completed"
+        },
+        {
+          "id": "task-17",
+          "content": "Thêm sub-vmstat (virtual memory stats)",
+          "status": "completed"
+        },
+        {
+          "id": "task-18",
+          "content": "Thêm sub-mpstat (CPU stats)",
+          "status": "completed"
+        },
+        {
+          "id": "task-19",
+          "content": "Thêm sub-sar (system activity)",
+          "status": "completed"
+        },
+        {
+          "id": "task-20",
+          "content": "Thêm sub-mount / sub-umount",
+          "status": "completed"
+        },
+        {
+          "id": "task-21",
+          "content": "Thêm sub-lsusb / sub-lspci / sub-lscpu / sub-lsblk (hardware)",
+          "status": "completed"
+        },
+        {
+          "id": "task-22",
+          "content": "Thêm sub-dmidecode (DMI)",
+          "status": "completed"
+        },
+        {
+          "id": "task-23",
+          "content": "Thêm sub-sensors (temp/fan)",
+          "status": "completed"
+        },
+        {
+          "id": "task-24",
+          "content": "Thêm sub-battery (upower/pmset)",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-6",
+      "name": "6. Mở rộng - Containers & VM",
+      "tasks": [
+        {
+          "id": "task-25",
+          "content": "Thêm sub-docker-compose (compose)",
+          "status": "completed"
+        },
+        {
+          "id": "task-26",
+          "content": "Thêm sub-podman (containers)",
+          "status": "completed"
+        },
+        {
+          "id": "task-27",
+          "content": "Thêm sub-kubectl-apply / delete shortcuts",
+          "status": "completed"
+        },
+        {
+          "id": "task-28",
+          "content": "Thêm sub-helm (Kubernetes package manager)",
+          "status": "completed"
+        },
+        {
+          "id": "task-29",
+          "content": "Thêm sub-oc (OpenShift)",
+          "status": "completed"
+        },
+        {
+          "id": "task-30",
+          "content": "Thêm sub-nomad (HashiCorp Nomad)",
+          "status": "completed"
+        },
+        {
+          "id": "task-31",
+          "content": "Thêm sub-vagrant (VMs)",
+          "status": "completed"
+        },
+        {
+          "id": "task-32",
+          "content": "Thêm sub-virsh / sub-kvm (KVM)",
+          "status": "completed"
+        },
+        {
+          "id": "task-33",
+          "content": "Thêm sub-qemu (QEMU)",
+          "status": "completed"
+        },
+        {
+          "id": "task-34",
+          "content": "Thêm sub-lxc / sub-lxd (LXC)",
+          "status": "completed"
+        },
+        {
+          "id": "task-35",
+          "content": "Thêm sub-systemd-nspawn",
+          "status": "completed"
+        },
+        {
+          "id": "task-36",
+          "content": "Thêm sub-chroot",
+          "status": "completed"
+        },
+        {
+          "id": "task-37",
+          "content": "Thêm sub-flatpak / sub-snap / sub-appimage",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-7",
+      "name": "7. Mở rộng - Databases",
+      "tasks": [
+        {
+          "id": "task-38",
+          "content": "Thêm sub-sqlite3 (interactive sqlite)",
+          "status": "completed"
+        },
+        {
+          "id": "task-39",
+          "content": "Thêm sub-mysql-client (MySQL shell)",
+          "status": "completed"
+        },
+        {
+          "id": "task-40",
+          "content": "Thêm sub-psql (PostgreSQL shell)",
+          "status": "completed"
+        },
+        {
+          "id": "task-41",
+          "content": "Thêm sub-mongodb (mongo shell)",
+          "status": "completed"
+        },
+        {
+          "id": "task-42",
+          "content": "Thêm sub-redis-cli (redis interactive)",
+          "status": "completed"
+        },
+        {
+          "id": "task-43",
+          "content": "Thêm sub-kafka-console (producer/consumer)",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-8",
+      "name": "8. Mở rộng - Programming Languages & Package Managers",
+      "tasks": [
+        {
+          "id": "task-44",
+          "content": "Thêm sub-pip / sub-poetry / sub-pipenv (Python)",
+          "status": "completed"
+        },
+        {
+          "id": "task-45",
+          "content": "Thêm sub-cargo / sub-rustup (Rust)",
+          "status": "completed"
+        },
+        {
+          "id": "task-46",
+          "content": "Thêm sub-go / sub-godoc (Go)",
+          "status": "completed"
+        },
+        {
+          "id": "task-47",
+          "content": "Thêm sub-mvn / sub-gradle / sub-ant (Java)",
+          "status": "completed"
+        },
+        {
+          "id": "task-48",
+          "content": "Thêm sub-dotnet / sub-msbuild (.NET)",
+          "status": "completed"
+        },
+        {
+          "id": "task-49",
+          "content": "Thêm sub-cmake / sub-ninja (Build)",
+          "status": "completed"
+        },
+        {
+          "id": "task-50",
+          "content": "Thêm sub-yarn / sub-pnpm (Node.js package managers)",
+          "status": "completed"
+        },
+        {
+          "id": "task-51",
+          "content": "Thêm sub-deno / sub-bun (JS runtimes)",
+          "status": "completed"
+        },
+        {
+          "id": "task-52",
+          "content": "Thêm sub-php / sub-composer (PHP)",
+          "status": "completed"
+        },
+        {
+          "id": "task-53",
+          "content": "Thêm sub-ruby / sub-gem (Ruby)",
+          "status": "in_progress"
+        },
+        {
+          "id": "task-54",
+          "content": "Thêm sub-perl / sub-cpan (Perl)",
+          "status": "pending"
+        },
+        {
+          "id": "task-55",
+          "content": "Thêm sub-conda (Anaconda)",
+          "status": "pending"
+        },
+        {
+          "id": "task-56",
+          "content": "Thêm sub-r / sub-rscript (R language)",
+          "status": "pending"
+        },
+        {
+          "id": "task-57",
+          "content": "Thêm sub-julia (Julia)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-9",
+      "name": "9. Mở rộng - Network Tools",
+      "tasks": [
+        {
+          "id": "task-58",
+          "content": "Thêm sub-httpie (HTTP client)",
+          "status": "pending"
+        },
+        {
+          "id": "task-59",
+          "content": "Thêm sub-nc / sub-netcat (netcat)",
+          "status": "pending"
+        },
+        {
+          "id": "task-60",
+          "content": "Thêm sub-socat (socket cat)",
+          "status": "pending"
+        },
+        {
+          "id": "task-61",
+          "content": "Thêm sub-ssh-keygen (key management)",
+          "status": "pending"
+        },
+        {
+          "id": "task-62",
+          "content": "Thêm sub-gpg (encryption)",
+          "status": "pending"
+        },
+        {
+          "id": "task-63",
+          "content": "Thêm sub-sftp (SSH file transfer)",
+          "status": "pending"
+        },
+        {
+          "id": "task-64",
+          "content": "Thêm sub-ftp (FTP client)",
+          "status": "pending"
+        },
+        {
+          "id": "task-65",
+          "content": "Thêm sub-smbclient (SMB client)",
+          "status": "pending"
+        },
+        {
+          "id": "task-66",
+          "content": "Thêm sub-host / sub-whois (DNS)",
+          "status": "pending"
+        },
+        {
+          "id": "task-67",
+          "content": "Thêm sub-iftop / sub-iptraf (network traffic)",
+          "status": "pending"
+        },
+        {
+          "id": "task-68",
+          "content": "Thêm sub-nethogs (per-process network)",
+          "status": "pending"
+        },
+        {
+          "id": "task-69",
+          "content": "Thêm sub-tcpdump (packet capture)",
+          "status": "pending"
+        },
+        {
+          "id": "task-70",
+          "content": "Thêm sub-wireshark / sub-tshark (packet analysis)",
+          "status": "pending"
+        },
+        {
+          "id": "task-71",
+          "content": "Thêm sub-ab / sub-wrk / sub-bombardier (benchmark)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-10",
+      "name": "10. Mở rộng - Data Processing & Media",
+      "tasks": [
+        {
+          "id": "task-72",
+          "content": "Thêm sub-imagemagick / sub-graphicsmagick (image processing)",
+          "status": "pending"
+        },
+        {
+          "id": "task-73",
+          "content": "Thêm sub-sox (audio processing)",
+          "status": "pending"
+        },
+        {
+          "id": "task-74",
+          "content": "Thêm sub-pandoc (document conversion)",
+          "status": "pending"
+        },
+        {
+          "id": "task-75",
+          "content": "Thêm sub-wkhtmltopdf (HTML to PDF)",
+          "status": "pending"
+        },
+        {
+          "id": "task-76",
+          "content": "Thêm sub-pdftk / sub-qpdf (PDF tools)",
+          "status": "pending"
+        },
+        {
+          "id": "task-77",
+          "content": "Thêm sub-ps2pdf / sub-pdf2ps (PostScript/PDF)",
+          "status": "pending"
+        },
+        {
+          "id": "task-78",
+          "content": "Thêm sub-enscript / sub-a2ps (text to PostScript)",
+          "status": "pending"
+        },
+        {
+          "id": "task-79",
+          "content": "Thêm sub-dot / sub-graphviz (graphviz)",
+          "status": "pending"
+        },
+        {
+          "id": "task-80",
+          "content": "Thêm sub-xmlstarlet (XML processing)",
+          "status": "pending"
+        },
+        {
+          "id": "task-81",
+          "content": "Thêm sub-json_pp / sub-jsonschema (JSON tools)",
+          "status": "pending"
+        },
+        {
+          "id": "task-82",
+          "content": "Thêm sub-yamllint (YAML validation)",
+          "status": "pending"
+        },
+        {
+          "id": "task-83",
+          "content": "Thêm sub-tomlq (TOML processing)",
+          "status": "pending"
+        },
+        {
+          "id": "task-84",
+          "content": "Thêm sub-hjson (HJSON processing)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-11",
+      "name": "11. Mở rộng - File & Archive",
+      "tasks": [
+        {
+          "id": "task-85",
+          "content": "Thêm sub-tar / sub-gzip / sub-bzip2 (archives)",
+          "status": "pending"
+        },
+        {
+          "id": "task-86",
+          "content": "Thêm sub-zip / sub-unzip",
+          "status": "pending"
+        },
+        {
+          "id": "task-87",
+          "content": "Thêm sub-7z (7-zip)",
+          "status": "pending"
+        },
+        {
+          "id": "task-88",
+          "content": "Thêm sub-xz (xz compression)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-12",
+      "name": "12. Mở rộng - Version Control (khác git)",
+      "tasks": [
+        {
+          "id": "task-89",
+          "content": "Thêm sub-svn (Subversion)",
+          "status": "pending"
+        },
+        {
+          "id": "task-90",
+          "content": "Thêm sub-hg (Mercurial)",
+          "status": "pending"
+        },
+        {
+          "id": "task-91",
+          "content": "Thêm sub-darcs (Darcs)",
+          "status": "pending"
+        },
+        {
+          "id": "task-92",
+          "content": "Thêm sub-fossil (Fossil)",
+          "status": "pending"
+        },
+        {
+          "id": "task-93",
+          "content": "Thêm sub-bzr (Bazaar)",
+          "status": "pending"
+        },
+        {
+          "id": "task-94",
+          "content": "Thêm sub-cvs (CVS)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-13",
+      "name": "13. Mở rộng - Package Managers (Linux)",
+      "tasks": [
+        {
+          "id": "task-95",
+          "content": "Thêm sub-pacman (Arch Linux)",
+          "status": "pending"
+        },
+        {
+          "id": "task-96",
+          "content": "Thêm sub-dnf (Fedora)",
+          "status": "pending"
+        },
+        {
+          "id": "task-97",
+          "content": "Thêm sub-zypper (openSUSE)",
+          "status": "pending"
+        },
+        {
+          "id": "task-98",
+          "content": "Thêm sub-emerge (Gentoo)",
+          "status": "pending"
+        },
+        {
+          "id": "task-99",
+          "content": "Thêm sub-apk (Alpine)",
+          "status": "pending"
+        },
+        {
+          "id": "task-100",
+          "content": "Thêm sub-pkg (FreeBSD)",
+          "status": "pending"
+        },
+        {
+          "id": "task-101",
+          "content": "Thêm sub-nix-env (Nix)",
+          "status": "pending"
+        },
+        {
+          "id": "task-102",
+          "content": "Thêm sub-guix (Guix)",
+          "status": "pending"
+        },
+        {
+          "id": "task-103",
+          "content": "Thêm sub-spack (HPC)",
+          "status": "pending"
+        },
+        {
+          "id": "task-104",
+          "content": "Thêm sub-pkgsrc (pkgsrc)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-14",
+      "name": "14. Refactor",
+      "tasks": [
+        {
+          "id": "task-105",
+          "content": "Tách subtool-loader.ts thành smaller modules nếu quá lớn",
+          "status": "pending"
+        },
+        {
+          "id": "task-106",
+          "content": "Cân nhắc dùng eval hoặc dynamic function lookup để giảm boilerplate",
+          "status": "pending"
+        },
+        {
+          "id": "task-107",
+          "content": "Thêm unit tests cho từng sub-tool (hoặc ít nhất integration test)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-15",
+      "name": "15. Security",
+      "tasks": [
+        {
+          "id": "task-108",
+          "content": "Add warning: sub-tools chạy arbitrary shell commands - chỉ dùng trong trusted environment",
+          "status": "pending"
+        },
+        {
+          "id": "task-109",
+          "content": "Consider sandboxing (Docker container, chroot, seccomp) - nếu cần",
+          "status": "pending"
+        },
+        {
+          "id": "task-110",
+          "content": "Log all sub-tool executions (audit trail)",
+          "status": "pending"
+        },
+        {
+          "id": "task-111",
+          "content": "Option to disable dangerous sub-tools (bash, ssh, docker, etc)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-16",
+      "name": "16. Test Plan",
+      "tasks": [
+        {
+          "id": "task-112",
+          "content": "Test: subtool_loader xuất hiện trong system prompt",
+          "status": "pending"
+        },
+        {
+          "id": "task-113",
+          "content": "Test: LLM có thể gọi subtool_loader với đầy đủ subtool types",
+          "status": "pending"
+        },
+        {
+          "id": "task-114",
+          "content": "Test: Mỗi sub-tool chạy đúng và trả về kết quả như built-in equivalents",
+          "status": "pending"
+        },
+        {
+          "id": "task-115",
+          "content": "Test: Timeout/signal hoạt động (Ctrl+C)",
+          "status": "pending"
+        },
+        {
+          "id": "task-116",
+          "content": "Test: Error handling đẹp (không crash)",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-17",
+      "name": "17. TODOS Tool Enhancements",
+      "tasks": [
+        {
+          "id": "task-117",
+          "content": "Fix hidden bug trong applyReplace - đã fix nhưng cần test kỹ với replace operation rỗng và non-array phases",
+          "status": "pending"
+        },
+        {
+          "id": "task-118",
+          "content": "Add comprehensive unit tests cho edge cases: phase not found, task not found, invalid status",
+          "status": "pending"
+        },
+        {
+          "id": "task-119",
+          "content": "Validate phase/task ID format - hiện tại chỉ check existence, chưa validate format (phase-\\d+, task-\\d+)",
+          "status": "pending"
+        },
+        {
+          "id": "task-120",
+          "content": "Add migration logic từ old todos format (nếu có user data cũ)",
+          "status": "pending"
+        },
+        {
+          "id": "task-121",
+          "content": "Extract renderer ra object riêng - Giống backup, tách renderCall/renderResult thành constant để reusable và testable",
+          "status": "pending"
+        },
+        {
+          "id": "task-122",
+          "content": "Unify operation handling với applySingleOp() - Gộp 5 functions apply* thành 1 function switch-case cho DRY",
+          "status": "pending"
+        },
+        {
+          "id": "task-123",
+          "content": "Add operation undo/redo - Lưu history để user có thể rollback thay đổi",
+          "status": "pending"
+        },
+        {
+          "id": "task-124",
+          "content": "Add search/filter - Tìm task theo keyword, filter theo status",
+          "status": "pending"
+        },
+        {
+          "id": "task-125",
+          "content": "Add task dependencies - Cho phép đánh dấu task A phụ thuộc vào task B",
+          "status": "pending"
+        },
+        {
+          "id": "task-126",
+          "content": "Add time tracking - Ghi nhận start time, end time, estimate vs actual",
+          "status": "pending"
+        },
+        {
+          "id": "task-127",
+          "content": "Export/Import todos - Xuất JSON, nhập từ file external",
+          "status": "pending"
+        },
+        {
+          "id": "task-128",
+          "content": "Sync with external tools - GitHub Issues, Jira, Trello integration",
+          "status": "pending"
+        },
+        {
+          "id": "task-129",
+          "content": "Add tagging system - Mỗi task có tags (#bug, #feature), filter by tag",
+          "status": "pending"
+        },
+        {
+          "id": "task-130",
+          "content": "Add priority field - low/medium/high/critical",
+          "status": "pending"
+        },
+        {
+          "id": "task-131",
+          "content": "Add effort estimate - Story points, hours",
+          "status": "pending"
+        },
+        {
+          "id": "task-132",
+          "content": "Add progress bar in renderResult - Visual % completion per phase",
+          "status": "pending"
+        },
+        {
+          "id": "task-133",
+          "content": "Add drag-and-drop reordering trong TUI (nếu supported)",
+          "status": "pending"
+        },
+        {
+          "id": "task-134",
+          "content": "Add task archiving - Soft delete vs hard delete",
+          "status": "pending"
+        },
+        {
+          "id": "task-135",
+          "content": "Add notifications - Push notification khi deadline approaching",
+          "status": "pending"
+        },
+        {
+          "id": "task-136",
+          "content": "Add dashboard view - Summary stats (burndown, velocity)",
+          "status": "pending"
+        },
+        {
+          "id": "task-137",
+          "content": "Remove unused imports - chalk trong backup",
+          "status": "pending"
+        },
+        {
+          "id": "task-138",
+          "content": "Add JSDoc comments cho public APIs (TodoState methods, helper functions)",
+          "status": "pending"
+        },
+        {
+          "id": "task-139",
+          "content": "Consider aggressive auto-continue - Backup dùng waitForIdle().then(continue()), có thể mạnh hơn passive hiện tại",
+          "status": "pending"
+        },
+        {
+          "id": "task-140",
+          "content": "Add integration tests - Simulate full turn với auto-continue",
+          "status": "pending"
+        },
+        {
+          "id": "task-141",
+          "content": "Performance: debounce state notifications - TodoState.notify() gọi quá nhiều nếu nhiều updates nhanh",
+          "status": "pending"
+        },
+        {
+          "id": "task-142",
+          "content": "Add state snapshotting - Cho phép revert to previous state",
+          "status": "pending"
+        },
+        {
+          "id": "task-143",
+          "content": "Add examples in promptGuidelines - Thêm ví dụ về replace, remove_task (hiện tại thiếu)",
+          "status": "pending"
+        },
+        {
+          "id": "task-144",
+          "content": "Add error message improvements - Khi phase/task not found, suggest valid IDs",
+          "status": "pending"
+        },
+        {
+          "id": "task-145",
+          "content": "Add /todos CLI command - Separate từ tool, cho phép xem todos ngoài agent context",
+          "status": "pending"
+        },
+        {
+          "id": "task-146",
+          "content": "Add todos visualization - Mermaid/ASCII chart trong renderResult",
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "nextTaskId": 147,
+  "nextPhaseId": 18,
+  "updatedAt": "2026-05-02T16:13:43.455Z"
+}

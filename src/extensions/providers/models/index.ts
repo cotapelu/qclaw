@@ -18,9 +18,8 @@ let generatedModels: Record<string, Record<string, any>> = {};
 try {
   const gen = await import("./custom-models.generated.js");
   generatedModels = gen.CUSTOM_MODELS || {};  // ← ĐÚNG TÊN
-  console.log("[Models] Loaded generated custom models for:", Object.keys(generatedModels).join(", "));
 } catch (err) {
-  console.log("[Models] No generated file found (run generate-custom-models)");
+  // No generated models file - will use hardcoded fallbacks
 }
 
 /**
