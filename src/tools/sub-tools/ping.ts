@@ -20,9 +20,8 @@ export async function executePing(
     ipv6?: boolean;
   };
   try {
-    const flag = ipv6 ? "-6" : "-4";
-    const cmd = `ping ${flag} -c ${count} -W ${timeout} ${host}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal });
+    const pingArgs = [ipv6 ? "-6" : "-4", "-c", String(count), "-W", String(timeout), host];
+    const result = await ctx!.exec("ping", pingArgs, { cwd, signal, timeout: count * timeout * 1000 + 5000 });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, host, count },

@@ -21,14 +21,13 @@ export async function executeSystemctl(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { action, service, timeout } = args as {
+  const { action, service, timeout = 30000 } = args as {
     action: string;
     service: string;
     timeout?: number;
   };
   try {
-    const cmd = `systemctl ${action} ${service}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec("systemctl", [action, service], { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, action, service },

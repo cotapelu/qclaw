@@ -11,16 +11,29 @@ export async function executeHardware(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 30000 } = args as { command: string; timeout?: number };
   try {
-    // Handle both separate commands and combined with lsusb/lspci/lscpu/lsblk prefix
-    let cmd = command;
-    // If command doesn't start with lsusb/lspci/lscpu/lsblk, prepend it
-    if (!cmd.match(/^(lsusb|lspci|lscpu|lsblk)/)) {
-      // Default to lsblk if no prefix
-      cmd = `lsblk ${command}`;
+    // Determine which tool to use: lsusb, lspci, lscpu, or lsblk (default)
+    let tool = "lsblk";
+    let toolArgs: string[] = [];
+    const trimmedCommand = command.trim();
+    if (trimmedCommand.startsWith("lsusb") || trimmedCommand.includes("lsusb")) {
+      tool = "lsusb";
+      toolArgs = trimmedCommand.split(/ \\s+/).slice(1); // remove 'lsusb'
+    } else if (trimmedCommand.startsWith("lspci") || trimmedCommand.includes("lspci")) {
+      tool = "lspci";
+      toolArgs = trimmedCommand.split(/ \\s+/).slice(1);
+    } else if (trimmedCommand.startsWith("lscpu") || trimmedCommand.includes("lscpu")) {
+      tool = "lscpu";
+      toolArgs = trimmedCommand.split(/ \\s+/).slice(1);
+    } else if (trimmedCommand.startsWith("lsblk") || trimmedCommand.includes("lsblk")) {
+      tool = "lsblk";
+      toolArgs = trimmedCommand.split(/ \\s+/).slice(1);
+    } else {
+      // No prefix, treat entire command as args to lsblk
+      toolArgs = trimmedCommand ? trimmedCommand.split(/ \\s+/) : [];
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec(tool, toolArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed },

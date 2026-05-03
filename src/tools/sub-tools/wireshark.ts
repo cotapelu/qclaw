@@ -1,145 +1,94 @@
-/**
- * Wireshark/Tshark sub-tool for packet analysis
- */
+import { Type } from "typebox";
 
-export const wiresharkSchema = {
-	name: "wireshark",
-	description: "Analyze network packets using tshark (terminal Wireshark)",
-	parameters: {
-		type: "object",
-		properties: {
-			command: {
-				type: "string",
-				description: "The full tshark command to execute"
-			},
-			tool: {
-				type: "string",
-				description: "Which tool: 'tshark' or 'dumpcap'"
-			},
-			interface: {
-				type: "string",
-				description: "Network interface to capture on (e.g., eth0, any)"
-			},
-			filter: {
-				type: "string",
-				description: "Capture or display filter (e.g., 'tcp port 80')"
-			},
-			count: {
-				type: "number",
-				description: "Number of packets to capture"
-			},
-			read_file: {
-				type: "string",
-				description: "Read packets from pcap file"
-			},
-			output_file: {
-				type: "string",
-				description: "Output file to save captured packets"
-			},
-			fields: {
-				type: "string",
-				description: "Fields to display (e.g., 'ip.src,ip.dst,tcp.port')"
-			},
-			format: {
-				type: "string",
-				description: "Output format: 'txt', 'json', 'csv', 'psml', 'pdml'"
-			},
-			verbose: {
-				type: "boolean",
-				description: "Verbose packet details"
-			},
-			version: {
-				type: "boolean",
-				description: "Show tshark version"
-			},
-			help: {
-				type: "boolean",
-				description: "Show help information"
-			}
-		},
-		required: ["command"]
-	}
-};
+export const wiresharkSchema = Type.Object({
+  command: Type.Optional(Type.String()),
+  tool: Type.Optional(Type.Enum(["tshark", "dumpcap"])),
+  interface: Type.Optional(Type.String()),
+  filter: Type.Optional(Type.String()),
+  count: Type.Optional(Type.Number()),
+  read_file: Type.Optional(Type.String()),
+  output_file: Type.Optional(Type.String()),
+  fields: Type.Optional(Type.String()),
+  format: Type.Optional(Type.String()),
+  verbose: Type.Optional(Type.Boolean()),
+  version: Type.Optional(Type.Boolean()),
+  help: Type.Optional(Type.Boolean()),
+});
 
-export async function executeWireshark(args: { command?: string; tool?: string; interface?: string; filter?: string; count?: number; read_file?: string; output_file?: string; fields?: string; format?: string; verbose?: boolean; version?: boolean; help?: boolean }): Promise<string> {
-	const { command, tool, interface: iface, filter, count, read_file, output_file, fields, format, verbose, version, help } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "tshark --version 2>&1 | head -5";
-	} else if (help) {
-		cmd = "tshark --help 2>&1 | head -40";
-	} else if (command) {
-		cmd = command;
-	} else if (tool === "dumpcap") {
-		// Use dumpcap for capturing only
-		cmd = "dumpcap";
-		if (iface) cmd += ` -i ${iface}`;
-		if (count) cmd += ` -c ${count}`;
-		if (output_file) cmd += ` -w ${output_file}`;
-		if (filter) cmd += ` -f '${filter}'`;
-	} else if (read_file) {
-		// Analyze pcap file with tshark
-		cmd = `tshark -r ${read_file}`;
-		if (filter) cmd += ` '${filter}'`;
-		if (fields) cmd += ` -T fields -e ${fields}`;
-		else if (format === "json") cmd += " -T json";
-		else if (format === "csv") cmd += " -T csv";
-		else if (verbose) cmd += " -V";
-		else cmd += " 2>&1 | head -30";
-	} else {
-		// Capture packets with tshark
-		cmd = "tshark";
-		
-		if (iface) {
-			cmd += ` -i ${iface}`;
-		}
-		
-		if (count) {
-			cmd += ` -c ${count}`;
-		} else {
-			cmd += " -c 10";  // default 10 packets
-		}
-		
-		if (output_file) {
-			cmd += ` -w ${output_file}`;
-		}
-		
-		if (filter) {
-			cmd += ` -f '${filter}'`;
-		}
-		
-		// Add display options
-		if (fields) {
-			cmd += ` -T fields -e ${fields}`;
-		} else if (format === "json") {
-			cmd += " -T json";
-		} else if (format === "csv") {
-			cmd += " -T csv";
-		} else if (format === "pdml") {
-			cmd += " -T pdml";
-		} else if (format === "psml") {
-			cmd += " -T psml";
-		} else if (verbose) {
-			cmd += " -V";
-		}
-		
-		if (!output_file && !verbose) {
-			cmd += " 2>&1 | head -40";
-		} else if (!output_file) {
-			cmd += " 2>&1 | head -100";
-		}
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 15000 });
-		return stdout || stderr || "tshark/dumpcap may require root privileges";
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeWireshark(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, tool, interface: iface, filter, count, read_file, output_file, fields, format, verbose, version, help } = args;
+  const timeout = 30000;
+  try {
+    const selectedTool = (tool === "dumpcap") ? "dumpcap" : "tshark";
+
+    if (version) {
+      const result = await ctx!.exec(selectedTool, ["--version"], { cwd, signal, timeout });
+      return (result.stdout || result.stderr).split('\n').slice(0,5).join('\n');
+    }
+    if (help) {
+      const result = await ctx!.exec(selectedTool, ["--help"], { cwd, signal, timeout });
+      return (result.stdout || result.stderr).split('\n').slice(0,50).join('\n');
+    }
+
+    if (command) {
+      const cmdArgs = command.trim().split(/\s+/);
+      const result = await ctx!.exec(cmdArgs[0], cmdArgs.slice(1), { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    const cmdArgs: string[] = [];
+
+    if (selectedTool === "dumpcap") {
+      if (iface) cmdArgs.push("-i", iface);
+      if (count) cmdArgs.push("-c", String(count));
+      if (output_file) cmdArgs.push("-w", output_file);
+      if (filter) cmdArgs.push("-f", filter);
+      // dumpcap does not have verbose flag; ignore
+    } else {
+      // tshark
+      if (read_file) {
+        cmdArgs.push("-r", read_file);
+        // When reading a file, filter is display filter
+        if (filter) cmdArgs.push(filter);
+      } else {
+        if (iface) cmdArgs.push("-i", iface);
+        if (count) cmdArgs.push("-c", String(count));
+        else cmdArgs.push("-c", "10"); // default 10 packets
+        if (filter) cmdArgs.push("-f", filter); // capture filter
+      }
+
+      if (output_file) {
+        cmdArgs.push("-w", output_file);
+      } else {
+        // Output format for terminal
+        if (fields) {
+          cmdArgs.push("-T", "fields");
+          const fieldList = fields.split(",");
+          for (const f of fieldList) cmdArgs.push("-e", f);
+        } else if (format === "json") {
+          cmdArgs.push("-T", "json");
+        } else if (format === "csv") {
+          cmdArgs.push("-T", "csv");
+        } else if (format === "pdml") {
+          cmdArgs.push("-T", "pdml");
+        } else if (format === "psml") {
+          cmdArgs.push("-T", "psml");
+        } else if (verbose) {
+          cmdArgs.push("-V");
+        } else {
+          cmdArgs.push("-V"); // default to detailed for terminal
+        }
+      }
+    }
+
+    const result = await ctx!.exec(selectedTool, cmdArgs, { cwd, signal, timeout });
+    return result.stdout || result.stderr;
+  } catch (error: any) {
+    return `Error: ${error.message}`;
+  }
 }

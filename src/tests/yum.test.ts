@@ -31,7 +31,7 @@ describe('yum tool', () => {
 
       const result = await executeYum({ command: 'install', packages: ['nginx'] }, '/tmp', undefined, mockCtx);
 
-      expect(mockCtx.exec).toHaveBeenCalledWith('bash', ['-c', 'yum -y install nginx'], { cwd: '/tmp', signal: undefined, timeout: undefined });
+      expect(mockCtx.exec).toHaveBeenCalledWith('yum', ['-y', 'install', 'nginx'], { cwd: '/tmp', signal: undefined, timeout: 30000 });
       expect(result.isError).toBe(false);
       expect(result.details?.command).toBe('install');
     });
@@ -41,7 +41,7 @@ describe('yum tool', () => {
 
       const result = await executeYum({ command: 'remove', packages: ['vim'] }, '/tmp', undefined, mockCtx);
 
-      expect(mockCtx.exec).toHaveBeenCalledWith('bash', ['-c', 'yum -y remove vim'], { cwd: '/tmp', signal: undefined, timeout: undefined });
+      expect(mockCtx.exec).toHaveBeenCalledWith('yum', ['-y', 'remove', 'vim'], { cwd: '/tmp', signal: undefined, timeout: 30000 });
       expect(result.isError).toBe(false);
     });
 
@@ -50,8 +50,10 @@ describe('yum tool', () => {
 
       await executeYum({ command: 'list', packages: ['nginx'] }, '/tmp', undefined, mockCtx);
 
-      const cmd = mockCtx.exec.mock.calls[0][1][1];
-      expect(cmd).toContain('yum list nginx');
+      const tool = mockCtx.exec.mock.calls[0][0];
+      const args = mockCtx.exec.mock.calls[0][1];
+      expect(tool).toBe('yum');
+      expect(args).toEqual(['list', 'nginx']);
     });
 
     it('should execute yum search', async () => {
@@ -59,8 +61,10 @@ describe('yum tool', () => {
 
       await executeYum({ command: 'search', packages: ['apache'] }, '/tmp', undefined, mockCtx);
 
-      const cmd = mockCtx.exec.mock.calls[0][1][1];
-      expect(cmd).toBe('yum search apache');
+      const tool = mockCtx.exec.mock.calls[0][0];
+      const args = mockCtx.exec.mock.calls[0][1];
+      expect(tool).toBe('yum');
+      expect(args).toEqual(['search', 'apache']);
     });
 
     it('should execute yum info', async () => {
@@ -68,8 +72,10 @@ describe('yum tool', () => {
 
       await executeYum({ command: 'info', packages: ['curl'] }, '/tmp', undefined, mockCtx);
 
-      const cmd = mockCtx.exec.mock.calls[0][1][1];
-      expect(cmd).toBe('yum info curl');
+      const tool = mockCtx.exec.mock.calls[0][0];
+      const args = mockCtx.exec.mock.calls[0][1];
+      expect(tool).toBe('yum');
+      expect(args).toEqual(['info', 'curl']);
     });
 
     it('should execute yum check-update', async () => {
@@ -77,8 +83,10 @@ describe('yum tool', () => {
 
       await executeYum({ command: 'check-update' }, '/tmp', undefined, mockCtx);
 
-      const cmd = mockCtx.exec.mock.calls[0][1][1];
-      expect(cmd).toBe('yum check-update');
+      const tool = mockCtx.exec.mock.calls[0][0];
+      const args = mockCtx.exec.mock.calls[0][1];
+      expect(tool).toBe('yum');
+      expect(args).toEqual(['check-update']);
     });
 
     it('should handle error exit code', async () => {

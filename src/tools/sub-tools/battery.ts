@@ -11,19 +11,51 @@ export async function executeBattery(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 10000 } = args as { command?: string; timeout?: number };
   try {
-    // Try upower first (Linux), then pmset (macOS)
-    let cmd = command;
-    if (!cmd.startsWith("upower") && !cmd.startsWith("pmset")) {
-      // Default command - try both
-      cmd = "upower -i $(upower -e | grep BAT | head -1) 2>/dev/null || pmset -g batt 2>/dev/null || echo 'No battery found'";
+    // If user provides explicit command, use bash (escape hatch)
+    if (command) {
+      const result = await ctx!.exec("bash", ["-c", command], { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed },
+        isError: result.code !== 0,
+      } as const;
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+
+    // Try upower (Linux)
+    try {
+      const devicesResult = await ctx!.exec("upower", ["-e"], { cwd, signal, timeout });
+      const devices = (devicesResult.stdout || "").split("\n").filter((line: string) => line.includes("BAT"));
+      if (devices.length > 0) {
+        const bat = devices[0].trim();
+        const result = await ctx!.exec("upower", ["-i", bat], { cwd, signal, timeout });
+        return {
+          content: [{ type: "text", text: result.stdout || result.stderr }],
+          details: { exitCode: result.code, killed: result.killed, method: "upower", device: bat },
+          isError: result.code !== 0,
+        } as const;
+      }
+    } catch (e) {
+      // upower not available or no battery, ignore
+    }
+
+    // Try pmset (macOS)
+    try {
+      const result = await ctx!.exec("pmset", ["-g", "batt"], { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed, method: "pmset" },
+        isError: result.code !== 0,
+      } as const;
+    } catch (e) {
+      // pmset not available
+    }
+
     return {
-      content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed },
-      isError: result.code !== 0,
+      content: [{ type: "text", text: "No battery found or battery tools not available" }],
+      details: {},
+      isError: false,
     } as const;
   } catch (error: any) {
     return { content: [{ type: "text", text: `battery error: ${error.message}` }], details: undefined, isError: true } as const;

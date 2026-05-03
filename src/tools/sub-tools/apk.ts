@@ -73,88 +73,92 @@ export const apkSchema = {
 	}
 };
 
-export async function executeApk(args: { command?: string; operation?: string; packages?: string; upgrade?: boolean; available?: boolean; search?: string; info?: string; list?: string; depends?: string; belongs?: string; fix?: boolean; cache?: boolean; yes?: boolean; verbose?: boolean; version?: boolean }): Promise<string> {
-	const { command, operation, packages, upgrade, available, search, info, list, depends, belongs, fix, cache, yes, verbose, version } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "apk --version 2>&1";
-	} else if (command) {
-		cmd = command;
-	} else if (!operation && !packages && !search && !info && !list && !upgrade && !cache) {
-		return "Error: Please provide an operation (add, del, update, etc.) or use --version to see apk version.";
-	} else {
-		// Build apk command
-		cmd = "apk";
-		
-		if (yes) cmd += " --yes";
-		if (verbose) cmd += " --verbose";
-		
-		// Add operation
-		const op = operation || "list";
-		
-		if (op === "add" || op === "install") {
-			cmd += " add";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "del" || op === "remove" || op === "rm") {
-			cmd += " del";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "update") {
-			cmd += " update";
-		} else if (op === "upgrade" || op === "up") {
-			cmd += " upgrade";
-			if (available) cmd += " --available";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "search" || op === "se") {
-			cmd += ` search ${search || packages || ''}`;
-		} else if (op === "info") {
-			cmd += ` info ${info || packages || ''}`;
-		} else if (op === "list" || op === "ls") {
-			cmd += " list";
-			if (list === "installed") cmd += " --installed";
-			else if (list === "upgrades") cmd += " --upgrades";
-			else if (list === "origin") cmd += " --origin";
-			else if (list === "installed-dirs") cmd += " --installed-dirs";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "depends") {
-			cmd += ` depends ${depends || packages || ''}`;
-		} else if (op === "belongs") {
-			cmd += ` belongs ${belongs || packages || ''}`;
-		} else if (op === "fix") {
-			cmd += " fix";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "cache") {
-			cmd += " cache";
-			if (cache) cmd += " clean";
-		} else if (op === "index") {
-			cmd += " index";
-		} else if (op === "fetch") {
-			cmd += ` fetch ${packages || ''}`;
-		} else if (op === "audit") {
-			cmd += " audit";
-		} else if (search) {
-			cmd += ` search ${search}`;
-		} else if (info) {
-			cmd += ` info ${info}`;
-		} else if (list) {
-			cmd += ` list ${list}`;
-		} else if (upgrade) {
-			cmd += " upgrade";
-		} else {
-			cmd += ` ${op}`;
-			if (packages) cmd += ` ${packages}`;
-		}
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 120000 });
-		return stdout || stderr;
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeApk(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, operation, packages, upgrade, available, search, info, list, depends, belongs, fix, cache, yes, verbose, version } = args;
+  const timeout = 180000;
+  try {
+    if (version) {
+      const result = await ctx!.exec("apk", ["--version"], { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    if (command) {
+      const cmdArgs = command.trim().split(/ \\s+/);
+      const result = await ctx!.exec(cmdArgs[0], cmdArgs.slice(1), { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    const apkArgs: string[] = [];
+    if (yes) apkArgs.push("--yes");
+    if (verbose) apkArgs.push("--verbose");
+
+    const op = operation || "list";
+
+    const pushPackages = (...prefix: string[]) => {
+      if (packages) apkArgs.push(...prefix, ...packages.trim().split(/\\s+/));
+    };
+
+    if (op === "add" || op === "install") {
+      apkArgs.push("add");
+      pushPackages();
+    } else if (op === "del" || op === "remove" || op === "rm") {
+      apkArgs.push("del");
+      pushPackages();
+    } else if (op === "update") {
+      apkArgs.push("update");
+    } else if (op === "upgrade" || op === "up") {
+      apkArgs.push("upgrade");
+      if (available) apkArgs.push("--available");
+      pushPackages();
+    } else if (op === "search" || op === "se") {
+      apkArgs.push("search");
+      const pkg = search || packages;
+      if (pkg) apkArgs.push(...pkg.trim().split(/\\s+/));
+    } else if (op === "info") {
+      apkArgs.push("info");
+      const pkg = info || packages;
+      if (pkg) apkArgs.push(...pkg.trim().split(/\\s+/));
+    } else if (op === "list" || op === "ls") {
+      apkArgs.push("list");
+      if (list === "installed") apkArgs.push("--installed");
+      else if (list === "upgrades") apkArgs.push("--upgrades");
+      else if (list === "origin") apkArgs.push("--origin");
+      else if (list === "installed-dirs") apkArgs.push("--installed-dirs");
+      pushPackages();
+    } else if (op === "depends") {
+      apkArgs.push("depends");
+      const p = depends || packages;
+      if (p) apkArgs.push(...p.trim().split(/\\s+/));
+    } else if (op === "belongs") {
+      apkArgs.push("belongs");
+      const p = belongs || packages;
+      if (p) apkArgs.push(...p.trim().split(/\\s+/));
+    } else if (op === "fix") {
+      apkArgs.push("fix");
+      pushPackages();
+    } else if (op === "cache") {
+      apkArgs.push("cache");
+      if (cache) apkArgs.push("clean");
+    } else if (op === "index") {
+      apkArgs.push("index");
+    } else if (op === "fetch") {
+      apkArgs.push("fetch");
+      pushPackages();
+    } else if (op === "audit") {
+      apkArgs.push("audit");
+    } else {
+      apkArgs.push(op);
+      if (packages) apkArgs.push(...packages.trim().split(/\\s+/));
+    }
+
+    const result = await ctx!.exec("apk", apkArgs, { cwd, signal, timeout });
+    return result.stdout || result.stderr;
+  } catch (error: any) {
+    return `Error: ${error.message}`;
+  }
 }

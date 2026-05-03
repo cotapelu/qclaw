@@ -23,7 +23,7 @@ export async function executeNetstat(
     listening = false,
     route = false,
     iface = false,
-    timeout,
+    timeout = 30000,
   } = args as {
     all?: boolean;
     tcp?: boolean;
@@ -34,16 +34,18 @@ export async function executeNetstat(
     timeout?: number;
   };
   try {
-    let cmd = "netstat";
-    if (route) cmd += " -rn";
-    else if (iface) cmd += " -i";
-    else {
-      if (all) cmd += " -a";
-      if (tcp) cmd += " -t";
-      if (udp) cmd += " -u";
-      if (listening) cmd += " -l";
+    const netstatArgs: string[] = [];
+    if (route) {
+      netstatArgs.push("-rn");
+    } else if (iface) {
+      netstatArgs.push("-i");
+    } else {
+      if (all) netstatArgs.push("-a");
+      if (tcp) netstatArgs.push("-t");
+      if (udp) netstatArgs.push("-u");
+      if (listening) netstatArgs.push("-l");
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec("netstat", netstatArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, all, tcp, udp, listening, route, iface },

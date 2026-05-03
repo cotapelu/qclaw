@@ -1,102 +1,110 @@
-/**
- * json_pp/jsonschema sub-tool for JSON processing
- */
+import { Type } from "typebox";
+import * as fs from "fs/promises";
 
-export const json_ppSchema = {
-	name: "json_pp",
-	description: "Process and validate JSON files using json_pp or jsonschema",
-	parameters: {
-		type: "object",
-		properties: {
-			command: {
-				type: "string",
-				description: "The full json_pp/jsonschema command to execute"
-			},
-			tool: {
-				type: "string",
-				description: "Which tool: 'json_pp' or 'jsonschema'"
-			},
-			input: {
-				type: "string",
-				description: "Input JSON file"
-			},
-			output: {
-				type: "string",
-				description: "Output file"
-			},
-			schema: {
-				type: "string",
-				description: "JSON Schema file for validation"
-			},
-			pretty: {
-				type: "boolean",
-				description: "Pretty print output"
-			},
-			indent: {
-				type: "number",
-				description: "Indentation spaces (2, 4, etc.)"
-			},
-			validate: {
-				type: "boolean",
-				description: "Validate JSON (if jsonschema)"
-			},
-			version: {
-				type: "boolean",
-				description: "Show version"
-			}
-		},
-		required: ["command"]
-	}
-};
+export const json_ppSchema = Type.Object({
+  command: Type.Optional(Type.String()),
+  tool: Type.Optional(Type.Enum(["json_pp", "jsonschema"])),
+  input: Type.Optional(Type.String()),
+  output: Type.Optional(Type.String()),
+  schema: Type.Optional(Type.String()),
+  pretty: Type.Optional(Type.Boolean()),
+  indent: Type.Optional(Type.Number()),
+  validate: Type.Optional(Type.Boolean()),
+  version: Type.Optional(Type.Boolean()),
+});
 
-export async function executeJson_pp(args: { command?: string; tool?: string; input?: string; output?: string; schema?: string; pretty?: boolean; indent?: number; validate?: boolean; version?: boolean }): Promise<string> {
-	const { command, tool, input, output, schema, pretty, indent, validate, version } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "echo '=== json_pp ===' && json_pp -v 2>&1 | head -2; echo '=== jsonschema ===' && jsonschema --version 2>&1 || echo 'jsonschema not installed'";
-	} else if (command) {
-		cmd = command;
-	} else if (!input) {
-		return "Error: Please provide an input JSON file. Use --version to see versions.";
-	} else {
-		const selectedTool = tool || "json_pp";
-		
-		if (selectedTool === "jsonschema") {
-			// jsonschema commands
-			cmd = "jsonschema";
-			
-			if (validate || schema) {
-				cmd += " --instance";
-				if (schema) cmd += ` ${schema}`;
-			} else {
-				cmd += " --version 2>&1 || echo 'Use --instance and --schema to validate'";
-			}
-			
-			cmd += ` '${input}'`;
-		} else {
-			// json_pp commands
-			cmd = "json_pp";
-			
-			if (pretty !== false) cmd += " -f";
-			
-			if (indent) cmd += ` -json_opt indent,${indent}`;
-			
-			if (output) cmd += ` > ${output}`;
-			
-			cmd += ` '${input}'`;
-		}
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 30000 });
-		return stdout || stderr;
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeJson_pp(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, tool, input, output, schema, pretty, indent, validate, version } = args;
+  const timeout = 30000;
+
+  try {
+    if (command) {
+      const result = await ctx!.exec("bash", ["-c", command], { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed },
+        isError: result.code !== 0,
+      } as const;
+    }
+
+    if (version) {
+      // Show both versions if possible
+      const resultJson = await ctx!.exec("json_pp", ["-v"], { cwd, signal, timeout }).catch(() => ({ stdout: "", stderr: "json_pp not found", code: 1 }));
+      const resultSchema = await ctx!.exec("jsonschema", ["--version"], { cwd, signal, timeout }).catch(() => ({ stdout: "", stderr: "jsonschema not found", code: 1 }));
+      const combined = `json_pp: ${resultJson.stdout || resultJson.stderr}\njsonschema: ${resultSchema.stdout || resultSchema.stderr}`;
+      return {
+        content: [{ type: "text", text: combined }],
+        details: {},
+        isError: false,
+      } as const;
+    }
+
+    if (!input) {
+      return {
+        content: [{ type: "text", text: "Error: input file required" }],
+        details: undefined,
+        isError: true,
+      } as const;
+    }
+
+    const selectedTool = tool || "json_pp";
+
+    if (selectedTool === "jsonschema") {
+      // jsonschema: validate instance against schema
+      const jsonschemaArgs: string[] = [];
+      if (validate || schema) {
+        jsonschemaArgs.push("--instance");
+        if (schema) jsonschemaArgs.push(schema);
+      } else {
+        // No validation requested; maybe just show version?
+        // but we handled version above, so this is error?
+        // We'll just run with instance only? Might fail. Instead, return error.
+        return {
+          content: [{ type: "text", text: "Error: jsonschema requires schema or validate=true" }],
+          details: undefined,
+          isError: true,
+        } as const;
+      }
+      jsonschemaArgs.push(input);
+      const result = await ctx!.exec("jsonschema", jsonschemaArgs, { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed, tool: "jsonschema", input, schema },
+        isError: result.code !== 0,
+      } as const;
+    } else {
+      // json_pp
+      const json_ppArgs: string[] = [];
+      if (pretty !== false) json_ppArgs.push("-f");
+      if (indent) json_ppArgs.push("-json_opt", `indent,${indent}`);
+      // json_pp reads from stdin or file? It can take file as argument.
+      json_ppArgs.push(input);
+      const result = await ctx!.exec("json_pp", json_ppArgs, { cwd, signal, timeout });
+
+      if (output && result.stdout) {
+        try {
+          await fs.writeFile(output, result.stdout, "utf8");
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed, tool: "json_pp", input, output },
+        isError: result.code !== 0,
+      } as const;
+    }
+  } catch (error: any) {
+    return {
+      content: [{ type: "text", text: `json_pp error: ${error.message}` }],
+      details: undefined,
+      isError: true,
+    } as const;
+  }
 }

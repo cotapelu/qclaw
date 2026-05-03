@@ -1,139 +1,101 @@
-/**
- * darcs sub-tool for Darcs version control
- */
+import { Type } from "typebox";
 
-export const darcsSchema = {
-	name: "darcs",
-	description: "Darcs distributed version control operations",
-	parameters: {
-		type: "object",
-		properties: {
-			command: {
-				type: "string",
-				description: "The full darcs command to execute"
-			},
-			operation: {
-				type: "string",
-				description: "Operation: clone, pull, push, get, apply, record, amend, status, diff, log, add, remove, tag, optimize"
-			},
-			target: {
-				type: "string",
-				description: "Target file or directory"
-			},
-			url: {
-				type: "string",
-				description: "Repository URL"
-			},
-			revision: {
-				type: "string",
-				description: "Patch or tag name"
-			},
-			message: {
-				type: "string",
-				description: "Patch message"
-			},
-			author: {
-				type: "string",
-				description: "Author name/email"
-			},
-			verbose: {
-				type: "boolean",
-				description: "Verbose output"
-			},
-			version: {
-				type: "boolean",
-				description: "Show version"
-			}
-		},
-		required: ["command"]
-	}
-};
+export const darcsSchema = Type.Object({
+  command: Type.Optional(Type.String()),
+  operation: Type.Optional(Type.String()),
+  target: Type.Optional(Type.String()),
+  url: Type.Optional(Type.String()),
+  revision: Type.Optional(Type.String()),
+  message: Type.Optional(Type.String()),
+  author: Type.Optional(Type.String()),
+  verbose: Type.Optional(Type.Boolean()),
+  version: Type.Optional(Type.Boolean()),
+});
 
-export async function executeDarcs(args: { command?: string; operation?: string; target?: string; url?: string; revision?: string; message?: string; author?: string; verbose?: boolean; version?: boolean }): Promise<string> {
-	const { command, operation, target, url, revision, message, author, verbose, version } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "darcs --version 2>&1";
-	} else if (command) {
-		cmd = command;
-	} else if (!operation && !target && !url) {
-		return "Error: Please provide an operation (clone, pull, push, record, etc.) or use --version to see darcs version.";
-	} else {
-		// Build darcs command
-		cmd = "darcs";
-		
-		if (verbose) cmd += " -v";
-		
-		// Add operation
-		const op = operation || "status";
-		
-		if (op === "clone" || op === "get") {
-			cmd += ` get`;
-			if (revision) cmd += ` -t ${revision}`;
-			cmd += ` '${url || 'REPO_URL'}'`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "pull") {
-			cmd += ` pull`;
-			if (url) cmd += ` ${url}`;
-			if (revision) cmd += ` -t ${revision}`;
-		} else if (op === "push") {
-			cmd += ` push`;
-			if (url) cmd += ` ${url}`;
-			if (revision) cmd += ` -t ${revision}`;
-		} else if (op === "apply") {
-			cmd += ` apply`;
-			if (url) cmd += ` ${url}`;
-			if (revision) cmd += ` -t ${revision}`;
-		} else if (op === "record" || op === "commit" || op === "ci") {
-			cmd += ` record`;
-			if (message) cmd += ` -m '${message}'`;
-			if (author) cmd += ` --author '${author}'`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "amend") {
-			cmd += ` amend`;
-			if (message) cmd += ` -m '${message}'`;
-			if (author) cmd += ` --author '${author}'`;
-		} else if (op === "status" || op === "st") {
-			cmd += ` status`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "diff") {
-			cmd += ` diff`;
-			if (revision) cmd += ` -t ${revision}`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "log") {
-			cmd += ` log`;
-			if (revision) cmd += ` -t ${revision}`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "add") {
-			cmd += ` add`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "remove" || op === "rm") {
-			cmd += ` remove`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "tag") {
-			cmd += ` tag`;
-			if (revision) cmd += ` ${revision}`;
-		} else if (op === "optimize") {
-			cmd += ` optimize`;
-		} else if (op === "what") {
-			cmd += ` whatsnew`;
-			cmd += ` ${target || '.'}`;
-		} else {
-			cmd += ` ${op}`;
-			if (target) cmd += ` ${target}`;
-		}
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 60000 });
-		return stdout || stderr;
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeDarcs(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, operation, target, url, revision, message, author, verbose, version } = args;
+  const timeout = 60000;
+  try {
+    if (version) {
+      const result = await ctx!.exec("darcs", ["--version"], { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    if (command) {
+      const cmdArgs = command.trim().split(/\s+/);
+      const result = await ctx!.exec(cmdArgs[0], cmdArgs.slice(1), { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    const darcsArgs: string[] = [];
+    if (verbose) darcsArgs.push("-v");
+
+    const op = operation || "status";
+
+    if (op === "clone" || op === "get") {
+      darcsArgs.push("get");
+      if (revision) darcsArgs.push("-t", revision);
+      darcsArgs.push(url || "REPO_URL");
+      darcsArgs.push(target || ".");
+    } else if (op === "pull") {
+      darcsArgs.push("pull");
+      if (url) darcsArgs.push(url);
+      if (revision) darcsArgs.push("-t", revision);
+    } else if (op === "push") {
+      darcsArgs.push("push");
+      if (url) darcsArgs.push(url);
+      if (revision) darcsArgs.push("-t", revision);
+    } else if (op === "apply") {
+      darcsArgs.push("apply");
+      if (url) darcsArgs.push(url);
+      if (revision) darcsArgs.push("-t", revision);
+    } else if (op === "record" || op === "commit" || op === "ci") {
+      darcsArgs.push("record");
+      if (message) darcsArgs.push("-m", message);
+      if (author) darcsArgs.push("--author", author);
+      darcsArgs.push(target || ".");
+    } else if (op === "amend") {
+      darcsArgs.push("amend");
+      if (message) darcsArgs.push("-m", message);
+      if (author) darcsArgs.push("--author", author);
+    } else if (op === "status" || op === "st") {
+      darcsArgs.push("status");
+      darcsArgs.push(target || ".");
+    } else if (op === "diff") {
+      darcsArgs.push("diff");
+      if (revision) darcsArgs.push("-t", revision);
+      darcsArgs.push(target || ".");
+    } else if (op === "log") {
+      darcsArgs.push("log");
+      if (revision) darcsArgs.push("-t", revision);
+      darcsArgs.push(target || ".");
+    } else if (op === "add") {
+      darcsArgs.push("add");
+      darcsArgs.push(target || ".");
+    } else if (op === "remove" || op === "rm") {
+      darcsArgs.push("remove");
+      darcsArgs.push(target || ".");
+    } else if (op === "tag") {
+      darcsArgs.push("tag");
+      if (revision) darcsArgs.push(revision);
+    } else if (op === "optimize") {
+      darcsArgs.push("optimize");
+    } else if (op === "what") {
+      darcsArgs.push("whatsnew");
+      darcsArgs.push(target || ".");
+    } else {
+      darcsArgs.push(op);
+      if (target) darcsArgs.push(target);
+    }
+
+    const result = await ctx!.exec("darcs", darcsArgs, { cwd, signal, timeout });
+    return result.stdout || result.stderr;
+  } catch (error: any) {
+    return `Error: ${error.message}`;
+  }
 }

@@ -12,13 +12,17 @@ export async function executeQemu(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 60000 } = args as { command: string; timeout?: number };
   try {
-    const cmd = `qemu-${command}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const parts = command.trim().split(/ \\s+/);
+    if (parts.length === 0) throw new Error("No qemu subcommand specified");
+    const subcmd = parts[0];
+    const tool = `qemu-${subcmd}`;
+    const subArgs = parts.slice(1);
+    const result = await ctx!.exec(tool, subArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed },
+      details: { exitCode: result.code, killed: result.killed, subcommand: subcmd },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {

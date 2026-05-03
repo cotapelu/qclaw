@@ -14,7 +14,7 @@ export async function executeSsh(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { host, command, user, port = 22, timeout } = args as {
+  const { host, command, user, port = 22, timeout = 30000 } = args as {
     host: string;
     command: string;
     user?: string;
@@ -22,14 +22,21 @@ export async function executeSsh(
     timeout?: number;
   };
   try {
-    const sshUser = user || "";
-    const sshCmd = sshUser
-      ? `ssh -p ${port} ${sshUser}@${host} "${command.replace(/"/g, '\\"')}"`
-      : `ssh -p ${port} ${host} "${command.replace(/"/g, '\\"')}"`;
-    const result = await ctx!.exec("bash", ["-c", sshCmd], { cwd, signal, timeout });
+    // Build argument array directly to avoid shell injection
+    const sshArgs: string[] = ["-p", String(port)];
+    if (user) {
+      sshArgs.push("-l", user);
+    }
+    const target = user ? `${user}@${host}` : host;
+    sshArgs.push(target);
+    // Append the remote command as separate arguments if present
+    if (command) {
+      sshArgs.push(command);
+    }
+    const result = await ctx!.exec("ssh", sshArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed, host, user: sshUser },
+      details: { exitCode: result.code, killed: result.killed, host, user },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {

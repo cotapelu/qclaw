@@ -1,150 +1,100 @@
-/**
- * emerge sub-tool for Gentoo Linux package manager
- */
+import { Type } from "typebox";
 
-export const emergeSchema = {
-	name: "emerge",
-	description: "Gentoo Portage package manager operations",
-	parameters: {
-		type: "object",
-		properties: {
-			command: {
-				type: "string",
-				description: "The full emerge command to execute"
-			},
-			operation: {
-				type: "string",
-				description: "Operation: sync, search, install, remove, update, depclean, autoremove, info"
-			},
-			packages: {
-				type: "string",
-				description: "Package names (space separated)"
-			},
-			world: {
-				type: "boolean",
-				description: "Use @world set"
-			},
-			deep: {
-				type: "number",
-				description: "Deep dependencies"
-			},
-			newuse: {
-				type: "boolean",
-				description: "Include changed USE flags"
-			},
-			search: {
-				type: "string",
-				description: "Search for package"
-			},
-			info: {
-				type: "string",
-				description: "Show package info"
-			},
-			pretend: {
-				type: "boolean",
-				description: "Pretend only, don't actually install"
-			},
-			fetchonly: {
-				type: "boolean",
-				description: "Only download files, don't install"
-			},
-			clean: {
-				type: "boolean",
-				description: "Clean dependencies"
-			},
-			depclean: {
-				type: "boolean",
-				description: "Remove unused packages"
-			},
-			yes: {
-				type: "boolean",
-				description: "Assume yes to all"
-			},
-			verbose: {
-				type: "boolean",
-				description: "Verbose output"
-			},
-			version: {
-				type: "boolean",
-				description: "Show version"
-			}
-		},
-		required: ["command"]
-	}
-};
+export const emergeSchema = Type.Object({
+  command: Type.Optional(Type.String()),
+  operation: Type.Optional(Type.String()),
+  packages: Type.Optional(Type.String()),
+  world: Type.Optional(Type.Boolean()),
+  deep: Type.Optional(Type.Number()),
+  newuse: Type.Optional(Type.Boolean()),
+  search: Type.Optional(Type.String()),
+  info: Type.Optional(Type.String()),
+  pretend: Type.Optional(Type.Boolean()),
+  fetchonly: Type.Optional(Type.Boolean()),
+  clean: Type.Optional(Type.Boolean()),
+  depclean: Type.Optional(Type.Boolean()),
+  yes: Type.Optional(Type.Boolean()),
+  verbose: Type.Optional(Type.Boolean()),
+  version: Type.Optional(Type.Boolean()),
+});
 
-export async function executeEmerge(args: { command?: string; operation?: string; packages?: string; world?: boolean; deep?: number; newuse?: boolean; search?: string; info?: string; pretend?: boolean; fetchonly?: boolean; clean?: boolean; depclean?: boolean; yes?: boolean; verbose?: boolean; version?: boolean }): Promise<string> {
-	const { command, operation, packages, world, deep, newuse, search, info, pretend, fetchonly, clean, depclean, yes, verbose, version } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "emerge --version 2>&1 | head -3";
-	} else if (command) {
-		cmd = command;
-	} else if (!operation && !packages && !search && !info) {
-		return "Error: Please provide an operation (sync, search, install, etc.) or use --version to see emerge version.";
-	} else {
-		// Build emerge command
-		cmd = "emerge";
-		
-		if (pretend) cmd += " --pretend";
-		if (fetchonly) cmd += " --fetchonly";
-		if (clean) cmd += " --clean";
-		if (depclean) cmd += " --depclean";
-		if (yes) cmd += " --yes";
-		if (verbose) cmd += " --verbose";
-		if (world) cmd += " @world";
-		if (deep) cmd += ` --deep=${deep}`;
-		if (newuse) cmd += " --newuse";
-		
-		// Add operation
-		const op = operation || "search";
-		
-		if (op === "sync") {
-			cmd += " --sync";
-		} else if (op === "search" || op === "se") {
-			cmd += ` --search ${search || packages || ''}`;
-		} else if (op === "install" || op === "i") {
-			cmd += ` ${packages || ''}`;
-		} else if (op === "uninstall" || op === "remove" || op === "rm") {
-			cmd += ` --unmerge ${packages || ''}`;
-		} else if (op === "update" || op === "up") {
-			cmd += " --update";
-			if (world) cmd += " @world";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "info") {
-			cmd += ` --info ${info || packages || ''}`;
-		} else if (op === "world") {
-			cmd += " @world";
-		} else if (op === "system") {
-			cmd += " @system";
-		} else if (op === "preserved-rebuild") {
-			cmd += " --preserved-rebuild";
-		} else if (op === "depclean") {
-			cmd += " --depclean";
-		} else if (op === "regen") {
-			cmd += " --regen";
-		} else if (op === "metadata") {
-			cmd += " --metadata";
-		} else if (search) {
-			cmd += ` --search ${search}`;
-		} else if (info) {
-			cmd += ` --info ${info}`;
-		} else {
-			cmd += ` ${op}`;
-			if (packages) cmd += ` ${packages}`;
-		}
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 300000 });
-		return stdout || stderr;
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeEmerge(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, operation, packages, world, deep, newuse, search, info, pretend, fetchonly, clean, depclean, yes, verbose, version } = args;
+  const timeout = 300000;
+  try {
+    if (version) {
+      const result = await ctx!.exec("emerge", ["--version"], { cwd, signal, timeout });
+      return (result.stdout || result.stderr).split('\n').slice(0,3).join('\n');
+    }
+
+    if (command) {
+      const cmdArgs = command.trim().split(/\s+/);
+      const result = await ctx!.exec(cmdArgs[0], cmdArgs.slice(1), { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    const emergeArgs: string[] = [];
+
+    if (pretend) emergeArgs.push("--pretend");
+    if (fetchonly) emergeArgs.push("--fetchonly");
+    if (clean) emergeArgs.push("--clean");
+    if (depclean) emergeArgs.push("--depclean");
+    if (yes) emergeArgs.push("--yes");
+    if (verbose) emergeArgs.push("--verbose");
+    if (world) emergeArgs.push("@world");
+    if (deep !== undefined) emergeArgs.push(`--deep=${deep}`);
+    if (newuse) emergeArgs.push("--newuse");
+
+    const op = operation || "search";
+
+    const pushPackages = (...prefix: string[]) => {
+      if (packages) emergeArgs.push(...prefix, ...packages.trim().split(/\s+/));
+    };
+
+    if (op === "sync") {
+      emergeArgs.push("--sync");
+    } else if (op === "search" || op === "se") {
+      emergeArgs.push("--search");
+      const pkg = search || packages;
+      if (pkg) emergeArgs.push(...pkg.trim().split(/\s+/));
+    } else if (op === "install" || op === "i") {
+      pushPackages();
+    } else if (op === "uninstall" || op === "remove" || op === "rm") {
+      emergeArgs.push("--unmerge");
+      pushPackages();
+    } else if (op === "update" || op === "up") {
+      emergeArgs.push("--update");
+      if (world) emergeArgs.push("@world");
+      pushPackages();
+    } else if (op === "info") {
+      emergeArgs.push("--info");
+      const pkg = info || packages;
+      if (pkg) emergeArgs.push(...pkg.trim().split(/\s+/));
+    } else if (op === "world") {
+      emergeArgs.push("@world");
+    } else if (op === "system") {
+      emergeArgs.push("@system");
+    } else if (op === "preserved-rebuild") {
+      emergeArgs.push("--preserved-rebuild");
+    } else if (op === "regen") {
+      emergeArgs.push("--regen");
+    } else if (op === "metadata") {
+      emergeArgs.push("--metadata");
+    } else if (op === "audit") {
+      emergeArgs.push("--audit");
+    } else {
+      emergeArgs.push(op);
+      if (packages) emergeArgs.push(...packages.trim().split(/\s+/));
+    }
+
+    const result = await ctx!.exec("emerge", emergeArgs, { cwd, signal, timeout });
+    return result.stdout || result.stderr;
+  } catch (error: any) {
+    return `Error: ${error.message}`;
+  }
 }

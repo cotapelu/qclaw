@@ -31,7 +31,7 @@ export async function executeRsync(
     verbose = false,
     progress = false,
     port,
-    timeout,
+    timeout = 60000,
   } = args as {
     source: string;
     destination: string;
@@ -46,17 +46,17 @@ export async function executeRsync(
     timeout?: number;
   };
   try {
-    let cmd = "rsync";
-    if (recursive) cmd += " -r";
-    if (archive) cmd += " -a";
-    if (compress) cmd += " -z";
-    if (del) cmd += " --delete";
-    if (dryRun) cmd += " -n";
-    if (verbose) cmd += " -v";
-    if (progress) cmd += " --progress";
-    if (port) cmd += ` -e 'ssh -p ${port}'`;
-    cmd += ` ${source} ${destination}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const rsyncArgs: string[] = [];
+    if (recursive) rsyncArgs.push("-r");
+    if (archive) rsyncArgs.push("-a");
+    if (compress) rsyncArgs.push("-z");
+    if (del) rsyncArgs.push("--delete");
+    if (dryRun) rsyncArgs.push("-n");
+    if (verbose) rsyncArgs.push("-v");
+    if (progress) rsyncArgs.push("--progress");
+    if (port) rsyncArgs.push("-e", `ssh -p ${port}`);
+    rsyncArgs.push(source, destination);
+    const result = await ctx!.exec("rsync", rsyncArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, source, destination, archive, compress },

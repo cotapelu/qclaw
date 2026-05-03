@@ -26,7 +26,7 @@ export async function executeUfw(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { action, rule, port, proto = "tcp", fromIp, toIp, comment, timeout } = args as {
+  const { action, rule, port, proto = "tcp", fromIp, toIp, comment, timeout = 60000 } = args as {
     action: string;
     rule?: string;
     port?: number;
@@ -37,29 +37,30 @@ export async function executeUfw(
     timeout?: number;
   };
   try {
-    let cmd = "ufw";
+    const ufwArgs: string[] = [];
     if (action === "status") {
-      cmd += " status verbose";
+      ufwArgs.push("status", "verbose");
     } else if (action === "enable") {
-      cmd += " enable";
+      ufwArgs.push("enable");
     } else if (action === "disable") {
-      cmd += " disable";
+      ufwArgs.push("disable");
     } else if (action === "reload") {
-      cmd += " reload";
+      ufwArgs.push("reload");
     } else if (action === "reset") {
-      cmd += " --force reset";
+      ufwArgs.push("--force", "reset");
     } else if (action === "allow" || action === "deny") {
+      ufwArgs.push(action);
       const targetRule = rule || `${port}/${proto}`;
-      cmd += ` ${action} ${targetRule}`;
-      if (fromIp) cmd += ` from ${fromIp}`;
-      if (toIp) cmd += ` to ${toIp}`;
-      if (comment) cmd += ` comment '${comment}'`;
+      ufwArgs.push(targetRule);
+      if (fromIp) ufwArgs.push("from", fromIp);
+      if (toIp) ufwArgs.push("to", toIp);
+      if (comment) ufwArgs.push("comment", comment);
     } else if (action === "delete" && rule) {
-      cmd += ` delete ${rule}`;
+      ufwArgs.push("delete", rule);
     } else {
       return { content: [{ type: "text", text: `Unknown ufw action or missing rule` }], details: undefined, isError: true } as const;
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec("ufw", ufwArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, action, rule, fromIp, toIp },

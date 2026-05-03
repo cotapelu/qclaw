@@ -13,18 +13,18 @@ export async function executeDu(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { path = ".", human = true, maxDepth, timeout } = args as {
+  const { path = ".", human = true, maxDepth, timeout = 30000 } = args as {
     path?: string;
     human?: boolean;
     maxDepth?: number;
     timeout?: number;
   };
   try {
-    let cmd = "du";
-    if (human) cmd += " -h";
-    if (maxDepth !== undefined) cmd += ` -d ${maxDepth}`;
-    cmd += ` ${path}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const duArgs: string[] = [];
+    if (human) duArgs.push("-h");
+    if (maxDepth !== undefined) duArgs.push("-d", String(maxDepth));
+    duArgs.push(path);
+    const result = await ctx!.exec("du", duArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, path, human, maxDepth },

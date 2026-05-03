@@ -1,159 +1,105 @@
-/**
- * dnf sub-tool for Fedora/Red Hat package manager
- */
+import { Type } from "typebox";
 
-export const dnfSchema = {
-	name: "dnf",
-	description: "DNF package manager operations for Fedora/RHEL",
-	parameters: {
-		type: "object",
-		properties: {
-			command: {
-				type: "string",
-				description: "The full dnf command to execute"
-			},
-			operation: {
-				type: "string",
-				description: "Operation: install, remove, update, upgrade, search, info, list, autoremove, clean"
-			},
-			packages: {
-				type: "string",
-				description: "Package names (space separated)"
-			},
-			all: {
-				type: "boolean",
-				description: "Update all packages"
-			},
-			security: {
-				type: "boolean",
-				description: "Security related operations"
-			},
-			search: {
-				type: "string",
-				description: "Search for package"
-			},
-			info: {
-				type: "string",
-				description: "Show package info"
-			},
-			list: {
-				type: "string",
-				description: "List packages: installed, available, updates"
-			},
-			history: {
-				type: "boolean",
-				description: "Show transaction history"
-			},
-			autoremove: {
-				type: "boolean",
-				description: "Remove unused packages"
-			},
-			clean: {
-				type: "boolean",
-				description: "Clean cache"
-			},
-			yes: {
-				type: "boolean",
-				description: "Assume yes to all"
-			},
-			verbose: {
-				type: "boolean",
-				description: "Verbose output"
-			},
-			version: {
-				type: "boolean",
-				description: "Show version"
-			}
-		},
-		required: ["command"]
-	}
-};
+export const dnfSchema = Type.Object({
+  command: Type.Optional(Type.String()),
+  operation: Type.Optional(Type.String()),
+  packages: Type.Optional(Type.String()),
+  all: Type.Optional(Type.Boolean()),
+  security: Type.Optional(Type.Boolean()),
+  search: Type.Optional(Type.String()),
+  info: Type.Optional(Type.String()),
+  list: Type.Optional(Type.String()),
+  history: Type.Optional(Type.Boolean()),
+  autoremove: Type.Optional(Type.Boolean()),
+  clean: Type.Optional(Type.Boolean()),
+  yes: Type.Optional(Type.Boolean()),
+  verbose: Type.Optional(Type.Boolean()),
+  version: Type.Optional(Type.Boolean()),
+});
 
-export async function executeDnf(args: { command?: string; operation?: string; packages?: string; all?: boolean; security?: boolean; search?: string; info?: string; list?: string; history?: boolean; autoremove?: boolean; clean?: boolean; yes?: boolean; verbose?: boolean; version?: boolean }): Promise<string> {
-	const { command, operation, packages, all, security, search, info, list, history, autoremove, clean, yes, verbose, version } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "dnf --version 2>&1 | head -5";
-	} else if (command) {
-		cmd = command;
-	} else if (!operation && !packages && !all && !search && !info && !list && !history && !clean) {
-		return "Error: Please provide an operation (install, remove, update, etc.) or use --version to see dnf version.";
-	} else {
-		// Build dnf command
-		cmd = "dnf";
-		
-		if (yes) cmd += " -y";
-		if (verbose) cmd += " -v";
-		
-		// Add operation
-		const op = operation || "list";
-		
-		if (op === "install" || op === "in") {
-			cmd += " install";
-			if (security) cmd += " --security";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "remove" || op === "er" || op === "rm") {
-			cmd += " remove";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "update" || op === "up") {
-			cmd += " update";
-			if (all) cmd += "";
-			if (security) cmd += " --security";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "upgrade" || op === "distro-sync") {
-			cmd += " upgrade";
-			if (all) cmd += "";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "search") {
-			cmd += ` search ${search || packages || ''}`;
-		} else if (op === "info") {
-			cmd += ` info ${info || packages || ''}`;
-		} else if (op === "list") {
-			cmd += " list";
-			if (list === "installed") cmd += " installed";
-			else if (list === "available") cmd += " available";
-			else if (list === "updates") cmd += " updates";
-			else if (list === "extras") cmd += " extras";
-			else if (list === "obsoletes") cmd += " obsoletes";
-			else if (list === "recent") cmd += " recent";
-			cmd += ` ${packages || ''}`;
-		} else if (op === "history") {
-			cmd += " history";
-			if (history) cmd += " list";
-		} else if (op === "autoremove") {
-			cmd += " autoremove";
-		} else if (op === "clean") {
-			cmd += " clean all";
-		} else if (op === "check-update") {
-			cmd += " check-update";
-		} else if (op === "provides" || op === "whatprovides") {
-			cmd += ` provides ${packages || ''}`;
-		} else if (op === "requires" || op === "deptree") {
-			cmd += ` requires ${packages || ''}`;
-		} else if (search) {
-			cmd += ` search ${search}`;
-		} else if (info) {
-			cmd += ` info ${info}`;
-		} else if (list) {
-			cmd += ` list ${list}`;
-		} else if (clean) {
-			cmd += " clean all";
-		} else {
-			cmd += ` ${op}`;
-			if (packages) cmd += ` ${packages}`;
-		}
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 180000 });
-		return stdout || stderr;
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeDnf(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, operation, packages, all, security, search, info, list, history, autoremove, clean, yes, verbose, version } = args;
+  const timeout = 300000;
+  try {
+    if (version) {
+      const result = await ctx!.exec("dnf", ["--version"], { cwd, signal, timeout });
+      return (result.stdout || result.stderr).split('\n').slice(0,5).join('\n');
+    }
+
+    if (command) {
+      const cmdArgs = command.trim().split(/\s+/);
+      const result = await ctx!.exec(cmdArgs[0], cmdArgs.slice(1), { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    const dnfArgs: string[] = [];
+    if (yes) dnfArgs.push("-y");
+    if (verbose) dnfArgs.push("-v");
+
+    const op = operation || "list";
+
+    const pushPackages = (...prefix: string[]) => {
+      if (packages) dnfArgs.push(...prefix, ...packages.trim().split(/\s+/));
+    };
+
+    if (op === "install" || op === "in") {
+      dnfArgs.push("install");
+      if (security) dnfArgs.push("--security");
+      pushPackages();
+    } else if (op === "remove" || op === "er" || op === "rm") {
+      dnfArgs.push("remove");
+      pushPackages();
+    } else if (op === "update" || op === "up") {
+      dnfArgs.push("update");
+      pushPackages();
+    } else if (op === "upgrade" || op === "distro-sync") {
+      dnfArgs.push("upgrade");
+      pushPackages();
+    } else if (op === "search") {
+      dnfArgs.push("search");
+      const pkg = search || packages;
+      if (pkg) dnfArgs.push(...pkg.trim().split(/\s+/));
+    } else if (op === "info") {
+      dnfArgs.push("info");
+      const pkg = info || packages;
+      if (pkg) dnfArgs.push(...pkg.trim().split(/\s+/));
+    } else if (op === "list") {
+      dnfArgs.push("list");
+      if (list === "installed") dnfArgs.push("installed");
+      else if (list === "available") dnfArgs.push("available");
+      else if (list === "updates") dnfArgs.push("updates");
+      else if (list === "extras") dnfArgs.push("extras");
+      else if (list === "obsoletes") dnfArgs.push("obsoletes");
+      else if (list === "recent") dnfArgs.push("recent");
+      pushPackages();
+    } else if (op === "history") {
+      dnfArgs.push("history");
+      if (history) dnfArgs.push("list");
+    } else if (op === "autoremove") {
+      dnfArgs.push("autoremove");
+    } else if (op === "clean") {
+      dnfArgs.push("clean", "all");
+    } else if (op === "check-update") {
+      dnfArgs.push("check-update");
+    } else if (op === "provides" || op === "whatprovides") {
+      dnfArgs.push("provides");
+      pushPackages();
+    } else if (op === "requires" || op === "deptree") {
+      dnfArgs.push("requires");
+      pushPackages();
+    } else {
+      dnfArgs.push(op);
+      if (packages) dnfArgs.push(...packages.trim().split(/\s+/));
+    }
+
+    const result = await ctx!.exec("dnf", dnfArgs, { cwd, signal, timeout });
+    return result.stdout || result.stderr;
+  } catch (error: any) {
+    return `Error: ${error.message}`;
+  }
 }

@@ -1,78 +1,81 @@
-/**
- * hjson sub-tool for HJSON processing
- */
+import { Type } from "typebox";
+import * as fs from "fs/promises";
 
-export const hjsonSchema = {
-	name: "hjson",
-	description: "Process and convert HJSON files using hjson tool",
-	parameters: {
-		type: "object",
-			"properties": {
-			command: {
-				type: "string",
-				description: "The full hjson command to execute"
-			},
-			input: {
-				type: "string",
-				description: "Input HJSON/JSON file"
-			},
-			output: {
-				type: "string",
-				description: "Output file"
-			},
-			format: {
-				type: "string",
-				description: "Output format: json, yaml, hjson"
-			},
-			indent: {
-				type: "number",
-				description: "Indentation spaces"
-			},
-			quote_keys: {
-				type: "boolean",
-				description: "Quote all keys"
-			},
-			version: {
-				type: "boolean",
-				description: "Show hjson version"
-			}
-		},
-		required: ["command"]
-	}
-};
+export const hjsonSchema = Type.Object({
+  command: Type.Optional(Type.String()),
+  input: Type.Optional(Type.String()),
+  output: Type.Optional(Type.String()),
+  format: Type.Optional(Type.String()),
+  indent: Type.Optional(Type.Number()),
+  quote_keys: Type.Optional(Type.Boolean()),
+  version: Type.Optional(Type.Boolean()),
+});
 
-export async function executeHjson(args: { command?: string; input?: string; output?: string; format?: string; indent?: number; quote_keys?: boolean; version?: boolean }): Promise<string> {
-	const { command, input, output, format, indent, quote_keys, version } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "hjson --version 2>&1 || echo 'hjson not installed. Install via: npm install -g hjson'";
-	} else if (command) {
-		cmd = command;
-	} else if (!input) {
-		return "Error: Please provide an input HJSON file. Use --version to see hjson version.";
-	} else {
-		// Build hjson command
-		cmd = "hjson";
-		
-		if (format) cmd += ` -${format}`;
-		if (indent) cmd += ` -I ${indent}`;
-		if (quote_keys) cmd += " -k";
-		
-		cmd += ` '${input}'`;
-		
-		if (output) cmd += ` > ${output}`;
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 30000 });
-		return stdout || stderr;
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeHjson(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, input, output, format, indent, quote_keys, version } = args;
+  const timeout = 30000;
+
+  try {
+    // Escape hatch: raw command uses bash
+    if (command) {
+      const result = await ctx!.exec("bash", ["-c", command], { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed },
+        isError: result.code !== 0,
+      } as const;
+    }
+
+    if (version) {
+      const result = await ctx!.exec("hjson", ["--version"], { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed },
+        isError: result.code !== 0,
+      } as const;
+    }
+
+    if (!input) {
+      return {
+        content: [{ type: "text", text: "Error: input file required" }],
+        details: undefined,
+        isError: true,
+      } as const;
+    }
+
+    // Build args
+    const hjsonArgs: string[] = [];
+    if (format) hjsonArgs.push(`-${format}`);
+    if (indent) hjsonArgs.push(`-I`, String(indent));
+    if (quote_keys) hjsonArgs.push("-k");
+    hjsonArgs.push(input);
+
+    const result = await ctx!.exec("hjson", hjsonArgs, { cwd, signal, timeout });
+
+    // Write output if specified
+    if (output && result.stdout) {
+      try {
+        await fs.writeFile(output, result.stdout, "utf8");
+      } catch (e) {
+        // ignore write error, still return stdout
+      }
+    }
+
+    return {
+      content: [{ type: "text", text: result.stdout || result.stderr }],
+      details: { exitCode: result.code, killed: result.killed, input, output },
+      isError: result.code !== 0,
+    } as const;
+  } catch (error: any) {
+    return {
+      content: [{ type: "text", text: `hjson error: ${error.message}` }],
+      details: undefined,
+      isError: true,
+    } as const;
+  }
 }

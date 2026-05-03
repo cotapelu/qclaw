@@ -12,10 +12,10 @@ export async function executePodman(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 60000 } = args as { command: string; timeout?: number };
   try {
-    const cmd = `podman ${command}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const cmdArgs = command.trim().split(/ \\s+/);
+    const result = await ctx!.exec("podman", cmdArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed },

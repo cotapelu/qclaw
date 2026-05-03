@@ -46,22 +46,22 @@ export async function executeFfmpeg(
     timeout?: number;
   };
   try {
-    let cmd = "ffmpeg";
-    cmd += ` -i '${inputFile}'`;
-    if (startTime) cmd += ` -ss ${startTime}`;
-    if (duration) cmd += ` -t ${duration}`;
-    if (codec) cmd += ` -c:v ${codec}`;
-    if (codec && format === "mp3") cmd += ` -c:a mp3`;
-    if (resolution) cmd += ` -s ${resolution}`;
-    if (framerate) cmd += ` -r ${framerate}`;
-    if (bitrate) cmd += ` -b:v ${bitrate}`;
-    if (format) cmd += ` -f ${format}`;
-    if (extraArgs.length > 0) cmd += ` ${extraArgs.join(" ")}`;
-    cmd += ` '${outputFile}'`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const ffmpegArgs: string[] = ["-i", inputFile];
+    if (startTime) ffmpegArgs.push("-ss", startTime);
+    if (duration) ffmpegArgs.push("-t", duration);
+    if (codec) ffmpegArgs.push("-c:v", codec);
+    if (codec && format === "mp3") ffmpegArgs.push("-c:a", "mp3");
+    if (resolution) ffmpegArgs.push("-s", resolution);
+    if (framerate) ffmpegArgs.push("-r", String(framerate));
+    if (bitrate) ffmpegArgs.push("-b:v", bitrate);
+    if (format) ffmpegArgs.push("-f", format);
+    if (extraArgs.length > 0) ffmpegArgs.push(...extraArgs);
+    ffmpegArgs.push(outputFile);
+
+    const result = await ctx!.exec("ffmpeg", ffmpegArgs, { cwd, signal, timeout: timeout * 1000 });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed, inputFile, outputFile, format, codec },
+      details: { exitCode: result.code, killed: result.killed },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {

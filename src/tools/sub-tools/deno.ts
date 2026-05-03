@@ -12,21 +12,25 @@ export async function executeDeno(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 60000 } = args as { command: string; timeout?: number };
   try {
-    let cmd: string;
-    if (command.startsWith("deno ") || command.startsWith("deno,")) {
-      cmd = command;
-    } else if (command.startsWith("bun ") || command.startsWith("bun,")) {
-      cmd = command;
+    const trimmed = command.trim();
+    let tool: string;
+    let toolArgs: string[];
+    if (trimmed.startsWith("deno ") || trimmed.startsWith("deno,")) {
+      tool = "deno";
+      toolArgs = trimmed.slice(6).trim().split(/ \\s+/);
+    } else if (trimmed.startsWith("bun ") || trimmed.startsWith("bun,")) {
+      tool = "bun";
+      toolArgs = trimmed.slice(5).trim().split(/ \\s+/);
     } else {
-      // Default to deno
-      cmd = `deno ${command}`;
+      tool = "deno";
+      toolArgs = trimmed.split(/ \\s+/);
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec(tool, toolArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed },
+      details: { exitCode: result.code, killed: result.killed, tool },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {

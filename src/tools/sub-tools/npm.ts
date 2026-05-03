@@ -13,15 +13,16 @@ export async function executeNpm(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { pm = "npm", command, cwd: targetCwd, timeout } = args as {
+  const { pm = "npm", command, cwd: targetCwd, timeout = 60000 } = args as {
     pm?: string;
     command: string;
     cwd?: string;
     timeout?: number;
   };
   try {
-    const cmd = `${pm} ${command}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd: targetCwd, signal, timeout });
+    // Split command into args for the package manager
+    const commandArgs = command.trim().split(/ \\s+/);
+    const result = await ctx!.exec(pm, commandArgs, { cwd: targetCwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, cwd: targetCwd, pm },

@@ -14,7 +14,7 @@ export async function executeJournalctl(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { unit, since, lines = 100, follow = false, timeout } = args as {
+  const { unit, since, lines = 100, follow = false, timeout = 30000 } = args as {
     unit?: string;
     since?: string;
     lines?: number;
@@ -22,11 +22,11 @@ export async function executeJournalctl(
     timeout?: number;
   };
   try {
-    let cmd = `journalctl -n ${lines}`;
-    if (unit) cmd += ` -u ${unit}`;
-    if (since) cmd += ` --since "${since}"`;
-    if (follow) cmd += " -f";
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const journalctlArgs: string[] = ["-n", String(lines)];
+    if (unit) journalctlArgs.push("-u", unit);
+    if (since) journalctlArgs.push("--since", since);
+    if (follow) journalctlArgs.push("-f");
+    const result = await ctx!.exec("journalctl", journalctlArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, unit, since, lines, follow },

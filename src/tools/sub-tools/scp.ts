@@ -25,7 +25,7 @@ export async function executeScp(
     user,
     preserve = false,
     compress = false,
-    timeout,
+    timeout = 30000,
   } = args as {
     source: string;
     destination: string;
@@ -37,13 +37,13 @@ export async function executeScp(
     timeout?: number;
   };
   try {
-    let cmd = "scp";
-    if (recursive) cmd += " -r";
-    if (preserve) cmd += " -p";
-    if (compress) cmd += " -C";
-    if (port) cmd += ` -P ${port}`;
-    cmd += ` ${source} ${destination}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const scpArgs: string[] = [];
+    if (recursive) scpArgs.push("-r");
+    if (preserve) scpArgs.push("-p");
+    if (compress) scpArgs.push("-C");
+    if (port) scpArgs.push("-P", String(port));
+    scpArgs.push(source, destination);
+    const result = await ctx!.exec("scp", scpArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, source, destination, recursive },

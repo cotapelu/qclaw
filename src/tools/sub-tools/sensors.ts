@@ -11,10 +11,10 @@ export async function executeSensors(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 30000 } = args as { command: string; timeout?: number };
   try {
-    const cmd = `sensors ${command}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const sensorsArgs = command ? command.split(/ \\s+/) : [];
+    const result = await ctx!.exec("sensors", sensorsArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed },

@@ -20,25 +20,25 @@ export async function executeYum(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, packages = [], timeout } = args as {
+  const { command, packages = [], timeout = 30000 } = args as {
     command: string;
     packages?: string[];
     timeout?: number;
   };
   try {
-    let cmd = "yum";
+    let toolArgs: string[] = [];
     if (command === "list") {
-      cmd = `yum list ${packages.join(" ")}`;
+      toolArgs = ["list", ...packages];
     } else if (command === "search") {
-      cmd = `yum search ${packages.join(" ")}`;
+      toolArgs = ["search", ...packages];
     } else if (command === "info") {
-      cmd = `yum info ${packages.join(" ")}`;
+      toolArgs = ["info", ...packages];
     } else if (command === "check-update") {
-      cmd = "yum check-update";
+      toolArgs = ["check-update"];
     } else {
-      cmd += ` -y ${command} ${packages.join(" ")}`;
+      toolArgs = ["-y", command, ...packages];
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec("yum", toolArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, command },

@@ -13,17 +13,18 @@ export async function executeAws(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, profile, region, timeout } = args as {
+  const { command, profile, region, timeout = 30000 } = args as {
     command: string;
     profile?: string;
     region?: string;
     timeout?: number;
   };
   try {
-    let cmd = `aws ${command}`;
-    if (profile) cmd = `aws --profile ${profile} ${command}`;
-    if (region) cmd += ` --region ${region}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const awsArgs: string[] = [];
+    if (profile) awsArgs.push("--profile", profile);
+    awsArgs.push(...command.trim().split(/ \\s+/));
+    if (region) awsArgs.push("--region", region);
+    const result = await ctx!.exec("aws", awsArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, profile, region },

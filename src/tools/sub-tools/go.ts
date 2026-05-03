@@ -12,21 +12,25 @@ export async function executeGo(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 60000 } = args as { command: string; timeout?: number };
   try {
-    let cmd: string;
-    if (command.startsWith("go ") || command.startsWith("go,")) {
-      cmd = command;
-    } else if (command.startsWith("godoc ")) {
-      cmd = command;
+    const trimmed = command.trim();
+    let tool: string;
+    let toolArgs: string[];
+    if (trimmed.startsWith("go ") || trimmed.startsWith("go,")) {
+      tool = "go";
+      toolArgs = trimmed.slice(3).trim().split(/ \\s+/);
+    } else if (trimmed.startsWith("godoc ")) {
+      tool = "godoc";
+      toolArgs = trimmed.slice(7).trim().split(/ \\s+/);
     } else {
-      // Default to go
-      cmd = `go ${command}`;
+      tool = "go";
+      toolArgs = trimmed.split(/ \\s+/);
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec(tool, toolArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed },
+      details: { exitCode: result.code, killed: result.killed, tool },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {

@@ -13,7 +13,7 @@ export async function executeKill(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { pid, name, signal: sig = "TERM", timeout } = args as {
+  const { pid, name, signal: sig = "TERM", timeout = 30000 } = args as {
     pid?: number;
     name?: string;
     signal?: string;
@@ -23,16 +23,23 @@ export async function executeKill(
     return { content: [{ type: "text", text: "Must provide pid or name" }], details: undefined, isError: true } as const;
   }
   try {
-    let cmd = "";
+    let toolArgs: string[];
     if (pid) {
-      cmd = `kill -${sig} ${pid}`;
+      toolArgs = ["-${sig}", String(pid)];
     } else {
-      cmd = `pkill -${sig} ${name}`;
+      toolArgs = ["-${sig}", name!];
+      // Use pkill when killing by name
+      const result = await ctx!.exec("pkill", toolArgs, { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed, name, signal: sig },
+        isError: result.code !== 0,
+      } as const;
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec("kill", toolArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed, pid, name, signal: sig },
+      details: { exitCode: result.code, killed: result.killed, pid, signal: sig },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {

@@ -1,109 +1,85 @@
-/**
- * Network traffic monitoring sub-tool (iftop, iptraf-ng)
- */
+import { Type } from "typebox";
 
-export const iftopSchema = {
-	name: "iftop",
-	description: "Monitor network traffic using iftop and iptraf-ng",
-	parameters: {
-		type: "object",
-		properties: {
-			command: {
-				type: "string",
-				description: "The full iftop/iptraf command to execute"
-			},
-			tool: {
-				type: "string",
-				description: "Which tool to use: 'iftop' or 'iptraf'"
-			},
-			interface: {
-				type: "string",
-				description: "Network interface to monitor (e.g., eth0, wlan0)"
-			},
-			filter: {
-				type: "string",
-				description: "BPF filter expression (iftop)"
-			},
-			port: {
-				type: "string",
-				description: "Port to filter (iptraf)"
-			},
-			verbose: {
-				type: "boolean",
-				description: "Verbose output"
-			},
-			version: {
-				type: "boolean",
-				description: "Show version information"
-			},
-			help: {
-				type: "boolean",
-				description: "Show help information"
-			}
-		},
-		required: ["command"]
-	}
-};
+export const iftopSchema = Type.Object({
+  command: Type.Optional(Type.String()),
+  tool: Type.Optional(Type.String()),
+  interface: Type.Optional(Type.String()),
+  filter: Type.Optional(Type.String()),
+  port: Type.Optional(Type.String()),
+  verbose: Type.Optional(Type.Boolean()),
+  version: Type.Optional(Type.Boolean()),
+  help: Type.Optional(Type.Boolean()),
+});
 
-export async function executeIftop(args: { command?: string; tool?: string; interface?: string; filter?: string; port?: string; verbose?: boolean; version?: boolean; help?: boolean }): Promise<string> {
-	const { command, tool, interface: iface, filter, port, verbose, version, help } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "echo '=== iftop ===' && iftop -v 2>&1 | head -3; echo '=== iptraf ===' && iptraf-ng -v 2>&1 || echo 'iptraf-ng not found'";
-	} else if (help) {
-		cmd = "echo '=== iftop ===' && iftop -h 2>&1 | head -20; echo '=== iptraf-ng ===' && iptraf-ng -h 2>&1 | head -20";
-	} else if (command) {
-		cmd = command;
-	} else {
-		// Determine which tool to use
-		const selectedTool = tool || "iftop";
-		
-		if (selectedTool === "iptraf" || selectedTool === "iptraf-ng") {
-			cmd = "iptraf-ng";
-			
-			if (port) {
-				cmd += ` -i ${iface || 'all'} -t ${port} -B`;  // Background mode with port
-			} else {
-				cmd += ` -i ${iface || 'all'} -B`;  // Background mode, all traffic
-			}
-			
-			if (verbose) {
-				cmd = "iptraf-ng -i ${iface || 'all'} -f 2>&1 | head -50";  // Flush intervals
-			}
-		} else {
-			// Default to iftop
-			cmd = "iftop";
-			
-			if (iface) {
-				cmd += ` -i ${iface}`;
-			}
-			
-			if (filter) {
-				cmd += ` -f '${filter}'`;
-			}
-			
-			// iftop is interactive, so we run it with -n (no DNS) and -N (no port numbers)
-			// and limit to a few samples for non-interactive use
-			if (verbose) {
-				cmd += " -nN -L 5";  // 5 lines of output
-			} else {
-				cmd += " -nN -L 1";  // 1 line of output for quick check
-			}
-		}
-		
-		cmd += " 2>&1 | head -20";  // Limit output for non-interactive use
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 15000 });
-		return stdout || stderr || "Tool may require root privileges or specific network interface";
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeIftop(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, tool, interface: iface, filter, port, verbose, version, help } = args;
+  const timeout = 15000;
+  try {
+    const selectedTool = tool || "iftop";
+
+    if (version) {
+      if (selectedTool === "iptraf" || selectedTool === "iptraf-ng") {
+        const result = await ctx!.exec("iptraf-ng", ["--version"], { cwd, signal, timeout }).catch(() => ({ stdout: "", stderr: "iptraf-ng not found" }));
+        return result.stdout || result.stderr;
+      } else {
+        const result = await ctx!.exec("iftop", ["--version"], { cwd, signal, timeout }).catch(() => ({ stdout: "", stderr: "iftop not found" }));
+        return result.stdout || result.stderr;
+      }
+    }
+
+    if (help) {
+      if (selectedTool === "iptraf" || selectedTool === "iptraf-ng") {
+        const result = await ctx!.exec("iptraf-ng", ["--help"], { cwd, signal, timeout }).catch(() => ({ stdout: "", stderr: "iptraf-ng help not available" }));
+        return (result.stdout || result.stderr).split('\n').slice(0,30).join('\n');
+      } else {
+        const result = await ctx!.exec("iftop", ["--help"], { cwd, signal, timeout }).catch(() => ({ stdout: "", stderr: "iftop help not available" }));
+        return (result.stdout || result.stderr).split('\n').slice(0,30).join('\n');
+      }
+    }
+
+    if (command) {
+      const cmdArgs = command.trim().split(/\s+/);
+      const result = await ctx!.exec(cmdArgs[0], cmdArgs.slice(1), { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    if (selectedTool === "iptraf" || selectedTool === "iptraf-ng") {
+      const iptrafArgs: string[] = [];
+      // iptraf-ng: -i interface, -t terse mode? Actually -i for interface, -B background batch?
+      // We'll try: iptraf-ng -i iface -B (background, no UI) but may not output.
+      // Not ideal, but we'll use simple command
+      if (iface) iptrafArgs.push("-i", iface);
+      if (port) iptrafArgs.push("-p", port);
+      // Try to get some stats; maybe use -s for statistics?
+      iptrafArgs.push("-B"); // batch mode
+      const result = await ctx!.exec("iptraf-ng", iptrafArgs, { cwd, signal, timeout });
+      if (result.stdout) {
+        return result.stdout.split('\n').slice(0,50).join('\n');
+      }
+      return result.stderr || "iptraf-ng may require root privileges";
+    }
+
+    // iftop
+    const iftopArgs: string[] = [];
+    if (iface) iftopArgs.push("-i", iface);
+    if (filter) iftopArgs.push("-f", filter);
+    // Non-interactive: -n (no DNS), -N (no port names), -L lines to output
+    iftopArgs.push("-n", "-N");
+    if (verbose) {
+      iftopArgs.push("-L", "5");
+    } else {
+      iftopArgs.push("-L", "1");
+    }
+    const result = await ctx!.exec("iftop", iftopArgs, { cwd, signal, timeout });
+    const out = result.stdout || result.stderr;
+    // Trim to first N lines
+    return out.split('\n').slice(0, 20).join('\n');
+  } catch (error: any) {
+    return `Error: ${error.message}`;
+  }
 }

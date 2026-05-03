@@ -12,9 +12,11 @@ export async function executeDocker(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 30000 } = args as { command: string; timeout?: number };
   try {
-    const result = await ctx!.exec("bash", ["-c", `docker ${command}`], { cwd, signal, timeout });
+    // Split docker command into args array to avoid shell injection
+    const dockerArgs = command ? command.split(/ \\s+/) : [];
+    const result = await ctx!.exec("docker", dockerArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed },

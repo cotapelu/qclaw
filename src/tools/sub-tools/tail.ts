@@ -13,16 +13,16 @@ export async function executeTail(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { path, lines = 10, follow = false, timeout } = args as {
+  const { path, lines = 10, follow = false, timeout = 30000 } = args as {
     path: string;
     lines?: number;
     follow?: boolean;
     timeout?: number;
   };
   try {
-    let cmd = `tail -n ${lines} ${path}`;
-    if (follow) cmd += " -f";
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const tailArgs: string[] = ["-n", String(lines), path];
+    if (follow) tailArgs.push("-f");
+    const result = await ctx!.exec("tail", tailArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, path, lines, follow },

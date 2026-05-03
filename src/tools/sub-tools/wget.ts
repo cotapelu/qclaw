@@ -21,7 +21,7 @@ export async function executeWget(
     url,
     output,
     continueFlag = false,
-    timeout = 30,
+    timeout = 30000,
     quiet = false,
     limitRate,
     user,
@@ -37,23 +37,27 @@ export async function executeWget(
     headers?: Record<string, string>;
   };
   try {
-    const wgetArgs: string[] = [];
+    const wgetArgs: string[] = ["wget"];
 
-    if (output) wgetArgs.push(`-O ${output}`);
+    if (output) wgetArgs.push("-O", output);
     if (continueFlag) wgetArgs.push("-c");
     if (quiet) wgetArgs.push("-q");
     if (limitRate) wgetArgs.push(`--limit-rate=${limitRate}`);
-    if (timeout) wgetArgs.push(`--timeout=${timeout}`);
-    if (user) wgetArgs.push(`--user=${user.split(":")[0]} --password=${user.split(":")[1] || ""}`);
-
-    for (const [key, value] of Object.entries(headers)) {
-      wgetArgs.push(`--header='${key}: ${value}'`);
+    // wget timeout is in seconds, convert from ms
+    if (timeout) wgetArgs.push(`--timeout=${Math.ceil(timeout / 1000)}`);
+    if (user) {
+      const [username, password] = user.split(":");
+      wgetArgs.push(`--user=${username}`);
+      if (password) wgetArgs.push(`--password=${password}`);
     }
 
-    wgetArgs.push(`'${url}'`);
+    for (const [key, value] of Object.entries(headers)) {
+      wgetArgs.push(`--header=${key}:${value}`);
+    }
 
-    const cmd = `wget ${wgetArgs.join(" ")}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal });
+    wgetArgs.push(url);
+
+    const result = await ctx!.exec("wget", wgetArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, url, output },

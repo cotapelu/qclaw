@@ -53,83 +53,87 @@ export const svnSchema = {
 	}
 };
 
-export async function executeSvn(args: { command?: string; operation?: string; target?: string; url?: string; revision?: string; message?: string; username?: string; password?: string; verbose?: boolean; version?: boolean }): Promise<string> {
-	const { command, operation, target, url, revision, message, username, password, verbose, version } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "svn --version 2>&1 | head -3";
-	} else if (command) {
-		cmd = command;
-	} else if (!operation && !target && !url) {
-		return "Error: Please provide an operation (checkout, update, commit, status, etc.) or use --version to see svn version.";
-	} else {
-		// Build svn command
-		cmd = "svn";
-		
-		// Add authentication
-		if (username) cmd += ` --username ${username}`;
-		if (password) cmd += ` --password ${password}`;
-		if (verbose) cmd += " -v";
-		
-		// Add operation
-		const op = operation || "status";
-		
-		if (op === "checkout" || op === "co") {
-			cmd += ` checkout`;
-			if (revision) cmd += ` -r ${revision}`;
-			cmd += ` '${url || 'REPO_URL'}'`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "update" || op === "up") {
-			cmd += ` update`;
-			if (revision) cmd += ` -r ${revision}`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "commit" || op === "ci") {
-			cmd += ` commit`;
-			if (message) cmd += ` -m '${message}'`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "status" || op === "st") {
-			cmd += ` status`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "diff") {
-			cmd += ` diff`;
-			if (revision) cmd += ` -r ${revision}`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "log") {
-			cmd += ` log`;
-			if (revision) cmd += ` -r ${revision}`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "add") {
-			cmd += ` add`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "delete" || op === "del" || op === "remove") {
-			cmd += ` delete`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "info") {
-			cmd += ` info`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "list" || op === "ls") {
-			cmd += ` list`;
-			if (url) cmd += ` '${url}'`;
-			else cmd += ` ${target || '.'}`;
-		} else if (op === "revert") {
-			cmd += ` revert`;
-			cmd += ` ${target || '.'}`;
-		} else {
-			cmd += ` ${op}`;
-			if (target) cmd += ` ${target}`;
-		}
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 60000 });
-		return stdout || stderr;
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeSvn(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, operation, target, url, revision, message, username, password, verbose, version } = args;
+  const timeout = 60000;
+  try {
+    if (version) {
+      const result = await ctx!.exec("svn", ["--version"], { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    if (command) {
+      const cmdArgs = command.trim().split(/ \\s+/);
+      const result = await ctx!.exec(cmdArgs[0], cmdArgs.slice(1), { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    const svnArgs: string[] = [];
+    if (username) svnArgs.push("--username", username);
+    if (password) svnArgs.push("--password", password);
+    if (verbose) svnArgs.push("-v");
+
+    const op = operation || "status";
+
+    const pushOperation = (opName: string) => { svnArgs.push(opName); };
+    const pushTarget = (...extra: string[]) => {
+      if (target) svnArgs.push(...extra, target);
+      else svnArgs.push(...extra, '.');
+    };
+
+    if (op === "checkout" || op === "co") {
+      pushOperation("checkout");
+      if (revision) svnArgs.push("-r", revision);
+      svnArgs.push(url || 'REPO_URL');
+      pushTarget();
+    } else if (op === "update" || op === "up") {
+      pushOperation("update");
+      if (revision) svnArgs.push("-r", revision);
+      pushTarget();
+    } else if (op === "commit" || op === "ci") {
+      pushOperation("commit");
+      if (message) svnArgs.push("-m", message);
+      pushTarget();
+    } else if (op === "status" || op === "st") {
+      pushOperation("status");
+      pushTarget();
+    } else if (op === "diff") {
+      pushOperation("diff");
+      if (revision) svnArgs.push("-r", revision);
+      pushTarget();
+    } else if (op === "log") {
+      pushOperation("log");
+      if (revision) svnArgs.push("-r", revision);
+      pushTarget();
+    } else if (op === "add") {
+      pushOperation("add");
+      pushTarget();
+    } else if (op === "delete" || op === "del" || op === "remove") {
+      pushOperation("delete");
+      pushTarget();
+    } else if (op === "info") {
+      pushOperation("info");
+      pushTarget();
+    } else if (op === "list" || op === "ls") {
+      pushOperation("list");
+      if (url) svnArgs.push(url);
+      else pushTarget();
+    } else if (op === "revert") {
+      pushOperation("revert");
+      pushTarget();
+    } else {
+      svnArgs.push(op);
+      if (target) svnArgs.push(target);
+    }
+
+    const result = await ctx!.exec("svn", svnArgs, { cwd, signal, timeout });
+    return result.stdout || result.stderr;
+  } catch (error: any) {
+    return `Error: ${error.message}`;
+  }
 }

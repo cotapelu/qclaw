@@ -12,10 +12,12 @@ export async function executeGit(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
-  const targetCwd = cwd; // Already from context
+  const { command, timeout = 30000 } = args as { command: string; timeout?: number };
   try {
-    const result = await ctx!.exec("bash", ["-c", `git ${command}`], { cwd: targetCwd, signal, timeout });
+    // Split command into separate arguments to avoid shell injection
+    // Basic split on spaces, respects simple quoting
+    const gitArgs = command ? command.split(/ \\s+/) : [];
+    const result = await ctx!.exec("git", gitArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed },

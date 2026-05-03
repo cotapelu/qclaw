@@ -1,4 +1,6 @@
 import { Type } from "typebox";
+import * as fs from "fs/promises";
+import { tmpdir } from "os";
 
 export const httpSchema = Type.Object({
   method: Type.Optional(Type.String({ description: "GET, POST, PUT, DELETE, PATCH (default: GET)" })),
@@ -40,39 +42,34 @@ export async function executeHttp(
   try {
     const curlArgs: string[] = [];
 
-    if (method !== "GET") curlArgs.push(`-X ${method}`);
+    if (method !== "GET") curlArgs.push("-X", method);
 
     for (const [key, value] of Object.entries(headers)) {
-      curlArgs.push(`-H '${key}: ${value}'`);
+      curlArgs.push("-H", `${key}: ${value}`);
     }
 
+    let tempFilePath: string | null = null;
     if (body && ["POST", "PUT", "PATCH"].includes(method)) {
       const bodyStr = typeof body === "string" ? body : JSON.stringify(body);
-      const tempFile = `/tmp/curl-data-${Date.now()}.json`;
-      const fs = await import("node:fs/promises");
-      await fs.writeFile(tempFile, bodyStr, "utf-8");
-      curlArgs.push(`--data @${tempFile}`);
+      // Create a temporary file
+      tempFilePath = `${tmpdir()}/curl-data-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`;
+      await fs.writeFile(tempFilePath, bodyStr, "utf8");
+      curlArgs.push("--data", `@${tempFilePath}`);
     }
 
-    curlArgs.push(`--max-time ${timeout}`);
+    curlArgs.push("--max-time", String(timeout));
 
     if (insecure) curlArgs.push("-k");
-    if (user) curlArgs.push(`-u ${user}`);
+    if (user) curlArgs.push("-u", user);
     if (verbose) curlArgs.push("-v");
 
-    curlArgs.push(`'${url}'`);
+    curlArgs.push(url);
 
-    const cmd = `curl ${curlArgs.join(" ")}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal });
+    const result = await ctx!.exec("curl", curlArgs, { cwd, signal });
 
     // Cleanup temp file if created
-    if (body && ["POST", "PUT", "PATCH"].includes(method)) {
-      try {
-        const tempFileMatch = result.stdout.match(/--data @(\S+)/);
-        if (tempFileMatch) {
-          await import("node:fs/promises").then((fs) => fs.unlink(tempFileMatch[1]).catch(() => {}));
-        }
-      } catch {}
+    if (tempFilePath) {
+      try { await fs.unlink(tempFilePath); } catch (e) {}
     }
 
     return {

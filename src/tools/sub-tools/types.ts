@@ -40,6 +40,10 @@ export interface SubToolDefinition {
   renderCall?: any;
   renderResult?: any;
   renderShell?: "self" | "child";
+  /** If true, this tool can execute arbitrary commands and should be treated with caution */
+  dangerous?: boolean;
+  /** If true, this tool should use safe execution (direct spawn, not bash -c) */
+  safeExecute?: boolean;
 }
 
 /**

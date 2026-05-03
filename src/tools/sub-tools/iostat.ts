@@ -13,17 +13,19 @@ export async function executeIostat(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { interval = 1, count = 1, devices = "", timeout } = args as {
+  const { interval = 1, count = 1, devices = "", timeout = 30000 } = args as {
     interval?: number;
     count?: number;
     devices?: string;
     timeout?: number;
   };
   try {
-    let cmd = `iostat`;
-    if (devices) cmd += ` ${devices}`;
-    cmd += ` ${interval} ${count}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const iostatArgs: string[] = [];
+    if (devices) {
+      iostatArgs.push(...devices.trim().split(/\\s+/));
+    }
+    iostatArgs.push(String(interval), String(count));
+    const result = await ctx!.exec("iostat", iostatArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, interval, count, devices },

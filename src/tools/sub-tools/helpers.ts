@@ -8,6 +8,25 @@ import { subToolNames, type SubToolMap, type SubToolName } from "./types.js";
 // Core tools from @mariozechner/pi-coding-agent
 const coreToolNames = new Set<string>(["bash", "ls", "find", "grep", "read", "edit", "write", "get_schema"]);
 
+// List of dangerous tools that can execute arbitrary commands or access sensitive resources
+export const DANGEROUS_TOOLS = new Set<string>([
+  // Shell & remote execution
+  "bash", "sh", "zsh", "fish",
+  "ssh", "scp", "sftp", "ftp", "smbclient",
+  // System management
+  "docker", "docker-compose", "podman", "kubectl", "kubectl-apply",
+  "k8s", "helm", "oc", "nomad", "vagrant", "virsh", "qemu", "lxc",
+  "chroot", "systemd-nspawn",
+  "systemctl", "iptables", "nft", "lvm",
+  "crontab", "at",
+  // Process management
+  "kill", "pkill", "pkexec", "sudo", "su",
+  // Databases
+  "mysql", "psql", "sqlite3", "mongodb", "redis",
+  // Potential destructive operations
+  "update", "backup",
+]);
+
 /**
  * Cached tool definitions per working directory
  */
@@ -21,10 +40,6 @@ export function getToolMap(cwd: string): SubToolMap {
   if (toolCache.has(cwd)) return toolCache.get(cwd)!;
 
   const tools: SubToolMap = {};
-
-  // Dynamically add custom sub-tools from ./sub-tools/index
-  // Note: Core tools (bash, ls, etc.) are added separately in subtool-loader.ts
-  // This function adds the custom sub-tools from ./sub-tools/
 
   for (const name of subToolNames) {
     if (coreToolNames.has(name)) continue; // Skip core tools
@@ -41,6 +56,10 @@ export function getToolMap(cwd: string): SubToolMap {
         description: `${name} tool`,
         parameters: schema,
         execute,
+        // Mark as dangerous if it's in the dangerous list
+        dangerous: DANGEROUS_TOOLS.has(name),
+        // Default safeExecute to false (most tools use bash -c currently)
+        safeExecute: false,
       };
     }
   }

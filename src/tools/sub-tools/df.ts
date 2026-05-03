@@ -12,16 +12,15 @@ export async function executeDf(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { human = true, path, timeout } = args as {
+  const { human = true, path, timeout = 10000 } = args as {
     human?: boolean;
     path?: string;
     timeout?: number;
   };
   try {
-    let cmd = "df";
-    if (human) cmd += " -h";
-    if (path) cmd += ` ${path}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const dfArgs = human ? ["-h"] : [];
+    if (path) dfArgs.push(path);
+    const result = await ctx!.exec("df", dfArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, human },

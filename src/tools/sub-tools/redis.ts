@@ -12,10 +12,10 @@ export async function executeRedis(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 30000 } = args as { command: string; timeout?: number };
   try {
-    const cmd = command ? `redis-cli ${command}` : `redis-cli`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const redisArgs = command ? command.split(/ \\s+/) : [];
+    const result = await ctx!.exec("redis-cli", redisArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed },

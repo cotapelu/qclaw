@@ -1,120 +1,115 @@
-/**
- * archive (tar/gzip/bzip2) sub-tool for archive operations
- */
+import { Type } from "typebox";
 
-export const archiveSchema = {
-	name: "archive",
-	description: "Create and extract archives using tar, gzip, bzip2",
-	parameters: {
-		type: "object",
-		properties: {
-			command: {
-				type: "string",
-				description: "The full archive command to execute"
-			},
-			tool: {
-				type: "string",
-				description: "Which tool: 'tar', 'gzip', 'bzip2'"
-			},
-			files: {
-				type: "string",
-				description: "Files or directories to archive (space separated)"
-			},
-			archive: {
-				type: "string",
-				description: "Archive file name"
-			},
-			extract: {
-				type: "string",
-				description: "Archive file to extract"
-			},
-			output_dir: {
-				type: "string",
-				description: "Output directory for extraction"
-			},
-			compress: {
-				type: "string",
-				description: "Compression: gzip, bzip2, xz, none"
-			},
-			list: {
-				type: "boolean",
-				description: "List archive contents"
-			},
-			verbose: {
-				type: "boolean",
-				description: "Verbose output"
-			},
-			version: {
-				type: "boolean",
-				description: "Show version"
-			}
-		},
-		required: ["command"]
-	}
-};
+export const archiveSchema = Type.Object({
+  command: Type.Optional(Type.String()),
+  tool: Type.Optional(Type.Enum(["tar", "gzip", "bzip2"])),
+  files: Type.Optional(Type.String()),
+  archive: Type.Optional(Type.String()),
+  extract: Type.Optional(Type.String()),
+  output_dir: Type.Optional(Type.String()),
+  compress: Type.Optional(Type.Enum(["gzip", "bzip2", "xz", "none"])),
+  list: Type.Optional(Type.Boolean()),
+  verbose: Type.Optional(Type.Boolean()),
+  version: Type.Optional(Type.Boolean()),
+});
 
-export async function executeArchive(args: { command?: string; tool?: string; files?: string; archive?: string; extract?: string; output_dir?: string; compress?: string; list?: boolean; verbose?: boolean; version?: boolean }): Promise<string> {
-	const { command, tool, files, archive, extract, output_dir, compress: compressArg, list, verbose, version } = args;
-	let compress = compressArg;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "echo '=== tar ===' && tar --version 2>&1 | head -1; echo '=== gzip ===' && gzip --version 2>&1 | head -1; echo '=== bzip2 ===' && bzip2 --version 2>&1 | head -1";
-	} else if (command) {
-		cmd = command;
-	} else if (extract) {
-		// Extract mode
-		const selectedTool = tool || "tar";
-		
-		if (selectedTool === "tar") {
-			cmd = "tar";
-			if (output_dir) cmd += ` -C ${output_dir}`;
-			if (verbose) cmd += " -v";
-			cmd += ` -xf '${extract}'`;
-		} else if (selectedTool === "gzip") {
-			cmd = `gunzip ${verbose ? '-v' : ''} '${extract}'`;
-		} else if (selectedTool === "bzip2") {
-			cmd = `bunzip2 ${verbose ? '-v' : ''} '${extract}'`;
-		}
-	} else if (archive || files) {
-		// Create mode
-		const selectedTool = tool || "tar";
-		
-		if (selectedTool === "tar") {
-			cmd = "tar";
-			
-			if (!compress) compress = "gzip";
-			
-			if (compress === "gzip") cmd += " -czf";
-			else if (compress === "bzip2") cmd += " -cjf";
-			else if (compress === "xz") cmd += " -cJf";
-			else cmd += " -cf";  // no compression
-			
-			if (verbose) cmd += "v";
-			
-			const archiveName = archive || "archive.tar" + (compress === "gzip" ? ".gz" : compress === "bzip2" ? ".bz2" : compress === "xz" ? ".xz" : "");
-			cmd += ` ${archiveName}`;
-			cmd += ` ${files || "."}`;
-		} else if (selectedTool === "gzip") {
-			cmd = `gzip ${verbose ? '-v' : ''} ${files || ''}`;
-		} else if (selectedTool === "bzip2") {
-			cmd = `bzip2 ${verbose ? '-v' : ''} ${files || ''}`;
-		}
-	} else if (list) {
-		cmd = `tar -tf '${archive || extract || 'archive.tar'}'`;
-	} else {
-		return "Error: Please provide files to archive or archive to extract. Use --version to see versions.";
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 120000 });
-		return stdout || stderr;
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeArchive(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, tool, files, archive, extract, output_dir, compress, list, verbose, version } = args;
+  const timeout = 180000;
+
+  try {
+    if (command) {
+      const result = await ctx!.exec("bash", ["-c", command], { cwd, signal, timeout });
+      return { content: [{ type: "text", text: result.stdout || result.stderr }], details: { exitCode: result.code, killed: result.killed }, isError: result.code !== 0 } as const;
+    }
+
+    if (version) {
+      const [tarV, gzipV, bzip2V] = await Promise.all([
+        ctx!.exec("tar", ["--version"], { cwd, signal, timeout: 10000 }).catch(() => ({ stdout: "", stderr: "tar not found", code: 1 })),
+        ctx!.exec("gzip", ["--version"], { cwd, signal, timeout: 10000 }).catch(() => ({ stdout: "", stderr: "gzip not found", code: 1 })),
+        ctx!.exec("bzip2", ["--version"], { cwd, signal, timeout: 10000 }).catch(() => ({ stdout: "", stderr: "bzip2 not found", code: 1 })),
+      ]);
+      const combined = `=== tar ===\n${tarV.stdout || tarV.stderr}\n=== gzip ===\n${gzipV.stdout || gzipV.stderr}\n=== bzip2 ===\n${bzip2V.stdout || bzip2V.stderr}`;
+      return { content: [{ type: "text", text: combined }], details: {}, isError: false } as const;
+    }
+
+    if (list) {
+      const archiveFile = archive || extract || "archive.tar";
+      const result = await ctx!.exec("tar", ["-tf", archiveFile], { cwd, signal, timeout });
+      return { content: [{ type: "text", text: result.stdout || result.stderr }], details: { exitCode: result.code, killed: result.killed, mode: "list", archive: archiveFile }, isError: result.code !== 0 } as const;
+    }
+
+    if (extract) {
+      const selectedTool = tool || "tar";
+      if (selectedTool === "tar") {
+        const tarArgs: string[] = [];
+        if (output_dir) tarArgs.push("-C", output_dir);
+        if (verbose) tarArgs.push("-v");
+        tarArgs.push("-xf", extract);
+        const result = await ctx!.exec("tar", tarArgs, { cwd, signal, timeout });
+        return { content: [{ type: "text", text: result.stdout || result.stderr }], details: { exitCode: result.code, killed: result.killed, mode: "extract", tool: "tar", extract }, isError: result.code !== 0 } as const;
+      } else if (selectedTool === "gzip") {
+        const args: string[] = [];
+        if (verbose) args.push("-v");
+        args.push("-d", extract);
+        const result = await ctx!.exec("gunzip", args, { cwd, signal, timeout });
+        return { content: [{ type: "text", text: result.stdout || result.stderr }], details: { exitCode: result.code, killed: result.killed, mode: "extract", tool: "gzip", extract }, isError: result.code !== 0 } as const;
+      } else if (selectedTool === "bzip2") {
+        const args: string[] = [];
+        if (verbose) args.push("-v");
+        args.push("-d", extract);
+        const result = await ctx!.exec("bunzip2", args, { cwd, signal, timeout });
+        return { content: [{ type: "text", text: result.stdout || result.stderr }], details: { exitCode: result.code, killed: result.killed, mode: "extract", tool: "bzip2", extract }, isError: result.code !== 0 } as const;
+      } else {
+        return { content: [{ type: "text", text: `Unsupported tool for extraction: ${selectedTool}` }], details: undefined, isError: true } as const;
+      }
+    }
+
+    if (archive || files) {
+      const selectedTool = tool || "tar";
+      const compressType = compress || "gzip";
+
+      if (selectedTool === "tar") {
+        const tarArgs: string[] = ["-c"];
+        if (compressType === "gzip") tarArgs.push("-z");
+        else if (compressType === "bzip2") tarArgs.push("-j");
+        else if (compressType === "xz") tarArgs.push("-J");
+        if (verbose) tarArgs.push("-v");
+        const archiveName = archive || "archive.tar" + (compressType === "gzip" ? ".gz" : compressType === "bzip2" ? ".bz2" : compressType === "xz" ? ".xz" : "");
+        tarArgs.push("-f", archiveName);
+        if (files) {
+          tarArgs.push(...files.trim().split(/\s+/));
+        } else {
+          tarArgs.push(".");
+        }
+        const result = await ctx!.exec("tar", tarArgs, { cwd, signal, timeout });
+        return { content: [{ type: "text", text: result.stdout || result.stderr }], details: { exitCode: result.code, killed: result.killed, mode: "create", tool: "tar", archive: archiveName }, isError: result.code !== 0 } as const;
+      } else if (selectedTool === "gzip") {
+        const args: string[] = [];
+        if (verbose) args.push("-v");
+        const fileList = files ? files.trim().split(/\s+/) : ["."];
+        args.push(...fileList);
+        const result = await ctx!.exec("gzip", args, { cwd, signal, timeout });
+        return { content: [{ type: "text", text: result.stdout || result.stderr }], details: { exitCode: result.code, killed: result.killed, mode: "create", tool: "gzip", files }, isError: result.code !== 0 } as const;
+      } else if (selectedTool === "bzip2") {
+        const args: string[] = [];
+        if (verbose) args.push("-v");
+        const fileList = files ? files.trim().split(/\s+/) : ["."];
+        args.push(...fileList);
+        const result = await ctx!.exec("bzip2", args, { cwd, signal, timeout });
+        return { content: [{ type: "text", text: result.stdout || result.stderr }], details: { exitCode: result.code, killed: result.killed, mode: "create", tool: "bzip2", files }, isError: result.code !== 0 } as const;
+      } else {
+        return { content: [{ type: "text", text: `Unsupported tool for archive creation: ${selectedTool}` }], details: undefined, isError: true } as const;
+      }
+    }
+
+    return { content: [{ type: "text", text: "Error: No action specified. Use version, extract, list, or provide files/archive to create." }], details: undefined, isError: true } as const;
+  } catch (error: any) {
+    return { content: [{ type: "text", text: `archive error: ${error.message}` }], details: undefined, isError: true } as const;
+  }
 }

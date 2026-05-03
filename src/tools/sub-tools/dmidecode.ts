@@ -11,10 +11,12 @@ export async function executeDmidecode(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 30000 } = args as { command: string; timeout?: number };
   try {
-    const cmd = `dmidecode ${command}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const parts = command.trim().split(/ \\s+/);
+    const tool = parts[0];
+    const toolArgs = parts.slice(1);
+    const result = await ctx!.exec(tool, toolArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed },

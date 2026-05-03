@@ -25,7 +25,7 @@ export async function executeSs(
     udp = false,
     listening = false,
     process = false,
-    timeout,
+    timeout = 30000,
     state,
     port,
     ipv4 = false,
@@ -43,17 +43,17 @@ export async function executeSs(
     ipv6?: boolean;
   };
   try {
-    let cmd = "ss";
-    if (ipv4) cmd += " -4";
-    if (ipv6) cmd += " -6";
-    if (all) cmd += " -a";
-    if (tcp) cmd += " -t";
-    if (udp) cmd += " -u";
-    if (listening) cmd += " -l";
-    if (process) cmd += " -p";
-    if (state) cmd += ` state ${state}`;
-    if (port) cmd += ` dport = :${port} or sport = :${port}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const ssArgs: string[] = [];
+    if (ipv4) ssArgs.push("-4");
+    if (ipv6) ssArgs.push("-6");
+    if (all) ssArgs.push("-a");
+    if (tcp) ssArgs.push("-t");
+    if (udp) ssArgs.push("-u");
+    if (listening) ssArgs.push("-l");
+    if (process) ssArgs.push("-p");
+    if (state) ssArgs.push("state", state);
+    if (port) ssArgs.push(`dport = :${port} or sport = :${port}`);
+    const result = await ctx!.exec("ss", ssArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, all, tcp, udp, listening, process, state, port },

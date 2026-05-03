@@ -14,7 +14,7 @@ export async function executeCrontab(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { action, user, schedule, command, timeout } = args as {
+  const { action, user, schedule, command, timeout = 30000 } = args as {
     action: string;
     user?: string;
     schedule?: string;
@@ -22,26 +22,37 @@ export async function executeCrontab(
     timeout?: number;
   };
   try {
-    let cmd = "";
     const userPart = user ? `-u ${user}` : "";
 
     if (action === "list") {
-      cmd = `crontab ${userPart} -l`;
+      const result = await ctx!.exec("crontab", [userPart, "-l"].filter(Boolean) as string[], { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed, action, user },
+        isError: result.code !== 0,
+      } as const;
     } else if (action === "add" && schedule && command) {
-      const newEntry = `${schedule} ${command}`;
-      cmd = `(crontab ${userPart} -l 2>/dev/null; echo "${newEntry}") | crontab ${userPart} -`;
+      // Need bash for pipeline and subshell
+      const newEntry = `${schedule} ${command}`.replace(/"/g, '\"');
+      const cmd = `(crontab ${userPart} -l 2>/dev/null; echo "${newEntry}") | crontab ${userPart} -`;
+      const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed, action, user },
+        isError: result.code !== 0,
+      } as const;
     } else if (action === "remove" && command) {
-      cmd = `crontab ${userPart} -l 2>/dev/null | grep -v "${command}" | crontab ${userPart} -`;
+      const escapedCommand = command.replace(/"/g, '\"');
+      const cmd = `crontab ${userPart} -l 2>/dev/null | grep -v "${escapedCommand}" | crontab ${userPart} -`;
+      const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed, action, user },
+        isError: result.code !== 0,
+      } as const;
     } else {
       return { content: [{ type: "text", text: `Invalid action or missing params` }], details: undefined, isError: true } as const;
     }
-
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
-    return {
-      content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed, action, user },
-      isError: result.code !== 0,
-    } as const;
   } catch (error: any) {
     return { content: [{ type: "text", text: `crontab error: ${error.message}` }], details: undefined, isError: true } as const;
   }

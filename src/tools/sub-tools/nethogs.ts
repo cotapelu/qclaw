@@ -1,81 +1,48 @@
-/**
- * Nethogs sub-tool for per-process network traffic monitoring
- */
+import { Type } from "typebox";
 
-export const nethogsSchema = {
-	name: "nethogs",
-	description: "Monitor per-process network traffic using nethogs",
-	parameters: {
-		type: "object",
-		properties: {
-			command: {
-				type: "string",
-				description: "The full nethogs command to execute"
-			},
-			interface: {
-				type: "string",
-				description: "Network interface to monitor (e.g., eth0, wlan0)"
-			},
-			refresh: {
-				type: "number",
-				description: "Refresh rate in seconds"
-			},
-			version: {
-				type: "boolean",
-				description: "Show nethogs version"
-			},
-			help: {
-				type: "boolean",
-				description: "Show help information"
-			},
-			monitor_mode: {
-				type: "boolean",
-				description: "Monitor mode - show all processes"
-			}
-		},
-		required: ["command"]
-	}
-};
+export const nethogsSchema = Type.Object({
+  command: Type.Optional(Type.String()),
+  interface: Type.Optional(Type.String()),
+  refresh: Type.Optional(Type.Number()),
+  version: Type.Optional(Type.Boolean()),
+  help: Type.Optional(Type.Boolean()),
+  monitor_mode: Type.Optional(Type.Boolean()),
+});
 
-export async function executeNethogs(args: { command?: string; interface?: string; refresh?: number; version?: boolean; help?: boolean; monitor_mode?: boolean }): Promise<string> {
-	const { command, interface: iface, refresh, version, help, monitor_mode } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "nethogs -V 2>&1 || echo 'nethogs version info not available'";
-	} else if (help) {
-		cmd = "nethogs -h 2>&1 || echo 'nethogs help not available'";
-	} else if (command) {
-		cmd = command;
-	} else {
-		// Build nethogs command
-		cmd = "nethogs";
-		
-		if (iface) {
-			cmd += ` -d ${refresh || 5} ${iface}`;  // delay + interface
-		} else if (refresh) {
-			cmd += ` -d ${refresh}`;
-		} else {
-			cmd += " -d 3";  // default 3 second refresh
-		}
-		
-		if (monitor_mode) {
-			cmd += " -m";  // monitor mode
-		}
-		
-		// Run with limited output for non-interactive use
-		cmd += " 2>&1 | head -30";
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 15000 });
-		return stdout || stderr || "nethogs may require root privileges";
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeNethogs(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, interface: iface, refresh, version, help, monitor_mode } = args;
+  const timeout = 15000;
+  try {
+    if (version) {
+      const result = await ctx!.exec("nethogs", ["-V"], { cwd, signal, timeout }).catch(() => ({ stdout: "", stderr: "nethogs not found" }));
+      return result.stdout || result.stderr;
+    }
+
+    if (help) {
+      const result = await ctx!.exec("nethogs", ["-h"], { cwd, signal, timeout }).catch(() => ({ stdout: "", stderr: "nethogs help not available" }));
+      return (result.stdout || result.stderr).split('\n').slice(0,30).join('\n');
+    }
+
+    if (command) {
+      const cmdArgs = command.trim().split(/\s+/);
+      const result = await ctx!.exec(cmdArgs[0], cmdArgs.slice(1), { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    const nethogsArgs: string[] = [];
+    nethogsArgs.push("-d", String(refresh || 3));
+    if (iface) nethogsArgs.push(iface);
+    if (monitor_mode) nethogsArgs.push("-m");
+
+    const result = await ctx!.exec("nethogs", nethogsArgs, { cwd, signal, timeout });
+    const out = result.stdout || result.stderr;
+    return out.split('\n').slice(0, 30).join('\n');
+  } catch (error: any) {
+    return `Error: ${error.message}`;
+  }
 }

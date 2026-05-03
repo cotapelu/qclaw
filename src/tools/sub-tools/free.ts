@@ -12,16 +12,12 @@ export async function executeFree(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { human = true, total = false, timeout } = args as {
-    human?: boolean;
-    total?: boolean;
-    timeout?: number;
-  };
+  const { human = true, total = false, timeout = 10000 } = args;
   try {
-    let cmd = "free";
-    if (human) cmd += " -h";
-    if (total) cmd += " -t";
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const freeArgs: string[] = [];
+    if (human) freeArgs.push("-h");
+    if (total) freeArgs.push("-t");
+    const result = await ctx!.exec("free", freeArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, human, total },

@@ -13,13 +13,15 @@ export async function executeK8s(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout, context } = args as { command: string; timeout?: number; context?: string };
+  const { command, timeout = 60000, context } = args as { command: string; timeout?: number; context?: string };
   try {
-    const cmd = context ? `kubectl --context ${context} ${command}` : `kubectl ${command}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const kubectlArgs: string[] = [];
+    if (context) kubectlArgs.push("--context", context);
+    kubectlArgs.push(...command.trim().split(/ \\s+/));
+    const result = await ctx!.exec("kubectl", kubectlArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed },
+      details: { exitCode: result.code, killed: result.killed, context },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {

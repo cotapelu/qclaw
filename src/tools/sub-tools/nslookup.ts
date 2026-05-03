@@ -12,14 +12,14 @@ export async function executeNslookup(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { host, type = "A", timeout } = args as {
+  const { host, type = "A", timeout = 10000 } = args as {
     host: string;
     type?: string;
     timeout?: number;
   };
   try {
-    const cmd = `nslookup -type=${type} ${host}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const nslookupArgs = [`-type=${type}`, host];
+    const result = await ctx!.exec("nslookup", nslookupArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, host, type },

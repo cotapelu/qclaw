@@ -49,100 +49,105 @@ export const hgSchema = {
 	}
 };
 
-export async function executeHg(args: { command?: string; operation?: string; target?: string; url?: string; revision?: string; message?: string; branch?: string; verbose?: boolean; version?: boolean }): Promise<string> {
-	const { command, operation, target, url, revision, message, branch, verbose, version } = args;
-	
-	let cmd = "";
-	
-	if (version) {
-		cmd = "hg --version 2>&1 | head -3";
-	} else if (command) {
-		cmd = command;
-	} else if (!operation && !target && !url) {
-		return "Error: Please provide an operation (clone, pull, push, status, etc.) or use --version to see hg version.";
-	} else {
-		// Build hg command
-		cmd = "hg";
-		
-		if (verbose) cmd += " -v";
-		
-		// Add operation
-		const op = operation || "status";
-		
-		if (op === "clone") {
-			cmd += ` clone`;
-			if (revision) cmd += ` -r ${revision}`;
-			cmd += ` '${url || 'REPO_URL'}'`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "pull") {
-			cmd += ` pull`;
-			if (url) cmd += ` ${url}`;
-			if (revision) cmd += ` -r ${revision}`;
-		} else if (op === "push") {
-			cmd += ` push`;
-			if (url) cmd += ` ${url}`;
-			if (revision) cmd += ` -r ${revision}`;
-		} else if (op === "update" || op === "checkout" || op === "co") {
-			cmd += ` update`;
-			if (revision) cmd += ` -r ${revision}`;
-			if (branch) cmd += ` -b ${branch}`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "status" || op === "st") {
-			cmd += ` status`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "diff") {
-			cmd += ` diff`;
-			if (revision) cmd += ` -r ${revision}`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "log") {
-			cmd += ` log`;
-			if (revision) cmd += ` -r ${revision}`;
-			if (branch) cmd += ` -b ${branch}`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "commit" || op === "ci") {
-			cmd += ` commit`;
-			if (message) cmd += ` -m '${message}'`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "add") {
-			cmd += ` add`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "remove" || op === "rm") {
-			cmd += ` remove`;
-			cmd += ` ${target || '.'}`;
-		} else if (op === "branch") {
-			cmd += ` branch`;
-			if (branch) cmd += ` ${branch}`;
-		} else if (op === "heads") {
-			cmd += ` heads`;
-			if (branch) cmd += ` -b ${branch}`;
-		} else if (op === "tags") {
-			cmd += ` tags`;
-		} else if (op === "incoming" || op === "in") {
-			cmd += ` incoming`;
-			if (url) cmd += ` ${url}`;
-		} else if (op === "outgoing" || op === "out") {
-			cmd += ` outgoing`;
-			if (url) cmd += ` ${url}`;
-		} else if (op === "rollback") {
-			cmd += ` rollback`;
-		} else if (op === "revert") {
-			cmd += ` revert`;
-			if (revision) cmd += ` -r ${revision}`;
-			cmd += ` ${target || '.'}`;
-		} else {
-			cmd += ` ${op}`;
-			if (target) cmd += ` ${target}`;
-		}
-	}
-	
-	const { exec } = await import("child_process");
-	const { promisify } = await import("util");
-	const execAsync = promisify(exec);
-	
-	try {
-		const { stdout, stderr } = await execAsync(cmd, { timeout: 60000 });
-		return stdout || stderr;
-	} catch (error: any) {
-		return `Error: ${error.message}`;
-	}
+export async function executeHg(
+  args: any,
+  cwd: string,
+  signal?: AbortSignal,
+  ctx?: any,
+) {
+  const { command, operation, target, url, revision, message, branch, verbose, version } = args;
+  const timeout = 60000;
+  try {
+    if (version) {
+      const result = await ctx!.exec("hg", ["--version"], { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    if (command) {
+      const cmdArgs = command.trim().split(/ \\s+/);
+      const result = await ctx!.exec(cmdArgs[0], cmdArgs.slice(1), { cwd, signal, timeout });
+      return result.stdout || result.stderr;
+    }
+
+    const hgArgs: string[] = [];
+    if (verbose) hgArgs.push("-v");
+
+    const op = operation || "status";
+
+    const pushTarget = (...extra: string[]) => {
+      if (target) hgArgs.push(...extra, target);
+      else if (extra.length > 0) hgArgs.push(...extra);
+      else hgArgs.push('.');
+    };
+
+    if (op === "clone") {
+      hgArgs.push("clone");
+      if (revision) hgArgs.push("-r", revision);
+      hgArgs.push(url || 'REPO_URL');
+      pushTarget();
+    } else if (op === "pull") {
+      hgArgs.push("pull");
+      if (url) hgArgs.push(url);
+      if (revision) hgArgs.push("-r", revision);
+    } else if (op === "push") {
+      hgArgs.push("push");
+      if (url) hgArgs.push(url);
+      if (revision) hgArgs.push("-r", revision);
+    } else if (op === "update" || op === "checkout" || op === "co") {
+      hgArgs.push("update");
+      if (revision) hgArgs.push("-r", revision);
+      if (branch) hgArgs.push("-b", branch);
+      pushTarget();
+    } else if (op === "status" || op === "st") {
+      hgArgs.push("status");
+      pushTarget();
+    } else if (op === "diff") {
+      hgArgs.push("diff");
+      if (revision) hgArgs.push("-r", revision);
+      pushTarget();
+    } else if (op === "log") {
+      hgArgs.push("log");
+      if (revision) hgArgs.push("-r", revision);
+      if (branch) hgArgs.push("-b", branch);
+      pushTarget();
+    } else if (op === "commit" || op === "ci") {
+      hgArgs.push("commit");
+      if (message) hgArgs.push("-m", message);
+      pushTarget();
+    } else if (op === "add") {
+      hgArgs.push("add");
+      pushTarget();
+    } else if (op === "remove" || op === "rm") {
+      hgArgs.push("remove");
+      pushTarget();
+    } else if (op === "branch") {
+      hgArgs.push("branch");
+      if (branch) hgArgs.push(branch);
+    } else if (op === "heads") {
+      hgArgs.push("heads");
+      if (branch) hgArgs.push("-b", branch);
+    } else if (op === "tags") {
+      hgArgs.push("tags");
+    } else if (op === "incoming" || op === "in") {
+      hgArgs.push("incoming");
+      if (url) hgArgs.push(url);
+    } else if (op === "outgoing" || op === "out") {
+      hgArgs.push("outgoing");
+      if (url) hgArgs.push(url);
+    } else if (op === "rollback") {
+      hgArgs.push("rollback");
+    } else if (op === "revert") {
+      hgArgs.push("revert");
+      if (revision) hgArgs.push("-r", revision);
+      pushTarget();
+    } else {
+      hgArgs.push(op);
+      if (target) hgArgs.push(target);
+    }
+
+    const result = await ctx!.exec("hg", hgArgs, { cwd, signal, timeout });
+    return result.stdout || result.stderr;
+  } catch (error: any) {
+    return `Error: ${error.message}`;
+  }
 }

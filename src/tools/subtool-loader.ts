@@ -7,9 +7,10 @@
  */
 
 import { Type } from "typebox";
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Text } from "@mariozechner/pi-tui";
+import { getAgentDir } from "../config/config.js";
 import {
   createBashToolDefinition,
   createLsToolDefinition,
@@ -21,7 +22,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 
 import { subToolNames, type SubToolName } from "./sub-tools/types.js";
-import { getToolMap } from "./sub-tools/helpers.js";
+import { getToolMap, DANGEROUS_TOOLS } from "./sub-tools/helpers.js";
 import { renderSubtoolLoaderCall, renderSubtoolLoaderResult } from "./sub-tools/render.js";
 
 // ============================================================================
@@ -58,7 +59,15 @@ interface AuditEntry {
 }
 
 const auditLog: AuditEntry[] = [];
-const AUDIT_LOG_PATH = "./audit-subtool.json";
+let auditLogPath: string;
+
+function getAuditLogPath(): string {
+  if (!auditLogPath) {
+    const agentDir = getAgentDir();
+    auditLogPath = path.join(agentDir, "audit.log");
+  }
+  return auditLogPath;
+}
 
 function addAuditEntry(entry: Omit<AuditEntry, "timestamp">): void {
   const fullEntry: AuditEntry = {
@@ -67,11 +76,12 @@ function addAuditEntry(entry: Omit<AuditEntry, "timestamp">): void {
   };
   auditLog.push(fullEntry);
   
-  // Also append to file for persistence
+  // Also append to file for persistence (async)
   try {
     const logLine = JSON.stringify(fullEntry) + "\n";
-    fs.appendFileSync(AUDIT_LOG_PATH, logLine);
-  } catch (e) {
+    // Use async append but fire-and-forget
+    fs.promises.appendFile(getAuditLogPath(), logLine).catch(() => {});
+  } catch {
     // Silently fail if can't write - don't block execution
   }
 }
@@ -98,18 +108,6 @@ export function clearAuditLog(): void {
  * Default list of dangerous sub-tools that can be disabled
  * These tools can execute arbitrary commands or access sensitive resources
  */
-export const DANGEROUS_TOOLS = new Set([
-  "bash", "sh", "zsh", "fish",
-  "ssh", "scp", "sftp", "ftp", "smbclient",
-  "docker", "docker-compose", "podman", "kubectl", "kubectl-apply",
-  "k8s", "helm", "oc", "nomad", "vagrant", "virsh", "qemu", "lxc",
-  "chroot", "systemd-nspawn",
-  "mysql", "psql", "sqlite3", "mongodb", "redis",
-  "systemctl", "iptables", "nft", "lvm",
-  "crontab", "at",
-  "pkexec", "sudo", "su",
-]);
-
 /**
  * Configuration for sub-tool loader
  */
@@ -143,12 +141,13 @@ export function getSubToolLoaderConfig(): Readonly<SubToolLoaderConfig> {
 /**
  * Check if a tool is allowed to execute
  */
-function isToolAllowed(toolName: string): boolean {
+function isToolAllowed(toolName: string, toolDef?: any): boolean {
   if (config.disabledTools?.has(toolName)) {
     return false;
   }
   // Check if it's a dangerous tool and we're configured to disallow them
-  if (!config.allowDangerousTools && DANGEROUS_TOOLS.has(toolName as any)) {
+  const isDangerous = toolDef?.dangerous || DANGEROUS_TOOLS.has(toolName as any);
+  if (!config.allowDangerousTools && isDangerous) {
     return false;
   }
   return true;
@@ -297,10 +296,13 @@ export function createSubLoaderToolDefinition(cwd: string) {
           } as const;
         }
 
-        // Check if tool is allowed
-        if (!isToolAllowed(subtool)) {
+        // Check if tool is allowed (considering dangerous flag)
+        if (!isToolAllowed(subtool, toolDef)) {
+          const reason = toolDef.dangerous
+            ? `Tool '${subtool}' is dangerous and disabled. Set allowDangerousTools=true in SubToolLoader config to enable.`
+            : `Tool '${subtool}' is disabled.`;
           return {
-            content: [{ type: "text", text: `Tool '${subtool}' is disabled. Configure SubToolLoader to enable it.` }],
+            content: [{ type: "text", text: reason }],
             details: undefined,
             isError: true,
           } as const;

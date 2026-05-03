@@ -14,7 +14,7 @@ export async function executeTerraform(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, cwd: targetCwd, timeout, varFile, varArgs = [] } = args as {
+  const { command, cwd: targetCwd, timeout = 300000, varFile, varArgs = [] } = args as {
     command: string;
     cwd?: string;
     timeout?: number;
@@ -22,10 +22,14 @@ export async function executeTerraform(
     varArgs?: string[];
   };
   try {
-    let cmd = `terraform ${command}`;
-    if (varFile) cmd += ` -var-file ${varFile}`;
-    if (varArgs.length > 0) cmd += ` ${varArgs.map((v) => `-var '${v}'`).join(" ")}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd: targetCwd, signal, timeout });
+    const terraformArgs: string[] = [command.trim()];
+    if (varFile) {
+      terraformArgs.push("-var-file", varFile);
+    }
+    for (const v of varArgs) {
+      terraformArgs.push("-var", v);
+    }
+    const result = await ctx!.exec("terraform", terraformArgs, { cwd: targetCwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
       details: { exitCode: result.code, killed: result.killed, cwd: targetCwd },

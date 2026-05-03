@@ -12,23 +12,31 @@ export async function executePip(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 60000 } = args as { command: string; timeout?: number };
   try {
-    let cmd: string;
-    if (command.startsWith("pip ") || command.startsWith("pip2 ") || command.startsWith("pip3 ")) {
-      cmd = command;
-    } else if (command.startsWith("poetry ")) {
-      cmd = command;
-    } else if (command.startsWith("pipenv ")) {
-      cmd = command;
+    let tool: string;
+    let toolArgs: string[];
+    const trimmed = command.trim();
+    if (trimmed.startsWith("pip ") || trimmed.startsWith("pip2 ") || trimmed.startsWith("pip3 ")) {
+      const parts = trimmed.split(/ \\s+/);
+      tool = parts[0];
+      toolArgs = parts.slice(1);
+    } else if (trimmed.startsWith("poetry ")) {
+      const parts = trimmed.split(/ \\s+/);
+      tool = parts[0];
+      toolArgs = parts.slice(1);
+    } else if (trimmed.startsWith("pipenv ")) {
+      const parts = trimmed.split(/ \\s+/);
+      tool = parts[0];
+      toolArgs = parts.slice(1);
     } else {
-      // Default to pip
-      cmd = `pip ${command}`;
+      tool = "pip";
+      toolArgs = trimmed.split(/ \\s+/);
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec(tool, toolArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed },
+      details: { exitCode: result.code, killed: result.killed, tool },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {

@@ -12,21 +12,25 @@ export async function executeDotnet(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 60000 } = args as { command: string; timeout?: number };
   try {
-    let cmd: string;
-    if (command.startsWith("dotnet ") || command.startsWith("dotnet,")) {
-      cmd = command;
-    } else if (command.startsWith("msbuild")) {
-      cmd = command;
+    const trimmed = command.trim();
+    let tool: string;
+    let toolArgs: string[];
+    if (trimmed.startsWith("dotnet ") || trimmed.startsWith("dotnet,")) {
+      tool = "dotnet";
+      toolArgs = trimmed.slice(7).trim().split(/ \\s+/);
+    } else if (trimmed.startsWith("msbuild")) {
+      tool = "msbuild";
+      toolArgs = trimmed.slice(8).trim().split(/ \\s+/);
     } else {
-      // Default to dotnet
-      cmd = `dotnet ${command}`;
+      tool = "dotnet";
+      toolArgs = trimmed.split(/ \\s+/);
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec(tool, toolArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed },
+      details: { exitCode: result.code, killed: result.killed, tool },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {

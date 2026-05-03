@@ -12,29 +12,28 @@ export async function executeDockerCompose(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 60000 } = args as { command: string; timeout?: number };
   const targetCwd = cwd;
   try {
-    // Use docker compose (newer) or docker-compose (older)
-    const cmd = `docker compose ${command}`;
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd: targetCwd, signal, timeout });
-    return {
-      content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed },
-      isError: result.code !== 0,
-    } as const;
-  } catch (error: any) {
-    // Fallback to docker-compose if docker compose fails
+    const cmdArgs = command.trim().split(/ \\s+/);
+    // Try docker compose (new plugin) first
     try {
-      const cmd = `docker-compose ${command}`;
-      const result = await ctx!.exec("bash", ["-c", cmd], { cwd: targetCwd, signal, timeout });
+      const result = await ctx!.exec("docker", ["compose", ...cmdArgs], { cwd: targetCwd, signal, timeout });
       return {
         content: [{ type: "text", text: result.stdout || result.stderr }],
-        details: { exitCode: result.code, killed: result.killed },
+        details: { exitCode: result.code, killed: result.killed, method: "docker-compose" },
         isError: result.code !== 0,
       } as const;
-    } catch (err: any) {
-      return { content: [{ type: "text", text: `docker-compose error: ${err.message}` }], details: undefined, isError: true } as const;
+    } catch (e) {
+      // Fallback to docker-compose (standalone)
+      const result = await ctx!.exec("docker-compose", cmdArgs, { cwd: targetCwd, signal, timeout });
+      return {
+        content: [{ type: "text", text: result.stdout || result.stderr }],
+        details: { exitCode: result.code, killed: result.killed, method: "docker-compose" },
+        isError: result.code !== 0,
+      } as const;
     }
+  } catch (error: any) {
+    return { content: [{ type: "text", text: `docker-compose error: ${error.message}` }], details: undefined, isError: true } as const;
   }
 }

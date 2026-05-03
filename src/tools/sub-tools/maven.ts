@@ -12,23 +12,28 @@ export async function executeMaven(
   signal?: AbortSignal,
   ctx?: any,
 ) {
-  const { command, timeout } = args as { command: string; timeout?: number };
+  const { command, timeout = 300000 } = args as { command: string; timeout?: number };
   try {
-    let cmd: string;
-    if (command.startsWith("mvn ") || command.startsWith("mvn,")) {
-      cmd = command;
-    } else if (command.startsWith("gradle ")) {
-      cmd = command;
-    } else if (command.startsWith("ant ")) {
-      cmd = command;
+    const trimmed = command.trim();
+    let tool: string;
+    let toolArgs: string[];
+    if (trimmed.startsWith("mvn ") || trimmed.startsWith("mvn,")) {
+      tool = "mvn";
+      toolArgs = trimmed.slice(4).trim().split(/ \\s+/);
+    } else if (trimmed.startsWith("gradle ")) {
+      tool = "gradle";
+      toolArgs = trimmed.slice(7).trim().split(/ \\s+/);
+    } else if (trimmed.startsWith("ant ")) {
+      tool = "ant";
+      toolArgs = trimmed.slice(5).trim().split(/ \\s+/);
     } else {
-      // Default to mvn
-      cmd = `mvn ${command}`;
+      tool = "mvn";
+      toolArgs = trimmed.split(/ \\s+/);
     }
-    const result = await ctx!.exec("bash", ["-c", cmd], { cwd, signal, timeout });
+    const result = await ctx!.exec(tool, toolArgs, { cwd, signal, timeout });
     return {
       content: [{ type: "text", text: result.stdout || result.stderr }],
-      details: { exitCode: result.code, killed: result.killed },
+      details: { exitCode: result.code, killed: result.killed, tool },
       isError: result.code !== 0,
     } as const;
   } catch (error: any) {
